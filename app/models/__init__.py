@@ -56,6 +56,11 @@ class ActiveStay(Base):
     checkin_time  = Column(String, nullable=True)
     checkout_time = Column(String, nullable=True)
     hourly_rate   = Column(Float, nullable=False, default=200)
+    # BUG-A FIX: original planned checkout (set at check-in, never changed).
+    # Used as the fixed start_dt for block-ceiling calculation so multiple
+    # incremental /extend calls correctly accumulate instead of each resetting
+    # block_idx to 0.
+    original_checkout_time = Column(String, nullable=True)
 
 
 class ReportSummary(Base):

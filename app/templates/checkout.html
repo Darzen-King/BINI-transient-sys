@@ -336,7 +336,7 @@
 })();
 {% endif %}
 
-const ROOM_ID     = "{{ stay.room if stay else '' }}";
+const ROOM_ID     = "{{ selected_room_id }}";
 const TOTAL_DUE   = {{ "%.0f"|format(selected_stay.total_due)  if selected_stay else 0 }};
 const DEPOSIT_PAID= {{ "%.0f"|format(deposit_paid) }};
 const BALANCE_DUE = {{ "%.0f"|format(balance_due) }};
@@ -351,38 +351,92 @@ function checkOverdueAndConfirm() {
         _doBalanceModal();
         return;
       }
-      // Show overdue modal first
-      document.getElementById("overdueFeeInput").value = d.fee;
-      const infoEl = document.getElementById("overdueInfo");
-      infoEl.innerHTML = `
-        <div class="d-flex gap-3 flex-wrap">
-          <span>📅 {{ trans.get("label.checkout","預計退房") }}: <strong>${d.planned_co}</strong></span>
-          <span>⏱ {{ trans.get("checkout.overdue_mins","超時") }}: <strong class="text-danger">${d.minutes} {{ trans.get("label.minutes","分鐘") }}</strong></span>
-          <span>💰 {{ trans.get("checkout.system_fee","系統計算費用") }}: <strong class="text-danger">NT$ ${d.fee}</strong></span>
+      // Populate Phase-1 of the modal
+      document.getElementById("overdueMainMsg").innerHTML =
+        `已超過退房時間，將產生 <strong class="text-danger fs-5">NT$ ${d.fee}</strong> 的延住費用，確認嗎？`;
+      document.getElementById("overdueInfo").innerHTML = `
+        <div class="d-flex gap-2 flex-wrap">
+          <span class="badge bg-secondary">📅 預計退房：${d.planned_co}</span>
+          <span class="badge bg-danger">⏱ 超時：${d.minutes} 分鐘</span>
         </div>`;
+      // Seed correction input with system-calculated hours
+      document.getElementById("correctionHoursInput").value =
+        Math.round((d.ext_hours || 0) * 10) / 10;
+      document.getElementById("correctionBaseCo").textContent = d.planned_co;
+      document.getElementById("correctionFeePreview").textContent = "NT$ " + d.fee;
+
+      // Always start in phase-1
+      _showOverduePhase(1);
       new bootstrap.Modal(document.getElementById("overdueModal")).show();
     })
     .catch(() => { _doBalanceModal(); });
 }
 
-function confirmOverdue(feeOverride) {
-  const fee = (feeOverride === 0) ? 0 :
-              (feeOverride === null) ? document.getElementById("overdueFeeInput").value :
-              feeOverride;
-  document.getElementById("overrideFeeInput").value = fee;
+function _showOverduePhase(n) {
+  document.getElementById("overduePhase1").style.display  = (n === 1) ? "" : "none";
+  document.getElementById("overduePhase2").style.display  = (n === 2) ? "" : "none";
+  document.getElementById("overdueFooter1").style.display = (n === 1) ? "" : "none";
+  document.getElementById("overdueFooter2").style.display = (n === 2) ? "" : "none";
+}
+
+// "確認" — apply the system-calculated fee (leave override empty → backend recalculates)
+function confirmOverdue() {
+  document.getElementById("overrideFeeInput").value = "";
   bootstrap.Modal.getInstance(document.getElementById("overdueModal"))?.hide();
-  // After handling overdue, show balance reminder
   _doBalanceModal();
+}
+
+// "修正" — switch to hours-input panel
+function switchToCorrection() {
+  _showOverduePhase(2);
+  updateCorrectionPreview();
+}
+
+// Back to phase-1
+function backToOverdueInfo() {
+  _showOverduePhase(1);
+}
+
+// Live preview as staff types correction hours
+let _corrPreviewTimer = null;
+function updateCorrectionPreview() {
+  clearTimeout(_corrPreviewTimer);
+  _corrPreviewTimer = setTimeout(function() {
+    if (!ROOM_ID) return;
+    const hrs = parseFloat(document.getElementById("correctionHoursInput").value) || 0;
+    fetch(`/api/overdue-correction-preview/${ROOM_ID}?correction_hours=${hrs}`)
+      .then(r => r.json())
+      .then(d => {
+        document.getElementById("correctionFeePreview").textContent = "NT$ " + d.fee;
+      })
+      .catch(() => {});
+  }, 300);
+}
+
+// "套用修正" — fetch final incremental fee then submit
+function applyCorrection() {
+  if (!ROOM_ID) return;
+  const hrs = parseFloat(document.getElementById("correctionHoursInput").value) || 0;
+  fetch(`/api/overdue-correction-preview/${ROOM_ID}?correction_hours=${hrs}`)
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById("overrideFeeInput").value = d.fee;
+      bootstrap.Modal.getInstance(document.getElementById("overdueModal"))?.hide();
+      _doBalanceModal();
+    })
+    .catch(() => {
+      document.getElementById("overrideFeeInput").value = 0;
+      bootstrap.Modal.getInstance(document.getElementById("overdueModal"))?.hide();
+      _doBalanceModal();
+    });
 }
 
 function _doBalanceModal() {
   const bal = parseFloat(BALANCE_DUE) || 0;
   if (bal <= 0) {
-    // Already settled — submit directly
     document.querySelector("form[action='/checkout']").submit();
     return;
   }
-  // Show balance collection reminder
   const balEl = document.getElementById("balanceReminderAmt");
   const totEl = document.getElementById("balanceReminderTotal");
   const depEl = document.getElementById("balanceReminderDeposit");
@@ -399,38 +453,70 @@ function confirmCheckoutWithBalance() {
 </script>
 
 <!-- Overdue confirmation modal -->
-<div class="modal fade" id="overdueModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="overdueModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content rounded-3 border-danger border-2">
+
       <div class="modal-header bg-danger text-white">
         <h5 class="modal-title fw-bold">⏱ {{ trans.get("checkout.overdue_title","超時退房確認") }}</h5>
       </div>
+
       <div class="modal-body">
-        <div class="alert alert-warning mb-3">
-          <strong>{{ trans.get("checkout.overdue_notice","請確認：") }}</strong>
-          {{ trans.get("checkout.overdue_desc","房客確實延住，還是服務人員忘了做退房動作？") }}
-        </div>
-        <div class="mb-3" id="overdueInfo" style="font-size:.88rem"></div>
-        <div class="mb-3">
-          <label class="form-label fw-semibold">{{ trans.get("checkout.overdue_fee_label","延住費用（可調整）") }}</label>
-          <input type="number" id="overdueFeeInput" class="form-control fw-bold text-danger"
-                 min="0" step="100">
-          <div class="text-muted mt-1" style="font-size:.78rem">
-            {{ trans.get("checkout.overdue_fee_hint","如果是服務人員忘了退房，可將金額改為 0") }}
+
+        <!-- Phase 1: system-calculated fee + confirm/correct choice -->
+        <div id="overduePhase1">
+          <div class="alert alert-danger mb-3 py-3 text-center" id="overdueMainMsg"
+               style="font-size:1rem;line-height:1.6"></div>
+          <div id="overdueInfo" class="mb-2" style="font-size:.88rem"></div>
+          <div class="text-muted mt-2" style="font-size:.78rem">
+            {{ trans.get("checkout.overdue_desc","房客確實延住請按「確認」；若是服務人員忘了退房，請按「修正」輸入實際超時時間。") }}
           </div>
         </div>
-      </div>
-      <div class="modal-footer gap-2">
+
+        <!-- Phase 2: correction hours input -->
+        <div id="overduePhase2" style="display:none">
+          <div class="alert alert-info mb-3 py-2" style="font-size:.88rem">
+            <strong>請輸入實際超時時間</strong>（從預定退房時間 <strong id="correctionBaseCo"></strong> 起算）<br>
+            <span class="text-muted">輸入 0 表示未超時（服務人員忘了退房）</span>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">
+              {{ trans.get("checkout.correction_hours_label","超時時間（小時）") }}
+            </label>
+            <input type="number" id="correctionHoursInput" class="form-control form-control-lg fw-bold"
+                   min="0" step="0.5" oninput="updateCorrectionPreview()">
+          </div>
+          <div class="rounded-2 p-3" style="background:#fef2f2;font-size:.95rem">
+            <span class="text-muted">{{ trans.get("checkout.correction_fee_preview","調整後延住費用") }}：</span>
+            <strong id="correctionFeePreview" class="text-danger fs-5"></strong>
+          </div>
+        </div>
+
+      </div><!-- /modal-body -->
+
+      <!-- Footer 1: confirm / correct -->
+      <div class="modal-footer gap-2" id="overdueFooter1">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
           {{ trans.get("auth.cancel","取消") }}
         </button>
-        <button type="button" class="btn btn-warning" onclick="confirmOverdue(0)">
-          {{ trans.get("checkout.overdue_forgot","忘了退房（$0）") }}
+        <button type="button" class="btn btn-outline-warning px-4" onclick="switchToCorrection()">
+          ✏️ {{ trans.get("checkout.overdue_correct_btn","修正") }}
         </button>
-        <button type="button" class="btn btn-danger fw-bold" onclick="confirmOverdue(null)">
-          {{ trans.get("checkout.overdue_confirm","確認延住，套用費用") }}
+        <button type="button" class="btn btn-danger fw-bold px-4" onclick="confirmOverdue()">
+          ✅ {{ trans.get("checkout.overdue_confirm","確認") }}
         </button>
       </div>
+
+      <!-- Footer 2: back / apply correction -->
+      <div class="modal-footer gap-2" id="overdueFooter2" style="display:none">
+        <button type="button" class="btn btn-outline-secondary" onclick="backToOverdueInfo()">
+          ← {{ trans.get("label.back","返回") }}
+        </button>
+        <button type="button" class="btn btn-warning fw-bold px-4" onclick="applyCorrection()">
+          ✅ {{ trans.get("checkout.correction_apply","套用修正，確認退房") }}
+        </button>
+      </div>
+
     </div>
   </div>
 </div>

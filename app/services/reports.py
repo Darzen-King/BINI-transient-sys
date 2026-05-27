@@ -176,19 +176,11 @@ def compute_report(
     seed         = db.query(ReportSummary).first()
 
     # ── revenue ───────────────────────────────────────────────────────
-    # 精準計算：StayLog（已退房完成）+ 押金（已收）
-    staylog_revenue  = sum(sl.total_charged for sl in stay_logs_range)
-
-    # Deposit payments in date range
-    from app.models import Payment as _Pay
-    deposits_range = [
-        pay for pay in db.query(_Pay).all()
-        if pay.is_deposit == 1 and not pay.is_refund
-        and _in_range(pay.created_at, date_from, date_to)
-    ]
-    deposit_revenue = sum(float(d.amount or 0) for d in deposits_range)
-
-    range_revenue    = staylog_revenue + deposit_revenue
+    # BUG-B FIX: StayLog.total_charged already = full amount (base + ext + extra).
+    # Adding deposit payments on top double-counts for same-period checkin+checkout.
+    # range_revenue = staylog only; active-stay deposits surface via live_revenue.
+    staylog_revenue = sum(sl.total_charged for sl in stay_logs_range)
+    range_revenue   = staylog_revenue
 
     # Keep booking_revenue for backward compat (used in daily chart)
     booking_revenue  = sum(b.amount for b in active_bookings)

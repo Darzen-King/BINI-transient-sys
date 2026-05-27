@@ -12,6 +12,7 @@ Transfer-room rule:
   - New room will be counted when it eventually checks out.
   - Conflict check is enforced before transfer.
 """
+import math
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from app.models import ActiveStay, Room, Booking, ReportSummary, StayLog
@@ -156,16 +157,17 @@ def checkin_guest(
         db.flush()
 
     stay = ActiveStay(
-        room          = room_id,
-        guest         = guest,
-        plan          = plan,
-        base_rent     = base_rent,
-        extension_fee = 0.0,
-        extra_fee     = 0.0,
-        total_due     = base_rent,
-        checkin_time  = ci,
-        checkout_time = checkout_time,
-        hourly_rate   = hourly_rate,
+        room                   = room_id,
+        guest                  = guest,
+        plan                   = plan,
+        base_rent              = base_rent,
+        extension_fee          = 0.0,
+        extra_fee              = 0.0,
+        total_due              = base_rent,
+        checkin_time           = ci,
+        checkout_time          = checkout_time,
+        original_checkout_time = checkout_time,   # BUG-A FIX: freeze original planned CO
+        hourly_rate            = hourly_rate,
     )
     db.add(stay)
 
@@ -194,17 +196,36 @@ def extend_stay(
     if not stay or not room:
         return None, "error.stay_not_found"
 
-    start_str = stay.checkout_time or room.checkout
+    # BUG-A FIX: use original_checkout_time as the fixed start for block-ceiling.
+    # Each incremental /extend call computes the TOTAL accumulated extension from
+    # the original planned checkout and sets extension_fee = total (not +=).
+    # This prevents multiple calls from each resetting block_idx to 0 and
+    # overcharging (e.g. two 12hr extends: 800 + 800 = 1600 vs correct 800 + 200).
+    orig_co_str = stay.original_checkout_time or stay.checkout_time or room.checkout
     try:
-        start_dt = _parse(start_str) if start_str else _now()
+        orig_co_dt = _parse(orig_co_str) if orig_co_str else _now()
     except Exception:
-        start_dt = _now()
+        orig_co_dt = _now()
 
-    fee, _ = calc_extension_fee(extension_hours, start_dt)
-    stay.extension_fee += fee
+    # Extension starts from the current planned checkout
+    current_co_str = stay.checkout_time or room.checkout
+    try:
+        current_co_dt = _parse(current_co_str) if current_co_str else orig_co_dt
+    except Exception:
+        current_co_dt = orig_co_dt
+
+    # New checkout after adding this increment
+    new_co_dt = current_co_dt + timedelta(hours=extension_hours)
+
+    # Total cumulative extension hours from the original checkout
+    total_ext_hours = (new_co_dt - orig_co_dt).total_seconds() / 3600
+
+    # Compute fee for ALL accumulated extension hours — SET (not +=)
+    total_fee, _ = calc_extension_fee(max(0, total_ext_hours), orig_co_dt)
+    stay.extension_fee = total_fee
     stay.total_due = stay.base_rent + stay.extension_fee + stay.extra_fee
 
-    new_co = _fmt(start_dt + timedelta(hours=extension_hours))
+    new_co = _fmt(new_co_dt)
     room.checkout      = new_co
     stay.checkout_time = new_co
 
@@ -253,13 +274,18 @@ def checkout_guest(
             over_buffer_mins = (actual_co - buffer_end).total_seconds() / 60
 
             if actual_co > buffer_end:
-                # Guest exceeded buffer — calculate fee FROM planned_co (not buffer_end)
-                auto_ext_fee = _calc_extension_fee_simple(
-                    stay.checkout_time,       # fee starts from planned checkout
-                    _fmt(actual_co),          # to actual checkout time
-                    stay.hourly_rate,
-                )
-                # Staff override: use their adjusted value
+                # BUG-A FIX: compute overdue fee cumulatively from original_checkout_time
+                # so manual extensions + auto-overdue use the same block-ceiling chain.
+                orig_co_str = stay.original_checkout_time or stay.checkout_time
+                orig_co_dt  = _parse(orig_co_str)
+                total_secs  = (actual_co - orig_co_dt).total_seconds()
+                total_half_hrs = math.ceil(total_secs / 1800)
+                total_ext_hours = total_half_hrs * 0.5
+                total_fee, _    = calc_extension_fee(max(0, total_ext_hours), orig_co_dt)
+                # Incremental overdue = total_fee minus manually-accumulated ext fee
+                auto_ext_fee = max(0.0, total_fee - stay.extension_fee)
+
+                # Staff override: use their adjusted value (from correction modal)
                 if override_ext_fee is not None:
                     auto_ext_fee = float(override_ext_fee)
 
@@ -356,16 +382,17 @@ def transfer_room(
 
     # Create new stay with all inherited data
     new_stay = ActiveStay(
-        room          = new_room_id,
-        guest         = old_stay.guest,
-        plan          = old_stay.plan,
-        base_rent     = old_stay.base_rent,
-        extension_fee = old_stay.extension_fee,
-        extra_fee     = old_stay.extra_fee,
-        total_due     = old_stay.total_due,
-        checkin_time  = old_stay.checkin_time,
-        checkout_time = old_stay.checkout_time,
-        hourly_rate   = old_stay.hourly_rate,
+        room                   = new_room_id,
+        guest                  = old_stay.guest,
+        plan                   = old_stay.plan,
+        base_rent              = old_stay.base_rent,
+        extension_fee          = old_stay.extension_fee,
+        extra_fee              = old_stay.extra_fee,
+        total_due              = old_stay.total_due,
+        checkin_time           = old_stay.checkin_time,
+        checkout_time          = old_stay.checkout_time,
+        original_checkout_time = old_stay.original_checkout_time,  # BUG-A: carry over
+        hourly_rate            = old_stay.hourly_rate,
     )
     db.add(new_stay)
 

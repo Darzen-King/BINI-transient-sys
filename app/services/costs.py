@@ -143,30 +143,22 @@ def monthly_pnl(
     date_to   = f"{year_month}-31"
 
     # ── Revenue ──────────────────────────────────────────────────────────────
-    # 精準計算：只算實際已完成的金額
-    #   1. StayLog.total_charged  — 已退房完成的住宿費（含延住）
-    #   2. Payment.is_deposit=1   — 已收押金（本月入住）
-    # 排除：預約未入住、尚在入住中，確保只計算已實際發生的收入
+    # BUG-B FIX: count only StayLog.total_charged for completed stays.
+    # StayLog.total_charged already = full amount (base + ext + extra), which
+    # encompasses any deposit collected for that stay. Adding deposit payments
+    # on top double-counts for stays that check in and out in the same month.
+    # For active stays (not yet checked out), their value surfaces via
+    # live_revenue in the reports page — not captured here.
     revenue = 0.0
     try:
         from app.models import StayLog
 
-        # ① 已退房完成的住宿費（checkin 在本月）
+        # 已退房完成的住宿費（checkin 在本月）
         for sl in db.query(StayLog).all():
             try:
                 ci = (sl.checkin_time or "")[:7]
                 if ci == year_month and not sl.free_cancel and not sl.transferred:
                     revenue += float(sl.total_charged or 0)
-            except Exception:
-                pass
-
-        # ② 本月入住的押金（Payment.is_deposit=1，非退款）
-        for pay in db.query(Payment).all():
-            try:
-                if ((pay.created_at or "")[:7] == year_month
-                        and pay.is_deposit == 1
-                        and not pay.is_refund):
-                    revenue += float(pay.amount or 0)
             except Exception:
                 pass
 

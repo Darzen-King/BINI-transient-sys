@@ -208,11 +208,13 @@ def _migrate_property_id_columns():
         added = []
         # (table, column, definition)
         required = [
-            ("rooms",    "property_id",      "TEXT"),
-            ("rooms",    "maintenance_note",  "TEXT"),
-            ("rooms",    "maintenance_due",   "TEXT"),
-            ("bookings", "property_id",       "TEXT"),
-            ("users",    "allowed_pages",     "TEXT"),
+            ("rooms",        "property_id",           "TEXT"),
+            ("rooms",        "maintenance_note",       "TEXT"),
+            ("rooms",        "maintenance_due",        "TEXT"),
+            ("bookings",     "property_id",            "TEXT"),
+            ("users",        "allowed_pages",          "TEXT"),
+            # BUG-A FIX: track original planned checkout for cumulative block fee
+            ("active_stays", "original_checkout_time", "TEXT"),
         ]
         for table, col, defn in required:
             try:
@@ -338,25 +340,34 @@ def _patch_stay_timestamps(db):
     One-time migration: copy room.checkin / room.checkout into
     active_stays.checkin_time / checkout_time for records seeded before Phase-2.
     Also recalculates hourly_rate if it is still 0.
+    BUG-A FIX: back-fills original_checkout_time = checkout_time for existing
+    stays that predate the column; future check-ins set it at creation time.
     """
     from app.models import ActiveStay, Room
     stays = db.query(ActiveStay).all()
     patched = 0
     for stay in stays:
-        if stay.checkin_time and stay.checkout_time:
-            continue
-        room = db.query(Room).filter(Room.id == stay.room).first()
-        if not room:
-            continue
-        if not stay.checkin_time:
-            stay.checkin_time  = room.checkin
-        if not stay.checkout_time:
-            stay.checkout_time = room.checkout
+        changed = False
+        if not (stay.checkin_time and stay.checkout_time):
+            room = db.query(Room).filter(Room.id == stay.room).first()
+            if room:
+                if not stay.checkin_time:
+                    stay.checkin_time = room.checkin
+                if not stay.checkout_time:
+                    stay.checkout_time = room.checkout
+                changed = True
         # Recalculate hourly_rate if missing
         if (not stay.hourly_rate or stay.hourly_rate == 0) and stay.base_rent:
             hours = 12 if stay.plan == "12hrs" else 24
             stay.hourly_rate = stay.base_rent / hours
-        patched += 1
+            changed = True
+        # BUG-A FIX: seed original_checkout_time from current checkout_time
+        # (best available approximation for pre-existing rows)
+        if stay.original_checkout_time is None and stay.checkout_time:
+            stay.original_checkout_time = stay.checkout_time
+            changed = True
+        if changed:
+            patched += 1
     if patched:
         db.commit()
         print(f"✅  Patched {patched} active_stay record(s) with room timestamps.")

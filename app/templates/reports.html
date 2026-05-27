@@ -1,0 +1,600 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- ── Header ── -->
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+  <h2 class="fw-bold mb-0">{{ trans.get("report.title","Reports") }}</h2>
+  <div class="d-flex gap-2">
+    <!-- CSV Export -->
+    <a href="/reports/export.csv?date_from={{ date_from }}&date_to={{ date_to }}"
+       class="btn btn-outline-success btn-sm px-3" title="{{ trans.get('report.export_hint','') }}">
+      ⬇ {{ trans.get("report.export_csv","Export CSV") }}
+    </a>
+    {% if backup %}
+    <span class="badge align-self-center
+      {% if backup.status == '已同步' %}bg-success{% else %}bg-warning text-dark{% endif %}"
+      style="font-size:.73rem">
+      ☁ {{ backup.last_sync }}
+    </span>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Date range filter ── -->
+<div class="card rounded-3 border-0 shadow-sm mb-4 p-3">
+  <form method="get" action="/reports"
+        class="d-flex flex-wrap align-items-end gap-3" id="rangeForm">
+    <div>
+      <label class="form-label fw-semibold mb-1" style="font-size:.82rem">
+        {{ trans.get("report.date_from","From") }}
+      </label>
+      <input type="date" name="date_from" id="df" class="form-control form-control-sm"
+             value="{{ date_from }}" style="width:150px">
+    </div>
+    <div>
+      <label class="form-label fw-semibold mb-1" style="font-size:.82rem">
+        {{ trans.get("report.date_to","To") }}
+      </label>
+      <input type="date" name="date_to" id="dt" class="form-control form-control-sm"
+             value="{{ date_to }}" style="width:150px">
+    </div>
+    {% if properties %}
+    <div>
+      <label class="form-label fw-semibold mb-1" style="font-size:.82rem">{{ trans.get("property.title","館別") }}</label>
+      <select name="property_id" class="form-select form-select-sm" style="width:160px">
+        <option value="">{{ trans.get("property.all","所有館別") }}</option>
+        {% for prop in properties %}
+        <option value="{{ prop.id }}" {% if property_id == prop.id %}selected{% endif %}>
+          {{ prop.id }} {{ prop.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <button type="submit" class="btn btn-bb btn-sm px-4">
+      🔍 {{ trans.get("report.apply","Apply") }}
+    </button>
+    <div class="d-flex flex-wrap gap-1 align-items-center ms-auto">
+      <span class="text-muted me-1" style="font-size:.78rem">Quick:</span>
+      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setRange(0)">{{ trans.get("report.quick_today","Today") }}</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setRange(6)">7D</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setRange('month')">{{ trans.get("report.quick_month","Month") }}</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setRange(29)">30D</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="setRange(3650)">{{ trans.get("report.quick_all","All") }}</button>
+    </div>
+  </form>
+</div>
+
+<div class="text-muted mb-3" style="font-size:.84rem">
+  📅 {{ report.period }}
+</div>
+
+<!-- ── KPI Row 1 ── -->
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card card rounded-3 border-0 shadow-sm text-center p-3 h-100">
+      <div class="kpi-icon">💰</div>
+      <div class="kpi-num" style="color:#db2777">NT$ {{ "{:,}".format(report.range_revenue|int) }}</div>
+      <div class="kpi-label">{{ trans.get("report.range_revenue","Period Revenue") }}</div>
+      {% if report.live_revenue > 0 %}
+      <div class="kpi-sub">+NT$ {{ "{:,}".format(report.live_revenue|int) }} live</div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card card rounded-3 border-0 shadow-sm text-center p-3 h-100">
+      <div class="kpi-icon">📋</div>
+      <div class="kpi-num text-primary">{{ report.total_orders }}</div>
+      <div class="kpi-label">{{ trans.get("report.orders","Orders") }}</div>
+      {% if report.cancelled_orders > 0 %}
+      <div class="kpi-sub text-danger">{{ report.cancelled_orders }} {{ trans.get("report.loss_count","cancelled") }}</div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card card rounded-3 border-0 shadow-sm text-center p-3 h-100">
+      <div class="kpi-icon">🏨</div>
+      <div class="kpi-num text-success">{{ report.occupancy_now_pct }}%</div>
+      <div class="kpi-label">{{ trans.get("report.occupancy","Now") }}</div>
+      <div class="kpi-sub">{{ report.occupied_now }}/{{ report.total_rooms }} rooms</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card card rounded-3 border-0 shadow-sm text-center p-3 h-100">
+      <div class="kpi-icon">📅</div>
+      <div class="kpi-num text-info">{{ report.range_occupancy_pct }}%</div>
+      <div class="kpi-label">{{ trans.get("report.range_occupancy","Period Occ.") }}</div>
+      <div class="kpi-sub">{{ report.delta_days }} {{ trans.get("report.period_days","days") }}</div>
+    </div>
+  </div>
+</div>
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card card rounded-3 border-0 shadow-sm text-center p-3 h-100">
+      <div class="kpi-icon">⚠️</div>
+      <div class="kpi-num text-warning">{{ report.loss_count }}</div>
+      <div class="kpi-label">{{ trans.get("report.loss_count","Cancelled") }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card card rounded-3 border-0 shadow-sm text-center p-3 h-100">
+      <div class="kpi-icon">🔧</div>
+      <div class="kpi-num text-danger">{{ report.repair_count }}</div>
+      <div class="kpi-label">{{ trans.get("report.repair_count","Repairs") }}</div>
+      {% if report.repair_rooms_now > 0 %}
+      <div class="kpi-sub text-danger">{{ report.repair_rooms_now }} active</div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card card rounded-3 border-0 shadow-sm text-center p-3 h-100">
+      <div class="kpi-icon">⏱</div>
+      <div class="kpi-num text-secondary">{{ report.avg_stay_hrs }}h</div>
+      <div class="kpi-label">{{ trans.get("report.avg_stay","Avg Stay") }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card card rounded-3 border-0 shadow-sm text-center p-3 h-100">
+      <div class="kpi-icon">🛏</div>
+      <div class="kpi-num" style="color:#db2777">{{ report.active_stays_count }}</div>
+      <div class="kpi-label">{{ trans.get("report.occupied_now","In-house") }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Charts Row ── -->
+<div class="row g-3 mb-4">
+
+  <!-- Daily Revenue + Occupancy (dual axis) -->
+  <div class="col-lg-8">
+    <div class="card rounded-3 border-0 shadow-sm p-3 h-100">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="fw-semibold" style="font-size:.9rem">
+          📈 {{ trans.get("report.daily_revenue","Daily Revenue") }}
+          &amp; {{ trans.get("report.daily_occupancy","Occupancy") }}
+        </span>
+      </div>
+      {% if report.daily.labels %}
+      <div style="position:relative;height:220px">
+        <canvas id="dailyChart"></canvas>
+      </div>
+      {% else %}
+      <p class="text-muted text-center py-4">{{ trans.get("report.no_data_chart","No data") }}</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Plan + Rate donut charts -->
+  <div class="col-lg-4">
+    <div class="card rounded-3 border-0 shadow-sm p-3 mb-3">
+      <span class="fw-semibold mb-2 d-block" style="font-size:.88rem">
+        🎯 {{ trans.get("report.plan_distribution","Plan Split") }}
+      </span>
+      <div style="height:130px">
+        <canvas id="planChart"></canvas>
+      </div>
+    </div>
+    <div class="card rounded-3 border-0 shadow-sm p-3">
+      <span class="fw-semibold mb-2 d-block" style="font-size:.88rem">
+        📆 {{ trans.get("report.rate_distribution","Weekday / Holiday") }}
+      </span>
+      <div style="height:130px">
+        <canvas id="rateChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Payment Summary ── -->
+{% if pay_summary %}
+<div class="card rounded-3 border-0 shadow-sm mb-4">
+  <div class="card-header d-flex align-items-center justify-content-between"
+       style="background:#fdf4f9">
+    <span class="fw-semibold">
+      💳 {{ trans.get("payment.daily_summary","今日日結") }}
+      <span class="text-muted fw-normal" style="font-size:.8rem">— {{ pay_summary.date }}</span>
+    </span>
+    <div class="d-flex gap-2">
+      <a href="/export/daily_summary?date_from={{ pay_summary.date }}&date_to={{ pay_summary.date }}"
+         class="btn btn-outline-success btn-sm" style="font-size:.75rem">⬇ CSV</a>
+      <a href="/payments" class="btn btn-outline-primary btn-sm" style="font-size:.75rem">
+        → {{ trans.get("nav.payments","付款管理") }}
+      </a>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-6 col-md-3 text-center">
+        <div class="fw-bold fs-5 text-success">NT$ {{ "{:,.0f}".format(pay_summary.received) }}</div>
+        <div class="text-muted" style="font-size:.8rem">{{ trans.get("payment.received","已收") }}</div>
+      </div>
+      <div class="col-6 col-md-3 text-center">
+        <div class="fw-bold fs-5 text-danger">NT$ {{ "{:,.0f}".format(pay_summary.refunds) }}</div>
+        <div class="text-muted" style="font-size:.8rem">{{ trans.get("payment.refunds","退款") }}</div>
+      </div>
+      <div class="col-6 col-md-3 text-center">
+        <div class="fw-bold fs-5 text-primary">NT$ {{ "{:,.0f}".format(pay_summary.net) }}</div>
+        <div class="text-muted" style="font-size:.8rem">{{ trans.get("payment.net","淨收入") }}</div>
+      </div>
+      <div class="col-6 col-md-3 text-center">
+        <div class="fw-bold fs-5 text-warning">NT$ {{ "{:,.0f}".format(pay_summary.pending) }}</div>
+        <div class="text-muted" style="font-size:.8rem">{{ trans.get("payment.pending","待收款") }}</div>
+      </div>
+    </div>
+    <hr class="my-3">
+    <div class="row g-2">
+      {% for pt, amt in pay_summary.by_type.items() %}
+      <div class="col-6 col-md-3">
+        <div class="d-flex justify-content-between p-2 rounded-2" style="background:#f9fafb;font-size:.84rem">
+          <span class="text-muted">{{ trans.get("payment.type." + pt, pt) }}</span>
+          <span class="fw-semibold">NT$ {{ "{:,.0f}".format(amt) }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% if pay_summary.session %}
+    <div class="mt-2 text-muted" style="font-size:.76rem">
+      {{ trans.get("payment.session_status","日結狀態") }}:
+      <span class="badge {% if pay_summary.session.status == 'closed' %}bg-secondary{% else %}bg-success{% endif %}">
+        {% if pay_summary.session.status == 'closed' %}
+          {{ trans.get("payment.session_closed","已關閉") }}
+        {% else %}
+          {{ trans.get("payment.session_open","進行中") }}
+        {% endif %}
+      </span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Per-room table ── -->
+<div class="card rounded-3 border-0 shadow-sm mb-4">
+  <div class="card-header d-flex align-items-center justify-content-between" style="background:#fdf4f9">
+    <span class="fw-semibold">🏠 {{ trans.get("report.room_rental_title","Room Rental Statistics") }}</span>
+    <span class="badge bg-light text-dark border">{{ date_from }} ~ {{ date_to }}</span>
+  </div>
+  <div class="card-body p-0">
+    {% if report.room_rental_list %}
+    <div class="table-responsive">
+    <table class="table table-hover mb-0" style="font-size:.84rem">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-3">{{ trans.get("room.id","Room") }}</th>
+          <th>{{ trans.get("room.status","Status") }}</th>
+          <th class="text-center">{{ trans.get("report.room_rental_count","Rentals") }}</th>
+          <th class="text-end">{{ trans.get("report.room_rental_revenue","Revenue") }}</th>
+          <th>{{ trans.get("report.room_rental_plans","Plans") }}</th>
+          <th>{{ trans.get("room.note","Note") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set badge_map = {"可入住":"success","使用中":"primary","即將退房":"warning","待清潔":"secondary","維修中":"danger"} %}
+        {% set i18n_map  = {"可入住":"status.available","使用中":"status.occupied","即將退房":"status.checkout_soon","待清潔":"status.cleaning","維修中":"status.maintenance"} %}
+        {% set max_c = report.room_rental_list[0].count if report.room_rental_list else 1 %}
+        {% for rm in report.room_rental_list %}
+        <tr>
+          <td class="ps-3 fw-bold" style="color:#db2777">{{ rm.id }}</td>
+          <td>
+            <span class="badge bg-{{ badge_map.get(rm.status,'secondary') }}">
+              {{ trans.get(i18n_map.get(rm.status, rm.status), rm.status) }}
+            </span>
+          </td>
+          <td class="text-center">
+            <div class="d-flex align-items-center gap-2 justify-content-center">
+              {% if rm.count > 0 %}
+              <div class="progress flex-grow-1" style="height:7px;max-width:70px">
+                <div class="progress-bar" style="width:{{ (rm.count*100//[max_c,1]|max)|int }}%;background:#db2777"></div>
+              </div>
+              {% endif %}
+              <span class="fw-bold {% if rm.count == 0 %}text-muted{% endif %}">{{ rm.count }}</span>
+            </div>
+          </td>
+          <td class="text-end fw-semibold {% if rm.revenue > 0 %}text-success{% else %}text-muted{% endif %}">
+            {% if rm.revenue > 0 %}NT$ {{ "{:,}".format(rm.revenue|int) }}{% else %}—{% endif %}
+          </td>
+          <td>
+            {% for plan, cnt in rm.plans.items() %}
+            <span class="badge bg-light text-dark border me-1" style="font-size:.72rem">{{ plan }}×{{ cnt }}</span>
+            {% endfor %}
+            {% if not rm.plans %}<span class="text-muted">—</span>{% endif %}
+          </td>
+          <td class="text-muted" style="font-size:.79rem;max-width:150px">{{ rm.note or "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot class="table-light fw-bold" style="font-size:.84rem">
+        <tr>
+          <td class="ps-3" colspan="2">Total</td>
+          <td class="text-center">{{ report.room_rental_list | sum(attribute='count') }}</td>
+          <td class="text-end text-success">NT$ {{ "{:,}".format((report.room_rental_list|sum(attribute='revenue'))|int) }}</td>
+          <td colspan="2"></td>
+        </tr>
+      </tfoot>
+    </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center py-4">{{ trans.get("report.no_rentals","No rentals in this period") }}</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Status breakdown row ── -->
+<div class="row g-3 mb-4">
+  <div class="col-md-6">
+    <div class="card rounded-3 border-0 shadow-sm h-100">
+      <div class="card-header" style="background:#fdf4f9">
+        <span class="fw-semibold">{{ trans.get("label.status_summary","Booking Status") }}</span>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0" style="font-size:.84rem">
+          <tbody>
+            {% for status, cnt in report.booking_status_breakdown.items() %}
+            <tr>
+              <td class="ps-3">
+                <span class="badge
+                  {% if status == '即將到店' %}bg-primary
+                  {% elif status == '需注意' %}bg-warning text-dark
+                  {% elif status in ['已取消','No-show'] %}bg-secondary
+                  {% else %}bg-success{% endif %}">
+                  {{ trans.get("booking_status." + status, status) }}
+                </span>
+              </td>
+              <td class="fw-bold text-end pe-3">{{ cnt }}</td>
+              <td class="pe-3" style="width:100px">
+                <div class="progress" style="height:5px;margin-top:7px">
+                  <div class="progress-bar bg-primary"
+                       style="width:{{ ([cnt*100//[report.total_orders,1]|max, 100]|min) }}%"></div>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+            {% if not report.booking_status_breakdown %}
+            <tr><td colspan="3" class="text-muted text-center py-3">—</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card rounded-3 border-0 shadow-sm h-100">
+      <div class="card-header" style="background:#fdf4f9">
+        <span class="fw-semibold">{{ trans.get("room.status","Room Status") }}</span>
+      </div>
+      <div class="card-body p-0">
+        <table class="table table-sm mb-0" style="font-size:.84rem">
+          <tbody>
+            {% set badge_map = {"可入住":"success","使用中":"primary","即將退房":"warning","待清潔":"secondary","維修中":"danger"} %}
+            {% set i18n_map  = {"可入住":"status.available","使用中":"status.occupied","即將退房":"status.checkout_soon","待清潔":"status.cleaning","維修中":"status.maintenance"} %}
+            {% for status, cnt in report.room_status_breakdown.items() %}
+            <tr>
+              <td class="ps-3">
+                <span class="badge bg-{{ badge_map.get(status,'secondary') }}">
+                  {{ trans.get(i18n_map.get(status, status), status) }}
+                </span>
+              </td>
+              <td class="fw-bold text-end pe-3">{{ cnt }}</td>
+              <td class="pe-3" style="width:100px">
+                <div class="progress" style="height:5px;margin-top:7px">
+                  <div class="progress-bar bg-{{ badge_map.get(status,'secondary') }}"
+                       style="width:{{ ([cnt*100//report.total_rooms, 100]|min) }}%"></div>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<!-- Chart.js: try CDN first, fallback to unpkg -->
+<script>
+window._chartJsLoaded = false;
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
+        crossorigin="anonymous"
+        onerror="var s=document.createElement('script');s.src='https://unpkg.com/chart.js@4.4.1/dist/chart.umd.min.js';document.head.appendChild(s)">
+</script>
+<script>
+// ── Data from server ────────────────────────────────────────────────────
+const DAILY   = {{ report.daily | tojson | safe }};
+const PLANS   = {{ report.plan_breakdown | tojson | safe }};
+const RATES   = {{ report.rate_revenue | tojson | safe }};
+const LANG_R  = "{{ trans.get('report.chart_revenue_label','Revenue (NT$)') }}";
+const LANG_O  = "{{ trans.get('report.chart_occ_label','Occupancy (%)') }}";
+const NO_DATA = "{{ trans.get('report.no_data_chart','No data') }}";
+
+const BB_PINK = "#db2777";
+const BB_BLUE = "#3b82f6";
+const COLORS  = ["#db2777","#3b82f6","#10b981","#f59e0b","#8b5cf6","#ef4444"];
+
+function _initCharts() {
+  if (typeof Chart === "undefined") {
+    // Chart.js not loaded yet, retry in 500ms
+    setTimeout(_initCharts, 500);
+    return;
+  }
+
+Chart.defaults.font.family = "'Segoe UI','Noto Sans TC',sans-serif";
+Chart.defaults.font.size   = 11;
+
+// ── 1. Daily Revenue + Occupancy (bar + line dual-axis) ─────────────────
+const dailyCanvas = document.getElementById("dailyChart");
+if (dailyCanvas && DAILY.labels && DAILY.labels.length > 0) {
+  new Chart(dailyCanvas, {
+    data: {
+      labels: DAILY.labels,
+      datasets: [
+        {
+          type: "bar",
+          label: LANG_R,
+          data: DAILY.revenue,
+          backgroundColor: BB_PINK + "88",
+          borderColor: BB_PINK,
+          borderWidth: 1,
+          yAxisID: "yRev",
+          order: 2,
+        },
+        {
+          type: "line",
+          label: LANG_O,
+          data: DAILY.occupancy,
+          borderColor: BB_BLUE,
+          backgroundColor: BB_BLUE + "22",
+          tension: 0.35,
+          pointRadius: 3,
+          fill: true,
+          yAxisID: "yOcc",
+          order: 1,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { position: "top", labels: { boxWidth: 12, padding: 12 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.dataset.yAxisID === "yRev"
+              ? `NT$ ${ctx.parsed.y.toLocaleString()}`
+              : `${ctx.parsed.y}%`,
+          },
+        },
+      },
+      scales: {
+        yRev: {
+          type: "linear", position: "left",
+          grid: { color: "#f3f4f6" },
+          ticks: { callback: v => "NT$" + v.toLocaleString() },
+        },
+        yOcc: {
+          type: "linear", position: "right",
+          min: 0, max: 100,
+          grid: { drawOnChartArea: false },
+          ticks: { callback: v => v + "%" },
+        },
+        x: {
+          grid: { display: false },
+          ticks: {
+            maxTicksLimit: 14,
+            callback: function(val, idx) {
+              const lbl = this.getLabelForValue(val);
+              return lbl.slice(5);  // show MM-DD
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+// ── 2. Plan distribution donut ──────────────────────────────────────────
+const planCanvas = document.getElementById("planChart");
+if (planCanvas) {
+  const planCounts = PLANS.counts || {};
+  const labels = Object.keys(planCounts);
+  const data   = Object.values(planCounts);
+  if (data.length > 0) {
+    new Chart(planCanvas, {
+      type: "doughnut",
+      data: {
+        labels,
+        datasets: [{ data, backgroundColor: COLORS, borderWidth: 2, borderColor: "#fff" }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: "right", labels: { boxWidth: 10, padding: 8 } },
+          tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed} orders` } },
+        },
+      },
+    });
+  } else {
+    planCanvas.parentElement.innerHTML = `<p class="text-muted text-center py-3" style="font-size:.82rem">${NO_DATA}</p>`;
+  }
+}
+
+// ── 3. Weekday / Holiday donut ─────────────────────────────────────────
+const rateCanvas = document.getElementById("rateChart");
+if (rateCanvas) {
+  const labels = Object.keys(RATES);
+  const data   = Object.values(RATES);
+  if (data.length > 0) {
+    new Chart(rateCanvas, {
+      type: "doughnut",
+      data: {
+        labels,
+        datasets: [{ data, backgroundColor: ["#10b981","#f59e0b","#db2777"], borderWidth: 2, borderColor: "#fff" }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: "right", labels: { boxWidth: 10, padding: 8 } },
+          tooltip: {
+            callbacks: { label: ctx => `${ctx.label}: NT$${ctx.parsed.toLocaleString()}` },
+          },
+        },
+      },
+    });
+  } else {
+    rateCanvas.parentElement.innerHTML = `<p class="text-muted text-center py-3" style="font-size:.82rem">${NO_DATA}</p>`;
+  }
+}
+
+} // end _initCharts
+document.addEventListener("DOMContentLoaded", _initCharts);
+
+// ── Date range shortcuts ────────────────────────────────────────────────
+const df = document.getElementById("df");
+const dt = document.getElementById("dt");
+
+// Timezone-safe: format date as local YYYY-MM-DD (avoids toISOString UTC shift)
+function fmt(d) {
+  const y  = d.getFullYear();
+  const m  = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+
+function setRange(days) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (days === "month") {
+    // First day of current month to today
+    df.value = fmt(new Date(today.getFullYear(), today.getMonth(), 1));
+  } else if (days === 0) {
+    // Today only
+    df.value = fmt(today);
+  } else {
+    // N days ago to today
+    const s = new Date(today);
+    s.setDate(today.getDate() - days);
+    df.value = fmt(s);
+  }
+  dt.value = fmt(today);
+  document.getElementById("rangeForm").submit();
+}
+
+// Prevent invalid ranges on manual input
+df.addEventListener("change", () => {
+  if (dt.value && dt.value < df.value) dt.value = df.value;
+});
+dt.addEventListener("change", () => {
+  if (df.value && dt.value < df.value) df.value = dt.value;
+});
+
+// Auto-submit when date inputs change
+df.addEventListener("change", () => { document.getElementById("rangeForm").submit(); });
+dt.addEventListener("change", () => { document.getElementById("rangeForm").submit(); });
+</script>
+{% endblock %}

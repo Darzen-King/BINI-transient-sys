@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center gap-3 mb-1">
+  <a href="/rooms" class="text-muted text-decoration-none">← {{ trans.get("nav.rooms","Room Overview") }}</a>
+  <h2 class="fw-bold mb-0">{{ trans.get("extend.title","Extend Stay") }}</h2>
+</div>
+<p class="text-muted mb-4" style="font-size:.9rem">{{ trans.get("extend.desc","Review extension fee and upcoming bookings.") }}</p>
+
+{% if msg == "extended" %}
+<div class="flash-bar alert alert-success">{{ trans.get("extend.msg_ok","✅ Stay extended") }}</div>
+{% endif %}
+{% if warning %}
+<div class="flash-bar alert alert-warning">{{ warning }}</div>
+{% endif %}
+
+<div class="row g-4">
+
+  <!-- ── LEFT: form ── -->
+  <div class="col-lg-5">
+    <div class="card rounded-3 shadow-sm border-0 p-4">
+      <h5 class="fw-semibold mb-3" style="color:#db2777">{{ trans.get("extend.title","Extend Stay") }}</h5>
+
+      <!-- Room selector -->
+      <div class="mb-3">
+        <label class="form-label fw-semibold">{{ trans.get("room.id","Room") }}</label>
+        <select class="form-select" id="roomSelector"
+                onchange="location.href='/extend?room='+this.value">
+          <option value="">── {{ trans.get("extend.select","Select Room") }} ──</option>
+          {% for stay in active_stays %}
+          <option value="{{ stay.room }}"
+            {% if stay.room == selected_room_id %}selected{% endif %}>
+            {{ stay.room }} · {{ stay.guest }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      {% if selected_stay and selected_room %}
+
+      <!-- Current stay info -->
+      <div class="rounded-2 p-3 mb-3" style="background:#fdf4f9;font-size:.85rem">
+        <div class="row g-1">
+          <div class="col-5 text-muted">{{ trans.get("room.current_guest","Guest") }}</div>
+          <div class="col-7 fw-semibold">{{ selected_stay.guest }}</div>
+          <div class="col-5 text-muted">{{ trans.get("label.plan","Plan") }}</div>
+          <div class="col-7">{{ selected_stay.plan }}</div>
+          <div class="col-5 text-muted">{{ trans.get("room.checkin","Check-in") }}</div>
+          <div class="col-7">{{ selected_stay.checkin_time or selected_room.checkin or "—" }}</div>
+          <div class="col-5 text-muted">{{ trans.get("checkout.planned_co","Planned CO") }}</div>
+          <div class="col-7" id="currentCO">
+            {{ selected_stay.checkout_time or selected_room.checkout or "—" }}
+          </div>
+          {% if selected_room.next_booking %}
+          <div class="col-5 text-muted">{{ trans.get("room.next_booking","Next Booking") }}</div>
+          <div class="col-7 text-info fw-semibold">{{ selected_room.next_booking }}</div>
+          {% endif %}
+        </div>
+        <hr class="my-2">
+        <div class="row g-1">
+          <div class="col-5 text-muted">{{ trans.get("checkout.base_rent","Base Rent") }}</div>
+          <div class="col-7">NT$ {{ "%.0f"|format(selected_stay.base_rent) }}</div>
+          <div class="col-5 text-muted">{{ trans.get("extend.fee","Ext. Fee so far") }}</div>
+          <div class="col-7 text-warning fw-bold">NT$ {{ "%.0f"|format(selected_stay.extension_fee) }}</div>
+          <div class="col-5 fw-bold" style="color:#db2777">{{ trans.get("checkout.total_due","Total Due") }}</div>
+          <div class="col-7 fw-bold" style="color:#db2777">NT$ {{ "%.0f"|format(selected_stay.total_due) }}</div>
+        </div>
+      </div>
+
+      <!-- Extension form -->
+      <form method="post" action="/extend" id="extendForm">
+        <input type="hidden" name="room" value="{{ selected_room_id }}">
+        <input type="hidden" name="use_auto_rate" value="no">
+        <input type="hidden" name="rate_per_hour" value="200">
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold" style="font-size:.85rem">
+            {{ trans.get("extend.hours","Extension Hours") }}
+          </label>
+          <div class="input-group">
+            <input type="number" name="extension_hours" id="extHours"
+                   class="form-control" value="2" min="0.5" max="168" step="0.5"
+                   oninput="fetchPreview()">
+            <span class="input-group-text">hrs</span>
+          </div>
+          <div class="form-text" style="font-size:.78rem">
+            NT$200/hr · {{ trans.get("label.rate_type_weekday","Weekday") }} 12hr Max NT$800 / 24hr Max NT$1,000<br>
+            {{ trans.get("label.rate_type_holiday","Weekend/Holiday") }} (Fri–Sun) 12hr Max NT$1,000 / 24hr Max NT$1,200
+          </div>
+        </div>
+
+        <!-- Live fee preview card -->
+        <div id="feePreview" class="rounded-2 p-3 mb-3"
+             style="background:#fff7ed;border:1px solid #fed7aa;display:none">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="fw-semibold" style="color:#9a3412;font-size:.9rem">
+              {{ trans.get("extend.fee","Extension Fee") }}
+            </span>
+            <span id="previewTotal" class="fw-bold fs-4" style="color:#c2410c">NT$ —</span>
+          </div>
+          <!-- Breakdown table -->
+          <div id="breakdownWrap" style="font-size:.78rem">
+            <table class="table table-sm mb-0" style="font-size:.78rem">
+              <thead>
+                <tr style="color:#9a3412">
+                  <th>Block</th>
+                  <th>Date</th>
+                  <th>Hours</th>
+                  <th>Raw</th>
+                  <th>Cap</th>
+                  <th class="text-end">Fee</th>
+                </tr>
+              </thead>
+              <tbody id="breakdownBody"></tbody>
+              <tfoot>
+                <tr class="fw-bold" style="color:#c2410c">
+                  <td colspan="5">Total</td>
+                  <td class="text-end" id="breakdownTotal">—</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <div id="newCOLine" class="mt-2" style="font-size:.78rem;color:#9a3412"></div>
+        </div>
+
+        <button type="submit" class="btn btn-bb w-100">
+          ⏱ {{ trans.get("extend.confirm","Confirm Extension") }}
+        </button>
+      </form>
+
+      {% else %}
+      <p class="text-muted text-center py-3">{{ trans.get("label.select_room","Select a room") }}</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── RIGHT: active stays table ── -->
+  <div class="col-lg-7">
+    <div class="card rounded-3 border-0 shadow-sm p-3">
+      <h6 class="fw-semibold mb-3 text-muted">{{ trans.get("checkout.active_rooms","Currently Occupied") }}</h6>
+      {% if active_stays %}
+      <div class="table-responsive">
+      <table class="table table-hover mb-0" style="font-size:.84rem">
+        <thead class="table-light">
+          <tr>
+            <th>{{ trans.get("room.id","Room") }}</th>
+            <th>{{ trans.get("booking.guest","Guest") }}</th>
+            <th>{{ trans.get("label.plan","Plan") }}</th>
+            <th>{{ trans.get("checkout.base_rent","Base") }}</th>
+            <th>{{ trans.get("extend.fee","Ext.") }}</th>
+            <th>{{ trans.get("checkout.total_due","Total") }}</th>
+            <th>{{ trans.get("checkout.planned_co","Planned CO") }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in active_stays %}
+          <tr {% if s.room == selected_room_id %}class="table-warning"{% endif %}>
+            <td><strong>{{ s.room }}</strong></td>
+            <td>{{ s.guest }}</td>
+            <td>{{ s.plan }}</td>
+            <td>NT$ {{ "%.0f"|format(s.base_rent) }}</td>
+            <td class="{% if s.extension_fee > 0 %}text-warning fw-semibold{% endif %}">
+              NT$ {{ "%.0f"|format(s.extension_fee) }}
+            </td>
+            <td class="fw-bold" style="color:#db2777">NT$ {{ "%.0f"|format(s.total_due) }}</td>
+            <td style="font-size:.78rem">{{ s.checkout_time or "—" }}</td>
+            <td>
+              <a href="/extend?room={{ s.room }}" class="btn btn-outline-warning btn-sm">
+                +{{ trans.get("nav.extend","Extend") }}
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+      <p class="text-muted text-center py-3">{{ trans.get("label.no_active_stays","No active stays") }}</p>
+      {% endif %}
+    </div>
+
+    <!-- Rate reference card -->
+    <div class="card rounded-3 border-0 shadow-sm mt-3 p-3" style="font-size:.82rem">
+      <div class="fw-semibold mb-2">💡 {{ trans.get("extend.rate","Rate Reference") }}</div>
+      <table class="table table-sm table-bordered mb-0" style="font-size:.8rem">
+        <thead class="table-light text-center">
+          <tr>
+            <th>{{ trans.get("booking.plan","Plan") }}</th>
+            <th>{{ trans.get("label.rate_type_weekday","Weekday") }} (Mon–Thu)</th>
+            <th>{{ trans.get("label.rate_type_holiday","Weekend") }} (Fri–Sun)</th>
+          </tr>
+        </thead>
+        <tbody class="text-center">
+          <tr>
+            <td>12 hrs</td>
+            <td>NT$ 800</td>
+            <td>NT$ 1,000</td>
+          </tr>
+          <tr>
+            <td>24 hrs</td>
+            <td>NT$ 1,000</td>
+            <td>NT$ 1,200</td>
+          </tr>
+          <tr class="table-light">
+            <td colspan="3">延住費 NT$200/hr，每 12hr 區間有上限</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CHECKOUT_TIME = "{{ selected_stay.checkout_time or selected_room.checkout if (selected_stay and selected_room) else '' }}";
+
+let debounceTimer = null;
+
+function fetchPreview() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(_doFetch, 300);
+}
+
+function _doFetch() {
+  const hours = parseFloat(document.getElementById('extHours').value);
+  if (!hours || hours <= 0) {
+    document.getElementById('feePreview').style.display = 'none';
+    return;
+  }
+
+  const params = new URLSearchParams({
+    hours: hours,
+    checkout_time: CHECKOUT_TIME,
+  });
+
+  fetch('/api/extend-preview?' + params)
+    .then(r => r.json())
+    .then(data => renderPreview(data, hours))
+    .catch(() => {
+      // Fallback: simple calc if API unreachable
+      document.getElementById('previewTotal').textContent = 'NT$ ' + (hours * 200).toLocaleString();
+      document.getElementById('feePreview').style.display = '';
+    });
+}
+
+function renderPreview(data, hours) {
+  document.getElementById('previewTotal').textContent =
+    'NT$ ' + Number(data.total_fee).toLocaleString();
+
+  // Breakdown table
+  const tbody = document.getElementById('breakdownBody');
+  tbody.innerHTML = '';
+  (data.breakdown || []).forEach(b => {
+    const capped = b.raw > b.ceiling;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>#${b.block}</td>
+      <td>${b.date_label}</td>
+      <td>${b.hours}h</td>
+      <td style="color:${capped?'#9ca3af':'inherit'};${capped?'text-decoration:line-through':''}">${b.raw}</td>
+      <td style="font-size:.72rem;color:#9a3412">${capped ? '⬆ cap ' + b.ceiling : ''}</td>
+      <td class="text-end fw-semibold">${b.fee}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('breakdownTotal').textContent = 'NT$ ' + Number(data.total_fee).toLocaleString();
+
+  // New checkout time
+  if (CHECKOUT_TIME) {
+    const start = new Date(CHECKOUT_TIME.replace(' ', 'T'));
+    const newCO = new Date(start.getTime() + hours * 3600000);
+    const pad = n => String(n).padStart(2,'0');
+    const newCOStr = `${newCO.getFullYear()}-${pad(newCO.getMonth()+1)}-${pad(newCO.getDate())} ${pad(newCO.getHours())}:${pad(newCO.getMinutes())}`;
+    document.getElementById('newCOLine').textContent = '🕐 New check-out: ' + newCOStr;
+  }
+
+  document.getElementById('feePreview').style.display = '';
+}
+
+// Init on load
+document.addEventListener('DOMContentLoaded', function() {
+  const h = document.getElementById('extHours');
+  if (h) fetchPreview();
+});
+</script>
+{% endblock %}

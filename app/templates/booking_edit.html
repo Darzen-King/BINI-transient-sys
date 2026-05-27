@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center mb-4 gap-2">
+  <a href="/bookings" class="btn btn-outline-secondary btn-sm">← {{ trans.get("nav.bookings","Bookings") }}</a>
+  <h2 class="fw-bold mb-0">{{ trans.get("booking.edit_title","Edit Booking") }} — {{ bk.id }}</h2>
+</div>
+
+{% if error_msg %}<div class="flash-bar alert alert-danger">⚠ {{ error_msg }}</div>{% endif %}
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card rounded-3 border-0 shadow-sm p-4">
+      <form method="post" action="/bookings/{{ bk.id }}/edit">
+
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label fw-semibold">{{ trans.get("label.room","Room") }}</label>
+            <select name="room" class="form-select" required>
+              {% for r in rooms %}
+              <option value="{{ r.id }}" {% if r.id == bk.room %}selected{% endif %}>
+                {{ r.id }} — {{ trans.get("status." + r.status, r.status) }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">{{ trans.get("label.guest","Guest") }}</label>
+            <input type="text" name="guest" class="form-control" value="{{ bk.guest }}" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">{{ trans.get("label.phone","Phone") }}</label>
+            <input type="text" name="phone" class="form-control" value="{{ bk.phone or '' }}">
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">{{ trans.get("label.checkin","Check-in") }}</label>
+            <input type="datetime-local" data-dtype="datetime-local" name="checkin" id="editCiInput" class="form-control"
+                   value="{{ bk.checkin | replace(' ','T') }}" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">{{ trans.get("label.checkout","Check-out") }}</label>
+            <input type="datetime-local" data-dtype="datetime-local" name="checkout" id="editCoInput" class="form-control"
+                   value="{{ bk.checkout | replace(' ','T') }}" required>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">{{ trans.get("label.plan","Plan") }}</label>
+            <select name="plan" id="editPlan" class="form-select" onchange="editUpdateAmount()">
+              {% for pl in plans %}
+              <option value="{{ pl }}" {% if pl == bk.plan %}selected{% endif %}>{{ pl }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">{{ trans.get("label.rate_type","Rate Type") }}</label>
+            <select name="rate_type" id="editRateType" class="form-select" onchange="editUpdateAmount()">
+              {% for rt in rate_types %}
+              <option value="{{ rt }}"
+                {%- if rt == ("假日" if bk.rate_type == "假日" else "非假日") %} selected{% endif %}>
+                {%- if rt == "非假日" %}{{ trans.get("label.rate_type_weekday","Weekday") }}
+                {%- else %}{{ trans.get("label.rate_type_holiday","Holiday") }}{% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">{{ trans.get("label.amount","Amount (NT$)") }}</label>
+            <input type="number" name="amount" id="editAmount" class="form-control"
+                   value="{{ bk.amount | int }}" required>
+          </div>
+        </div>
+
+        <hr class="my-3">
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-bb px-4">
+            💾 {{ trans.get("auth.save_changes","Save Changes") }}
+          </button>
+          <a href="/bookings" class="btn btn-outline-secondary">
+            {{ trans.get("auth.cancel","Cancel") }}
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card rounded-3 border-0 shadow-sm p-3">
+      <h6 class="fw-semibold mb-3">💡 {{ trans.get("booking.rate_guide","Rate Guide") }}</h6>
+      <table class="table table-sm table-bordered mb-0" style="font-size:.82rem">
+        <thead class="table-light">
+          <tr>
+            <th></th>
+            <th>{{ trans.get("label.rate_type_weekday","Weekday") }}</th>
+            <th>{{ trans.get("label.rate_type_holiday","Holiday") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>12hrs</td><td>NT$800</td><td>NT$1,000</td></tr>
+          <tr><td>24hrs</td><td>NT$1,000</td><td>NT$1,200</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script id="editHolidayDates" type="application/json">{{ holiday_dates_json | safe }}</script>
+<script>
+const EDIT_RATES = {
+  "非假日": { "12hrs": 800,  "24hrs": 1000 },
+  "假日":   { "12hrs": 1000, "24hrs": 1200 },
+};
+
+let _editUserRate = false;
+
+function editUpdateAmount() {
+  const rt  = document.getElementById('editRateType').value;
+  const pl  = document.getElementById('editPlan').value;
+  const amt = EDIT_RATES[rt]?.[pl];
+  if (amt) document.getElementById('editAmount').value = amt;
+}
+
+document.getElementById('editRateType').addEventListener('change', () => {
+  _editUserRate = true;
+  editUpdateAmount();
+});
+
+function editDetectRate(dateStr) {
+  if (!dateStr) return null;
+  const dp  = dateStr.slice(0,10);
+  const [yr,mo,dy] = dp.split('-').map(Number);
+  const d   = new Date(yr, mo-1, dy);
+  const wd  = d.getDay();
+  if (wd===0||wd===5||wd===6) return "假日";
+  const hols = JSON.parse(document.getElementById('editHolidayDates').textContent||'[]');
+  if (hols.includes(dp)) return "假日";
+  const nx = new Date(yr,mo-1,dy+1);
+  const ns = `${nx.getFullYear()}-${String(nx.getMonth()+1).padStart(2,'0')}-${String(nx.getDate()).padStart(2,'0')}`;
+  if (hols.includes(ns)) return "假日";
+  return "非假日";
+}
+
+function editCiHandler() {
+  const v = document.getElementById('editCiInput').value;
+  if (!_editUserRate) {
+    const rt = editDetectRate(v);
+    if (rt) document.getElementById('editRateType').value = rt;
+  }
+  editUpdateAmount();
+}
+
+document.getElementById('editCiInput').addEventListener('change', editCiHandler);
+document.getElementById('editCiInput').addEventListener('input',  editCiHandler);
+document.getElementById('editPlan').addEventListener('change', editUpdateAmount);
+</script>
+{% endblock %}

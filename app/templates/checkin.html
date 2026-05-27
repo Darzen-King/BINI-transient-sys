@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center gap-3 mb-1">
+  <a href="/rooms" class="text-muted text-decoration-none">← {{ trans.get("nav.rooms","Room Overview") }}</a>
+  <h2 class="fw-bold mb-0">{{ trans.get("checkin.title","Check-in") }}</h2>
+</div>
+<p class="text-muted mb-4" style="font-size:.9rem">{{ trans.get("checkin.desc","Select room and fill booking info.") }}</p>
+
+{% if msg == "ok" %}
+<div class="flash-bar alert alert-success">{{ trans.get("label.checkin_ok","✅ Check-in successful") }}</div>
+{% endif %}
+
+{% if error %}
+<div class="flash-bar alert alert-danger">
+  <strong>{{ trans.get("label.conflict_warning","⚠ Error") }}</strong>
+  {{ trans.get(error, error) }}
+</div>
+{% endif %}
+
+<div class="row g-4">
+  <!-- LEFT: form -->
+  <div class="col-lg-7">
+    <div class="card rounded-3 shadow-sm border-0 p-4">
+      <h5 class="fw-semibold mb-3" style="color:#db2777">{{ trans.get("checkin.confirm","Confirm Check-in") }}</h5>
+      <form method="post" action="/checkin">
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold">{{ trans.get("room.id","Room") }}</label>
+          <select name="room" id="roomSelect" class="form-select" required
+                  onchange="onRoomChange()">
+            <option value="">── {{ trans.get("checkin.select_room","Select Room") }} ──</option>
+            {% for r in all_rooms %}
+            {% set blocked = r.status in ["待清潔","維修中"] %}
+            <option value="{{ r.id }}"
+              data-status="{{ r.status }}"
+              data-blocked="{{ 'true' if blocked else 'false' }}"
+              {% if r.id == prefill_room or (prefill and r.id == prefill.room) %}selected{% endif %}
+              {% if blocked %}disabled{% endif %}>
+              {{ r.id }} · {{ trans.get("status." + r.status, r.status) }}
+              {% if blocked %} 🚫{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+          <!-- JS will show/hide this based on selected room status -->
+          <div id="blockedRoomHint" class="mt-1 d-none"
+               style="font-size:.82rem;color:#92400e;background:#fef3c7;border-radius:.4rem;padding:.35rem .6rem">
+            {{ trans.get("room_mgmt.cleaning_hint","💡 After cleaning, admin must mark this room Available.") }}
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold">{{ trans.get("checkin.select_booking","Related Booking (optional)") }}</label>
+          <select name="booking_id" id="bookingSelect" class="form-select"
+                  onchange="prefillFromBooking(this)">
+            <option value="">── {{ trans.get("label.related_booking","Select to auto-fill") }} ──</option>
+            {% for b in bookings %}
+            <option value="{{ b.id }}"
+              data-room="{{ b.room }}"
+              data-guest="{{ b.guest }}"
+              data-phone="{{ b.phone or '' }}"
+              data-plan="{{ b.plan }}"
+              data-amount="{{ b.amount }}"
+              data-checkin="{{ b.checkin }}"
+              data-checkout="{{ b.checkout }}"
+              {% if prefill and prefill.id == b.id %}selected{% endif %}>
+              {{ b.id }} · {{ b.room }} · {{ b.guest }} · {{ b.checkin[:10] }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.guest","Guest Name") }}</label>
+            <input type="text" name="guest" id="guestInput" class="form-control" required
+                   value="{{ prefill.guest if prefill else '' }}">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.phone","Phone") }}</label>
+            <input type="text" name="phone" id="phoneInput" class="form-control"
+                   value="{{ prefill.phone if prefill else '' }}"
+                   placeholder="0912-345-678">
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold">{{ trans.get("booking.plan","Plan") }}</label>
+          <select name="plan" id="planSelect" class="form-select"
+                  onchange="autoCheckout()">
+            {% for p in plans %}
+            <option value="{{ p }}" {% if prefill and prefill.plan == p %}selected{% endif %}>{{ p }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold">{{ trans.get("checkin.base_rent","Base Rent") }} (NT$)</label>
+          <input type="number" name="base_rent" id="baseRentInput" class="form-control"
+                 value="{{ prefill.amount if prefill else 1000 }}" min="0" step="100">
+        </div>
+
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("room.checkin","Check-in Time") }}</label>
+            <input type="datetime-local" data-dtype="datetime-local" name="checkin_time" id="ciInput"
+                   class="form-control" step="60"
+                   value="{{ prefill.checkin | replace(' ','T') if prefill else now_dt }}"
+                   min="{{ now_dt }}"
+                   oninput="checkConflict()">
+            <div class="form-text">{{ trans.get("checkin.checkin_time_default","預設為現在時間，可調整但不可設為過去時間") }}</div>
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("room.checkout","Check-out Time") }}</label>
+            <input type="datetime-local" data-dtype="datetime-local" name="checkout_time" id="coInput"
+                   class="form-control" step="60"
+                   value="{{ prefill.checkout | replace(' ','T') if prefill else '' }}"
+                   oninput="checkConflict()">
+            <div class="form-text">{{ trans.get("checkin.checkout_time","Auto-calculated from plan") }}</div>
+          </div>
+        </div>
+
+        <!-- Live conflict badge -->
+        <div id="ciConflictBadge" class="rounded-2 px-3 py-2 mb-3 d-none"
+             style="font-size:.84rem;border:1px solid transparent"></div>
+
+        <!-- Deposit (optional) -->
+        <div class="rounded-2 p-3 mb-3" style="background:#f0fdf4;border:1px solid #86efac">
+          <div class="fw-semibold mb-2" style="font-size:.85rem;color:#166534">
+            💰 {{ trans.get("payment.deposit_section","押金收取（選填）") }}
+          </div>
+          <div class="row g-2">
+            <div class="col-7">
+              <input type="number" name="deposit_amount" id="depositAmount"
+                     class="form-control form-control-sm" min="0" step="100"
+                     placeholder="{{ trans.get('payment.deposit_amount','押金金額 NT$') }}">
+            </div>
+            <div class="col-5">
+              <select name="deposit_type" class="form-select form-select-sm">
+                <option value="cash">{{ trans.get("payment.type.cash","現金") }}</option>
+                <option value="transfer">{{ trans.get("payment.type.transfer","匯款") }}</option>
+                <option value="card">{{ trans.get("payment.type.card","刷卡") }}</option>
+                <option value="other">{{ trans.get("payment.type.other","其他") }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-text mt-1" style="font-size:.75rem;color:#166534">
+            {{ trans.get("payment.deposit_hint","若有收取押金，將自動記錄至付款記錄") }}
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-bb px-4 mt-1">
+          🔑 {{ trans.get("checkin.confirm","Confirm Check-in") }}
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- RIGHT: pending bookings panel -->
+  <div class="col-lg-5">
+    <div class="card rounded-3 border-0 shadow-sm p-3">
+      <h6 class="fw-semibold mb-3 text-muted">
+        {{ trans.get("label.active_bookings","Active Bookings") }}
+        <span class="badge bg-light text-dark ms-1">{{ bookings|length }}</span>
+      </h6>
+      {% if bookings %}
+        {% for b in bookings %}
+        <div class="border rounded-2 p-2 mb-2 quick-fill-card" style="font-size:.83rem;cursor:pointer"
+             onclick="quickFill('{{ b.id }}','{{ b.room }}','{{ b.guest }}','{{ b.plan }}','{{ b.amount }}','{{ b.checkin | replace(' ','T') }}','{{ b.checkout | replace(' ','T') }}','{{ b.phone or '' }}')">
+          <div class="d-flex justify-content-between">
+            <strong>{{ b.room }}</strong>
+            <span class="badge
+              {% if b.status=='即將到店' %}bg-primary
+              {% elif b.status=='需注意' %}bg-warning text-dark
+              {% else %}bg-success{% endif %}">
+              {{ trans.get("booking_status." + b.status, b.status) }}
+            </span>
+          </div>
+          <div>{{ b.guest }} · {{ b.plan }}</div>
+          <div class="text-muted" style="font-size:.79rem">{{ b.checkin }} → {{ b.checkout }}</div>
+          <div class="d-flex justify-content-between align-items-center mt-1">
+            <span class="badge bg-light text-dark border">NT$ {{ "%.0f"|format(b.amount) }}</span>
+            <span style="font-size:.75rem;color:#db2777">▶ {{ trans.get("action.checkin","Check In") }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="text-muted text-center py-3">{{ trans.get("label.no_bookings","No active bookings") }}</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{# Pass holiday date list to JS for rate calculation #}
+<script id="holidayDatesData" type="application/json">{{ holiday_dates_json | safe }}</script>
+<script>
+function autoCheckout() {
+  const ci = document.getElementById('ciInput').value;
+  if (!ci) return;
+  const plan = document.getElementById('planSelect').value;
+  const dt = new Date(ci);
+  dt.setHours(dt.getHours() + (plan === '12hrs' ? 12 : 24));
+  const pad = n => String(n).padStart(2,'0');
+  // Use space separator for flatpickr (not T)
+  const coStr = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+  document.getElementById('coInput').value = coStr;
+  // Also update flatpickr instance if present
+  const coFp = document.getElementById('coInput')._flatpickr;
+  if (coFp) coFp.setDate(coStr, false);
+}
+function onRoomChange() {
+  const sel   = document.getElementById('roomSelect');
+  const opt   = sel.options[sel.selectedIndex];
+  const hint  = document.getElementById('blockedRoomHint');
+  if (opt && opt.dataset.blocked === 'true') {
+    hint.classList.remove('d-none');
+  } else {
+    hint.classList.add('d-none');
+  }
+  checkConflict();
+}
+function prefillFromBooking(sel) {
+  const o = sel.options[sel.selectedIndex];
+  if (!o.value) return;
+  document.getElementById('roomSelect').value    = o.dataset.room   || '';
+  document.getElementById('guestInput').value    = o.dataset.guest  || '';
+  if (document.getElementById('phoneInput'))
+    document.getElementById('phoneInput').value  = o.dataset.phone  || '';
+  document.getElementById('planSelect').value    = o.dataset.plan   || '24hrs';
+  document.getElementById('baseRentInput').value = o.dataset.amount || '1000';
+  document.getElementById('ciInput').value       = (o.dataset.checkin  || '').replace(' ','T');
+  document.getElementById('coInput').value       = (o.dataset.checkout || '').replace(' ','T');
+  onRoomChange();
+}
+function quickFill(id, room, guest, plan, amount, ci, co, phone) {
+  document.getElementById('bookingSelect').value  = id;
+  document.getElementById('roomSelect').value     = room;
+  document.getElementById('guestInput').value     = guest;
+  if (document.getElementById('phoneInput'))
+    document.getElementById('phoneInput').value   = phone || '';
+  document.getElementById('planSelect').value     = plan;
+  document.getElementById('baseRentInput').value  = amount;
+  document.getElementById('ciInput').value        = ci;
+  document.getElementById('coInput').value        = co;
+  onRoomChange();
+}
+// ciInput change handled by updateBaseRent listener above
+document.getElementById('planSelect').addEventListener('change', function() {
+  autoCheckout();
+  updateBaseRent();
+});
+
+// ── Auto-update base rent when plan changes ───────────────────────────────
+const RATES_TABLE = {
+  "weekday": { "12hrs": 800,  "24hrs": 1000 },
+  "holiday": { "12hrs": 1000, "24hrs": 1200 },
+};
+
+function getRateTypeFromDate(dateStr) {
+  if (!dateStr) return "weekday";
+  const datePart = dateStr.slice(0, 10);
+  const [yr, mo, dy] = datePart.split('-').map(Number);
+  const d  = new Date(yr, mo - 1, dy);
+  const wd = d.getDay(); // 0=Sun,5=Fri,6=Sat
+
+  // Sat(6) Sun(0) Fri(5) = holiday (補班日 included)
+  if (wd === 0 || wd === 5 || wd === 6) return "holiday";
+
+  // Read holidays from <script> tag (avoids HTML attribute quote-escaping)
+  let holidays = [];
+  try {
+    const hd = document.getElementById('holidayDatesData');
+    holidays = hd ? JSON.parse(hd.textContent || '[]') : [];
+  } catch(e) { holidays = []; }
+  if (holidays.includes(datePart)) return "holiday";
+
+  const nextD   = new Date(yr, mo - 1, dy + 1);
+  const nextStr = `${nextD.getFullYear()}-${String(nextD.getMonth()+1).padStart(2,'0')}-${String(nextD.getDate()).padStart(2,'0')}`;
+  if (holidays.includes(nextStr)) return "holiday";
+
+  return "weekday";
+}
+
+function updateBaseRent() {
+  const ciVal  = document.getElementById('ciInput').value;
+  const plan   = document.getElementById('planSelect').value;
+  const rt     = getRateTypeFromDate(ciVal);
+  const amount = RATES_TABLE[rt]?.[plan] ?? (plan === '12hrs' ? 800 : 1000);
+  document.getElementById('baseRentInput').value = amount;
+}
+
+// Also update when checkin time changes
+// ── Enforce no-past-time on Check-in input ──────────────────────────────
+// Override flatpickr for ciInput: minDate = now
+document.addEventListener("DOMContentLoaded", function() {
+    setTimeout(function() {
+        const ciEl = document.getElementById("ciInput");
+        if (!ciEl) return;
+        const fp = ciEl._flatpickr;
+        if (fp) {
+            fp.set("minDate", "today");
+            fp.set("minTime", "");  // flatpickr handles min via minDate
+        }
+        // Also enforce via native input attribute (belt-and-suspenders)
+        function setMinNow() {
+            const now = new Date();
+            const pad = v => String(v).padStart(2, "0");
+            const minVal = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+            ciEl.min = minVal;
+        }
+        setMinNow();
+        setInterval(setMinNow, 60000);  // Update every minute
+    }, 500);
+});
+
+// Fire on change + input + blur for reliable datetime-local detection in Chrome
+function _ciCheckinHandler() { autoCheckout(); updateBaseRent(); }
+document.getElementById('ciInput').addEventListener('change', _ciCheckinHandler);
+document.getElementById('ciInput').addEventListener('input',  _ciCheckinHandler);
+document.getElementById('ciInput').addEventListener('blur',   _ciCheckinHandler);
+{% if prefill %}
+quickFill(
+  '{{ prefill.id }}',
+  '{{ prefill.room }}',
+  '{{ prefill.guest }}',
+  '{{ prefill.plan }}',
+  '{{ prefill.amount }}',
+  '{{ prefill.checkin | replace(" ","T") }}',
+  '{{ prefill.checkout | replace(" ","T") }}',
+  '{{ prefill.phone or "" }}'
+);
+{% endif %}
+
+// ── Live conflict check for checkin ────────────────────────────────────
+const T_CI = {
+  checking:    "{{ trans.get('validation.checking','Checking...') }}",
+  available:   "{{ trans.get('validation.available','✅ Available') }}",
+  unavailable: "{{ trans.get('validation.unavailable','⚠ Not available') }}",
+};
+
+let ciCheckTimer = null;
+function checkConflict() {
+  clearTimeout(ciCheckTimer);
+  ciCheckTimer = setTimeout(_doConflictCheck, 500);
+}
+
+async function _doConflictCheck() {
+  const room = document.getElementById('roomSelect').value;
+  const ci   = document.getElementById('ciInput').value;
+  const co   = document.getElementById('coInput').value;
+  const badge = document.getElementById('ciConflictBadge');
+
+  if (!room || !ci || !co) {
+    badge.classList.add('d-none');
+    return;
+  }
+
+  // Client-side date order check
+  if (new Date(co) <= new Date(ci)) {
+    showCIBadge("{{ trans.get('validation.co_before_ci','⚠ Check-out before check-in') }}", 'fail');
+    return;
+  }
+
+  showCIBadge(T_CI.checking, 'checking');
+
+  try {
+    const url = `/api/check-availability?room=${encodeURIComponent(room)}&checkin=${encodeURIComponent(ci)}&checkout=${encodeURIComponent(co)}`;
+    const res  = await fetch(url);
+    const data = await res.json();
+    if (data.available) {
+      showCIBadge(T_CI.available, 'ok');
+    } else {
+      let msg = T_CI.unavailable;
+      if (data.detail) {
+        msg += ' — ' + data.detail.id + ' (' + data.detail.guest + ')';
+      }
+      showCIBadge(msg, 'fail');
+    }
+  } catch(e) {
+    badge.classList.add('d-none');
+  }
+}
+
+function showCIBadge(text, state) {
+  const badge = document.getElementById('ciConflictBadge');
+  const s = {
+    ok:       { bg:'#f0fdf4', border:'#86efac', color:'#166534' },
+    fail:     { bg:'#fef2f2', border:'#fca5a5', color:'#991b1b' },
+    checking: { bg:'#eff6ff', border:'#93c5fd', color:'#1e40af' },
+  }[state] || {};
+  badge.style.background  = s.bg;
+  badge.style.borderColor = s.border;
+  badge.style.color       = s.color;
+  badge.textContent       = text;
+  badge.classList.remove('d-none');
+}
+</script>
+{% endblock %}

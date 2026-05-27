@@ -1,0 +1,358 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <h2 class="fw-bold mb-0">{{ trans.get("backup.title","雲端備份") }}</h2>
+
+  {% if state %}
+  {% set ts = state.test_status|default('untested') %}
+  {% set st = state.status|default('未設定') %}
+  {% if ts == 'fail' or st == '同步失敗' %}
+    {% set badge_class = 'bg-danger' %} {% set badge_icon = '⚠️' %}
+    {% set badge_label = trans.get("backup.status.failed","Sync Failed") %}
+  {% elif st == '同步中' %}
+    {% set badge_class = 'bg-warning text-dark' %} {% set badge_icon = '⏳' %}
+    {% set badge_label = trans.get("backup.status.syncing","Syncing") %}
+  {% elif st == '已同步' %}
+    {% set badge_class = 'bg-success' %} {% set badge_icon = '✅' %}
+    {% set badge_label = trans.get("backup.status.synced","Synced") %}
+  {% else %}
+    {% set badge_class = 'bg-secondary' %} {% set badge_icon = '☁' %}
+    {% set badge_label = trans.get("backup.status.unconfigured","Not Configured") %}
+  {% endif %}
+  <span class="badge fs-6 px-3 py-2 {{ badge_class }}">{{ badge_icon }} {{ badge_label }}</span>
+  {% endif %}
+</div>
+
+<!-- Flash messages -->
+{% if msg == "synced" %}
+<div class="flash-bar alert alert-success">{{ trans.get("backup.msg_synced","✅ Sync complete") }}</div>
+{% elif msg == "restored" %}
+<div class="flash-bar alert alert-info">{{ trans.get("backup.msg_restored","✅ Restore complete") }}</div>
+{% elif msg == "config_saved" %}
+<div class="flash-bar alert alert-success">{{ trans.get("backup.msg_config_saved","✅ Settings saved") }}</div>
+{% elif msg == "test_ok" %}
+<div class="flash-bar alert alert-success">{{ trans.get("backup.msg_test_ok","✅ Connection test successful!") }}</div>
+{% endif %}
+{% if err %}<div class="flash-bar alert alert-danger">{{ err }}</div>{% endif %}
+
+<div class="row g-4">
+
+  <!-- ── LEFT: Provider config ── -->
+  <div class="col-lg-6">
+    <div class="card rounded-3 border-0 shadow-sm mb-3 p-4">
+      <h5 class="fw-semibold mb-3" style="color:#db2777">{{ trans.get("backup.config_section","☁ Cloud Service Settings") }}</h5>
+
+      <!-- Provider type tabs -->
+      <div class="d-flex flex-wrap gap-2 mb-4" id="providerTabs">
+        {% for pt_key, pt in provider_types.items() %}
+        <label class="provider-tab {% if current_type == pt_key %}active{% endif %}" data-type="{{ pt_key }}">
+          <input type="radio" name="_provider_tab" value="{{ pt_key }}"
+                 {% if current_type == pt_key %}checked{% endif %}
+                 style="display:none" onchange="switchProvider('{{ pt_key }}')">
+          {{ pt.label }}
+        </label>
+        {% endfor %}
+      </div>
+
+      <!-- Provider description -->
+      {% for pt_key, pt in provider_types.items() %}
+      <div class="provider-info mb-3 {% if current_type != pt_key %}d-none{% endif %}" id="info-{{ pt_key }}">
+        <div class="rounded-2 p-3" style="background:#fdf4f9;font-size:.83rem">
+          <div class="mb-1">{{ trans.get(pt.description_key, pt.description_key) }}</div>
+          <div class="mt-2">
+            {% set install_txt = trans.get(pt.install_key, pt.install_key) %}
+            <span class="badge {% if '⚠' in install_txt %}bg-warning text-dark{% else %}bg-success{% endif %} me-1">
+              {{ install_txt }}
+            </span>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+
+      <!-- Config form -->
+      <form method="post" action="/backup/save-config" id="configForm">
+        <input type="hidden" name="provider_type" id="providerTypeInput" value="{{ current_type }}">
+        {% for pt_key, pt in provider_types.items() %}
+        <div class="provider-fields {% if current_type != pt_key %}d-none{% endif %}" id="fields-{{ pt_key }}">
+          {% if pt_key == "dropbox" %}
+          {# ── Dropbox: OAuth2 vs Legacy Token tabs ── #}
+          {% set has_refresh = creds.get("refresh_token","") and current_type == "dropbox" %}
+          {% set dropbox_mode = "oauth2" if has_refresh else "token" %}
+
+          <div class="mb-3">
+            <div class="btn-group btn-group-sm w-100 mb-3" role="group">
+              <input type="radio" class="btn-check" name="dropbox_auth_mode" id="modeOAuth2" value="oauth2"
+                     {% if dropbox_mode == "oauth2" %}checked{% endif %} onchange="toggleDropboxMode('oauth2')">
+              <label class="btn btn-outline-primary" for="modeOAuth2">
+                🔄 {{ trans.get("backup.oauth2_mode","OAuth2（推薦，自動更新）") }}
+              </label>
+              <input type="radio" class="btn-check" name="dropbox_auth_mode" id="modeToken" value="token"
+                     {% if dropbox_mode == "token" %}checked{% endif %} onchange="toggleDropboxMode('token')">
+              <label class="btn btn-outline-secondary" for="modeToken">
+                🔑 {{ trans.get("backup.token_mode","短效 Token（手動更新）") }}
+              </label>
+            </div>
+          </div>
+
+          {# OAuth2 fields #}
+          <div id="oauth2Fields" {% if dropbox_mode != "oauth2" %}style="display:none"{% endif %}>
+            <div class="alert alert-info p-2 mb-3" style="font-size:.8rem">
+              {{ trans.get("backup.oauth2_hint","使用 App Key + App Secret + Refresh Token，系統自動更新 Access Token，永不過期。") }}
+              <a href="https://www.dropbox.com/developers/apps" target="_blank" class="alert-link">→ Dropbox Developers</a>
+            </div>
+            {% for field in pt.fields if field.group in ("oauth2","both") %}
+            <div class="mb-3">
+              {% set f_label = trans.get(field.label_key, field.label_key) %}
+              {% set f_hint  = trans.get(field.hint_key, '') if field.hint_key else '' %}
+              <label class="form-label fw-semibold" style="font-size:.85rem">{{ f_label }}</label>
+              {% if field.hint_key %}<div class="text-muted mb-1" style="font-size:.76rem">{{ f_hint }}</div>{% endif %}
+              <input type="{{ field.type }}" name="{{ field.key }}" class="form-control form-control-sm"
+                     value="{{ creds.get(field.key,'') if current_type == 'dropbox' else '' }}">
+            </div>
+            {% endfor %}
+          </div>
+
+          {# Legacy token fields #}
+          <div id="tokenFields" {% if dropbox_mode == "oauth2" %}style="display:none"{% endif %}>
+            <div class="alert alert-warning p-2 mb-3" style="font-size:.8rem">
+              ⚠ {{ trans.get("backup.token_warning","短效 Token 每 4 小時過期，需手動更新。建議改用 OAuth2 模式。") }}
+            </div>
+            {% for field in pt.fields if field.group in ("token","both") %}
+            <div class="mb-3">
+              {% set f_label = trans.get(field.label_key, field.label_key) %}
+              {% set f_hint  = trans.get(field.hint_key, '') if field.hint_key else '' %}
+              <label class="form-label fw-semibold" style="font-size:.85rem">{{ f_label }}</label>
+              <input type="{{ field.type }}" name="{{ field.key }}" class="form-control form-control-sm"
+                     value="{{ creds.get(field.key,'') if current_type == 'dropbox' else '' }}"
+                     placeholder="{{ f_hint }}">
+            </div>
+            {% endfor %}
+          </div>
+
+          {% else %}
+          {# Non-Dropbox providers: original field loop #}
+          {% for field in pt.fields %}
+          <div class="mb-3">
+            {% set f_label = trans.get(field.label_key, field.label_key) if field.label_key else field.get('label','') %}
+            {% set f_hint  = trans.get(field.hint_key, '') if field.hint_key else '' %}
+            <label class="form-label fw-semibold" style="font-size:.85rem">
+              {{ f_label }}
+              {% if f_hint %}<span class="text-muted fw-normal" style="font-size:.78rem">— {{ f_hint }}</span>{% endif %}
+            </label>
+            {% if field.type == "textarea" %}
+            <textarea name="{{ field.key }}" class="form-control form-control-sm" rows="4"
+                      placeholder="{{ f_hint }}">{{ creds.get(field.key, '') if current_type == pt_key else '' }}</textarea>
+            {% elif field.type == "password" %}
+            <input type="password" name="{{ field.key }}" class="form-control form-control-sm"
+                   value="{{ creds.get(field.key, '') if current_type == pt_key else '' }}"
+                   placeholder="{{ f_hint }}">
+            {% else %}
+            <input type="text" name="{{ field.key }}" class="form-control form-control-sm"
+                   value="{{ creds.get(field.key, '') if current_type == pt_key else '' }}"
+                   placeholder="{{ f_hint }}">
+            {% endif %}
+          </div>
+          {% endfor %}
+          {% endif %}
+        </div>
+        {% endfor %}
+
+        <!-- Auto backup toggle -->
+        <div class="mb-3 d-flex align-items-center gap-3">
+          <label class="form-label fw-semibold mb-0" style="font-size:.85rem">
+            {{ trans.get("backup.auto_backup","Auto Backup") }}
+          </label>
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" name="auto_backup" value="1"
+                   id="autoBackupToggle"
+                   {% if not state or state.auto_backup|default(1) %}checked{% endif %}>
+            <label class="form-check-label" for="autoBackupToggle" style="font-size:.83rem">
+              {{ trans.get("backup.auto_backup_desc","Auto-sync after each Check-in / Check-out / Booking") }}
+            </label>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-bb px-4">{{ trans.get("backup.save_config","💾 Save Settings") }}</button>
+          <button type="button" class="btn btn-outline-secondary"
+                  onclick="document.getElementById('testForm').submit()">
+            {{ trans.get("backup.test_connection","🔌 Test Connection") }}
+          </button>
+        </div>
+      </form>
+      <form id="testForm" method="post" action="/backup/test"></form>
+    </div>
+
+    <!-- Manual sync / restore -->
+    <div class="card rounded-3 border-0 shadow-sm p-4">
+      <h6 class="fw-semibold mb-3" style="color:#db2877">{{ trans.get("backup.manual_ops","Manual Operations") }}</h6>
+
+      {% if state and state.credentials|default(None) %}
+      <div class="rounded-2 p-3 mb-3" style="background:#f0fdf4;font-size:.84rem">
+        <div class="row g-1">
+          <div class="col-4 text-muted">{{ trans.get("backup.provider_label","Service") }}</div>
+          <div class="col-8 fw-semibold">{{ state.provider }}</div>
+          {% if state.folder %}
+          <div class="col-4 text-muted">{{ trans.get("backup.target_label","Target") }}</div>
+          <div class="col-8"><code style="font-size:.78rem">{{ state.folder }}</code></div>
+          {% endif %}
+          <div class="col-4 text-muted">{{ trans.get("backup.last_sync","Last Sync") }}</div>
+          <div class="col-8">{{ state.last_sync or trans.get("backup.last_sync_never","Never") }}</div>
+          <div class="col-4 text-muted">{{ trans.get("backup.files_count","Backup Files") }}</div>
+          <div class="col-8">{{ state.files }} {{ trans.get("backup.files_unit","files") }}</div>
+          {% if state.test_status|default('untested') %}
+          <div class="col-4 text-muted">{{ trans.get("backup.conn_status","Connection") }}</div>
+          <div class="col-8">
+            {% set ts_val = state.test_status|default('untested') %}
+            <span class="badge {% if ts_val=='ok' %}bg-success{% elif ts_val=='fail' %}bg-danger{% else %}bg-secondary{% endif %}">
+              {% if ts_val == 'ok' %}{{ trans.get("backup.conn_ok","✅ OK") }}
+              {% elif ts_val == 'fail' %}{{ trans.get("backup.conn_fail","❌ Failed") }}
+              {% else %}{{ trans.get("backup.conn_untested","Untested") }}{% endif %}
+            </span>
+            {% if state.test_message|default(None) %}
+            <div class="text-muted mt-1" style="font-size:.75rem">{{ state.test_message }}</div>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% else %}
+      <div class="alert alert-warning py-2 mb-3" style="font-size:.84rem">
+        {{ trans.get("backup.not_configured","⚠ Cloud service not configured. Please fill in settings and save.") }}
+      </div>
+      {% endif %}
+
+      <div class="d-flex gap-2 flex-wrap">
+        <form method="post" action="/backup/sync">
+          <button type="submit" class="btn btn-bb"
+                  {% if not state or not state.credentials|default(None) %}disabled{% endif %}>
+            ↑ {{ trans.get("backup.action_sync","Sync Now") }}
+          </button>
+        </form>
+        <form method="post" action="/backup/restore"
+              onsubmit="return confirm('{{ trans.get('backup.restore_confirm','Confirm restore from cloud?') }}')">
+          <button type="submit" class="btn btn-outline-secondary"
+                  {% if not state or not state.credentials|default(None) %}disabled{% endif %}>
+            ↓ {{ trans.get("backup.action_restore","Restore from Cloud") }}
+          </button>
+        </form>
+      </div>
+      <div class="mt-2" style="font-size:.76rem;color:#6b7280">
+        {{ trans.get("backup.restore_hint","⬇ Local backup saved to") }}
+        <code>BINI_Blooms_Data/backup/</code>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RIGHT: Info + logs ── -->
+  <div class="col-lg-6">
+
+    <!-- Provider comparison table -->
+    <div class="card rounded-3 border-0 shadow-sm mb-3 p-3">
+      <h6 class="fw-semibold mb-3" style="color:#db2877">{{ trans.get("backup.info_section","☁ Cloud Service Guide") }}</h6>
+      <table class="table table-sm table-bordered mb-2" style="font-size:.78rem">
+        <thead class="table-light">
+          <tr>
+            <th>{{ trans.get("backup.info_service","Service") }}</th>
+            <th>{{ trans.get("backup.info_required","Required Info") }}</th>
+            <th>{{ trans.get("backup.info_install","Extra Install") }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Dropbox</strong></td>
+            <td>{{ trans.get("backup.dropbox_desc","Access Token + Remote Path") }}</td>
+            <td><span class="badge bg-success">{{ trans.get("backup.info_not_required","Not required") }}</span></td>
+          </tr>
+          <tr>
+            <td><strong>WebDAV / Nextcloud</strong></td>
+            <td>{{ trans.get("backup.webdav_desc","Server URL + Credentials") }}</td>
+            <td><span class="badge bg-success">{{ trans.get("backup.info_not_required","Not required") }}</span></td>
+          </tr>
+          <tr>
+            <td><strong>FTP</strong></td>
+            <td>{{ trans.get("backup.ftp_desc","Host + Credentials + Directory") }}</td>
+            <td><span class="badge bg-success">{{ trans.get("backup.info_not_required","Not required") }}</span></td>
+          </tr>
+          <tr>
+            <td><strong>Google Drive</strong></td>
+            <td>{{ trans.get("backup.gdrive_desc","Service Account JSON Key") }}</td>
+            <td><span class="badge bg-warning text-dark">{{ trans.get("backup.info_required_install","⚠ Required") }}</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="rounded-2 p-2" style="background:#fef3c7;font-size:.76rem;color:#92400e">
+        {{ trans.get("backup.recommend","💡 Recommend Dropbox or WebDAV — no extra install needed.") }}
+      </div>
+
+      <div class="mt-3" style="font-size:.79rem;color:#374151">
+        <div class="fw-semibold mb-1">{{ trans.get("backup.how_it_works","⚙ How It Works") }}</div>
+        <ul class="mb-0 ps-3">
+          <li>{{ trans.get("backup.how_1","Auto-uploads after each Check-in / Check-out / Booking") }}</li>
+          <li>{{ trans.get("backup.how_2","Backup format: JSON (rooms, bookings, stays, reports)") }}</li>
+          <li>{{ trans.get("backup.how_3","Local backup saved before restore") }}</li>
+          <li>{{ trans.get("backup.how_4","Keeps last 10 local backups") }}</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Sync logs — fixed height matching manual ops card, scrollable -->
+    <div class="card rounded-3 border-0 shadow-sm p-3" style="height:320px;display:flex;flex-direction:column">
+      <h6 class="fw-semibold mb-2 text-muted flex-shrink-0">{{ trans.get("backup.logs","Recent Logs") }}</h6>
+      <div style="overflow-y:auto;flex:1;min-height:0">
+        {% if logs %}
+        <ul class="list-unstyled mb-0">
+          {% for log in logs %}
+          <li class="border-bottom py-2" style="font-size:.78rem;word-break:break-all">
+            <span style="font-family:monospace;color:
+              {% if '✅' in log.message %}#166534
+              {% elif '❌' in log.message %}#991b1b
+              {% elif '⚠' in log.message %}#92400e
+              {% else %}#374151{% endif %}">
+              {{ log.message }}
+            </span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted text-center py-3" style="font-size:.85rem">
+          {{ trans.get("backup.no_logs","No sync logs yet") }}
+        </p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchProvider(type) {
+  document.getElementById('providerTypeInput').value = type;
+  document.querySelectorAll('.provider-info').forEach(el => el.classList.add('d-none'));
+  const info = document.getElementById('info-' + type);
+  if (info) info.classList.remove('d-none');
+  document.querySelectorAll('.provider-fields').forEach(el => el.classList.add('d-none'));
+  const fields = document.getElementById('fields-' + type);
+  if (fields) fields.classList.remove('d-none');
+  document.querySelectorAll('.provider-tab').forEach(el => {
+    el.classList.toggle('active', el.dataset.type === type);
+  });
+}
+
+function toggleDropboxMode(mode) {
+  document.getElementById("oauth2Fields").style.display = mode === "oauth2" ? "" : "none";
+  document.getElementById("tokenFields").style.display  = mode === "token"  ? "" : "none";
+}
+</script>
+<style>
+.provider-tab {
+  padding:.35rem .9rem; border-radius:999px; border:1.5px solid #f9a8d4;
+  background:#fff; color:#db2877; font-size:.83rem; cursor:pointer;
+  transition:background .15s,color .15s; user-select:none;
+}
+.provider-tab.active, .provider-tab:hover { background:#db2877; color:#fff; border-color:#db2877; }
+</style>
+{% endblock %}

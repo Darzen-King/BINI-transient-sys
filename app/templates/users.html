@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h2 class="fw-bold mb-0">{{ trans.get("auth.users_title","User Management") }}</h2>
+  <button class="btn btn-bb btn-sm" data-bs-toggle="modal" data-bs-target="#createUserModal">
+    + {{ trans.get("auth.create_user","New User") }}
+  </button>
+</div>
+
+{% if msg == "created" %}<div class="flash-bar alert alert-success">✅ {{ trans.get("auth.user_created","User created") }}</div>{% endif %}
+{% if msg == "updated" or msg == "profile_updated" %}<div class="flash-bar alert alert-success">✅ {{ trans.get("msg.profile_updated","Profile updated") }}</div>{% endif %}
+{% if err %}<div class="flash-bar alert alert-danger">⚠ {{ err }}</div>{% endif %}
+
+<div class="card rounded-3 border-0 shadow-sm mb-4">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+    <table class="table table-hover mb-0" style="font-size:.84rem">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-3">{{ trans.get("auth.username","Username") }}</th>
+          <th>{{ trans.get("auth.display_name","Name") }}</th>
+          <th>{{ trans.get("auth.role","Role") }}</th>
+          <th>{{ trans.get("auth.page_access","Pages") }}</th>
+          <th>{{ trans.get("auth.last_login","Last Login") }}</th>
+          <th>{{ trans.get("auth.status","Status") }}</th>
+          <th>{{ trans.get("auth.actions","Actions") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr {% if not u.is_active %}class="opacity-50"{% endif %}>
+          <td class="ps-3 fw-semibold {% if u.id == current_user.id %}text-pink{% endif %}">
+            {{ u.username }}
+            {% if u.id == current_user.id %}<span class="badge bg-light text-muted border ms-1" style="font-size:.68rem">you</span>{% endif %}
+          </td>
+          <td>{{ u.display_name or u.username }}</td>
+          <td>
+            <span class="badge rounded-pill
+              {% if u.role=='admin' %}bg-danger
+              {% elif u.role=='manager' %}bg-primary
+              {% elif u.role=='front_desk' %}bg-success
+              {% elif u.role=='housekeeping' %}bg-info text-dark
+              {% else %}bg-warning text-dark{% endif %}" style="font-size:.74rem">
+              {{ roles.get(u.role, u.role) }}
+            </span>
+          </td>
+          <td>
+            {% if u.allowed_pages %}
+              {% set pg = u.allowed_pages | from_json %}
+              <span class="badge bg-light border text-dark" style="font-size:.72rem" title="{{ pg | join(', ') }}">
+                {{ trans.get("auth.custom_n_pages","Custom") }} {{ pg | length }} {{ trans.get("auth.pages_unit","pages") }}
+              </span>
+            {% else %}
+              <span class="text-muted" style="font-size:.78rem">{{ trans.get("auth.role_default","Role Default") }}</span>
+            {% endif %}
+          </td>
+          <td class="text-muted" style="font-size:.78rem">{{ u.last_login or "—" }}</td>
+          <td>
+            <span class="badge {% if u.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+              {% if u.is_active %}{{ trans.get("auth.active","Active") }}{% else %}{{ trans.get("auth.inactive","Inactive") }}{% endif %}
+            </span>
+          </td>
+          <td>
+            <div class="d-flex gap-1 flex-wrap">
+              <button class="btn btn-outline-primary btn-sm" style="font-size:.72rem"
+                      onclick="openEditModal({{ u.id }},'{{ u.username }}','{{ u.display_name or u.username }}','{{ u.role }}',{{ u.allowed_pages | default('') | tojson }},{{ (u.id == current_user.id) | lower }})">
+                {{ trans.get("auth.edit_btn","✏️ Edit") }}
+              </button>
+              {% if u.id != current_user.id %}
+              <form method="post" action="/admin/users/{{ u.id }}/toggle">
+                <button type="submit" class="btn btn-outline-secondary btn-sm" style="font-size:.72rem">
+                  {% if u.is_active %}{{ trans.get("auth.deactivate","Disable") }}{% else %}{{ trans.get("auth.activate","Enable") }}{% endif %}
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+
+<!-- Edit User Modal -->
+<div class="modal fade" id="editUserModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content rounded-3">
+      <div class="modal-header" style="background:#fdf4f9">
+        <h5 class="modal-title fw-bold" style="color:#db2777">
+          {{ trans.get("auth.edit_title","✏️ Edit User") }} <small id="editLabel" class="text-muted fw-normal fs-6"></small>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" id="editForm">
+      <div class="modal-body">
+
+        <div id="selfWarn" class="alert alert-warning py-2 mb-3 d-none" style="font-size:.82rem">
+          ⚠ {{ trans.get("auth.self_protect","Cannot edit your own account/role") }}
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("auth.display_name","Display Name") }}</label>
+            <input type="text" name="display_name" id="e_display" class="form-control form-control-sm">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("auth.login_account","Login Account") }}</label>
+            <input type="text" name="new_username" id="e_username" class="form-control form-control-sm"
+                   placeholder="留空則不變更">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("auth.password","Password") }}</label>
+            <input type="password" name="new_password" id="e_password" class="form-control form-control-sm"
+                   placeholder="{{ trans.get('auth.pw_placeholder','Leave blank to keep current password') }}">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold" style="font-size:.84rem">角色</label>
+            <select name="new_role" id="e_role" class="form-select form-select-sm" onchange="loadRoleDefaults()">
+              {% for rk, rl in roles.items() %}
+              <option value="{{ rk }}">{{ rl }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <!-- Page Access Checkboxes -->
+        <div class="rounded-2 p-3" style="background:#fafafa;border:1px solid #e5e7eb">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="fw-semibold" style="font-size:.86rem">
+              🗂 {{ trans.get("auth.page_access","Page Access") }}
+            </div>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-outline-secondary btn-sm" style="font-size:.73rem"
+                      onclick="setAll(false)">{{ trans.get("auth.clear_pages","Clear All") }}</button>
+              <button type="button" class="btn btn-outline-primary btn-sm" style="font-size:.73rem"
+                      onclick="loadRoleDefaults()">↺ {{ trans.get("auth.load_role_default","Load Role Default") }}</button>
+            </div>
+          </div>
+          <div class="text-muted mb-3" style="font-size:.77rem">
+            {{ trans.get("auth.pages_hint_full","Check pages this user can see. Leave all unchecked to use role defaults.") }}
+          </div>
+          <div class="row g-2" id="pageGrid">
+            {% for pk, i18n_k in all_nav_pages.items() %}
+            <div class="col-6 col-md-4 col-lg-3">
+              <label class="d-flex align-items-center gap-2 p-2 rounded-2 border page-item"
+                     id="wrap_{{ pk }}" style="cursor:pointer;font-size:.82rem">
+                <input type="checkbox" name="allowed_pages" value="{{ pk }}"
+                       id="pg_{{ pk }}" class="page-cb" onchange="styleItem('{{ pk }}')">
+                {{ trans.get(i18n_k, pk) }}
+              </label>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ trans.get("auth.cancel","Cancel") }}</button>
+        <button type="submit" class="btn btn-bb btn-sm px-4">{{ trans.get("auth.save","Save Changes") }}</button>
+      </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+<!-- Create User Modal -->
+<div class="modal fade" id="createUserModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-3">
+      <div class="modal-header" style="background:#fdf4f9">
+        <h5 class="modal-title fw-bold" style="color:#db2777">{{ trans.get("auth.create_title","➕ New User") }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="/admin/users/create">
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-6">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("auth.login_account","Login Account") }} <span class="text-danger">*</span></label>
+            <input type="text" name="username" class="form-control form-control-sm" required>
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("auth.display_name","Display Name") }}</label>
+            <input type="text" name="display_name" class="form-control form-control-sm">
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("auth.password","Password") }} <span class="text-danger">*</span></label>
+            <input type="password" name="password" class="form-control form-control-sm" required>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold" style="font-size:.84rem">角色</label>
+            <select name="role" class="form-select form-select-sm">
+              {% for rk, rl in roles.items() %}
+              <option value="{{ rk }}" {% if rk=="front_desk" %}selected{% endif %}>{{ rl }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ trans.get("auth.cancel","Cancel") }}</button>
+        <button type="submit" class="btn btn-bb btn-sm">{{ trans.get("auth.build_btn","Create") }}</button>
+      </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+const ROLE_NAV = {{ role_nav_json | safe }};
+
+function openEditModal(id, username, displayName, role, rawPages, isSelf) {
+  document.getElementById('editLabel').textContent = ' — ' + username;
+  document.getElementById('editForm').action = '/admin/users/' + id + '/edit';
+  document.getElementById('e_display').value  = displayName;
+  document.getElementById('e_username').value = '';
+  document.getElementById('e_password').value = '';
+  document.getElementById('e_role').value     = role;
+
+  const self = (isSelf === true || isSelf === 'true');
+  document.getElementById('selfWarn').classList.toggle('d-none', !self);
+  document.getElementById('e_username').disabled = self;
+  document.getElementById('e_role').disabled     = self;
+
+  // Parse current allowed_pages
+  let checked = [];
+  if (rawPages && rawPages !== '""' && rawPages !== '') {
+    try {
+      const parsed = JSON.parse(rawPages);
+      if (Array.isArray(parsed)) checked = parsed;
+    } catch(e) {}
+  }
+
+  document.querySelectorAll('.page-cb').forEach(cb => {
+    cb.checked = checked.includes(cb.value);
+    styleItem(cb.value);
+  });
+
+  new bootstrap.Modal(document.getElementById('editUserModal')).show();
+}
+
+function styleItem(key) {
+  const cb   = document.getElementById('pg_' + key);
+  const wrap = document.getElementById('wrap_' + key);
+  if (!cb || !wrap) return;
+  wrap.style.background   = cb.checked ? '#fdf4f9' : '';
+  wrap.style.borderColor  = cb.checked ? '#f9a8d4' : '#e5e7eb';
+  wrap.style.fontWeight   = cb.checked ? '600' : '';
+}
+
+function setAll(val) {
+  document.querySelectorAll('.page-cb').forEach(cb => {
+    cb.checked = val;
+    styleItem(cb.value);
+  });
+}
+
+function loadRoleDefaults() {
+  const role  = document.getElementById('e_role').value;
+  const pages = ROLE_NAV[role] || [];
+  document.querySelectorAll('.page-cb').forEach(cb => {
+    cb.checked = pages.includes(cb.value);
+    styleItem(cb.value);
+  });
+}
+</script>
+{% endblock %}

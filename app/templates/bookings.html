@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h2 class="fw-bold mb-0">{{ trans.get("nav.bookings","預約管理") }}</h2>
+
+{% set sort_by  = sort_by  if sort_by  is defined else "checkin" %}
+{% set sort_dir = sort_dir if sort_dir is defined else "asc" %}
+
+{# Auto-cancel policy reminder #}
+<div class="alert alert-info d-flex align-items-center gap-2 py-2 px-3 mb-3" style="font-size:.82rem;border-left:4px solid #0ea5e9">
+  <span>ℹ️</span>
+  <span>{{ trans.get("booking.auto_cancel_notice","預約到達入住時間後 <strong>30 分鐘</strong>如未辦理入住，系統將自動取消並標記為 No-show。請提醒預約旅客準時入住。") | safe }}</span>
+</div>
+{% macro sort_link(field, label) %}
+  {% set dir = "desc" if (sort_by == field and sort_dir == "asc") else "asc" %}
+  <a href="/bookings?sort_by={{ field }}&sort_dir={{ dir }}" class="text-decoration-none" style="color:inherit">
+    {{ label }}{% if sort_by == field %} {{ "↑" if sort_dir == "asc" else "↓" }}{% else %} <span style="opacity:.4;font-size:.8em">↕</span>{% endif %}
+  </a>
+{% endmacro %}
+  <a href="/bookings/new" class="btn btn-bb btn-sm px-3">
+    + {{ trans.get("action.new_booking","新增預約") }}
+  </a>
+</div>
+
+{% if msg == "created" %}
+<div class="flash-bar alert alert-success">{{ trans.get("label.booking_created","✅ 預約建立成功") }}</div>
+{% elif msg == "cancelled" %}
+<div class="flash-bar alert alert-info">{{ trans.get("label.booking_cancelled","✅ 預約已取消") }}</div>
+{% endif %}
+
+<!-- Status summary chips -->
+<div class="d-flex flex-wrap gap-2 mb-4">
+  {% for status, count in summary.items() %}
+  <span class="badge rounded-pill bg-light text-dark border" style="font-size:.82rem;padding:.35rem .8rem">
+    {{ status }}&nbsp;<strong>{{ count }}</strong>
+  </span>
+  {% endfor %}
+</div>
+
+<!-- Bookings table -->
+<div class="card rounded-3 border-0 shadow-sm">
+  <div class="card-body p-0">
+    {% if bookings %}
+    <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-3" style="font-size:.75rem;color:#9ca3af">{{ trans.get("label.booking_id","預約編號") }}</th>
+          <th>{{ sort_link("room",     trans.get("label.room","Room")) }}</th>
+          <th>{{ sort_link("guest",    trans.get("label.guest","Guest")) }}</th>
+          <th>{{ sort_link("phone",    trans.get("label.phone","Phone")) }}</th>
+          <th>{{ sort_link("checkin",  trans.get("label.checkin","Check-in")) }}</th>
+          <th>{{ sort_link("checkout", trans.get("label.checkout","Check-out")) }}</th>
+          <th>{{ sort_link("plan",     trans.get("label.plan","Plan")) }}</th>
+          <th>{{ trans.get("label.rate_type","Rate") }}</th>
+          <th>{{ sort_link("amount",   trans.get("label.amount","Amount")) }}</th>
+          <th>{{ sort_link("status",   trans.get("label.status","Status")) }}</th>
+          <th>{{ trans.get("auth.actions","Actions") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in bookings %}
+        <tr>
+          <td><code style="font-size:.78rem">{{ b.id }}</code></td>
+          <td><strong>{{ b.room }}</strong></td>
+          <td>{{ b.guest }}</td>
+          <td>{{ b.phone or "—" }}</td>
+          <td>{{ b.checkin }}</td>
+          <td>{{ b.checkout }}</td>
+          <td><span class="badge bg-light text-dark border">{{ b.plan }}</span></td>
+          <td>NT$ {{ "%.0f"|format(b.amount) }}</td>
+          <td>{{ trans.get("label.rate_type_" + ("weekday" if b.rate_type == "非假日" else "holiday"), b.rate_type) }}</td>
+          <td>
+            {% if b.status == "即將到店" %}
+              <span class="badge bg-primary">{{ trans.get("booking_status." + b.status, b.status) }}</span>
+            {% elif b.status == "需注意" %}
+              <span class="badge bg-warning text-dark">{{ trans.get("booking_status." + b.status, b.status) }}</span>
+            {% elif b.status == "已取消" or b.status == "No-show" %}
+              <span class="badge bg-secondary">{{ trans.get("booking_status." + b.status, b.status) }}</span>
+            {% else %}
+              <span class="badge bg-success">{{ trans.get("booking_status." + b.status, b.status) }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if b.status not in ["已取消","No-show"] %}
+            <div class="d-flex gap-1">
+              <a href="/checkin?booking_id={{ b.id }}" class="btn btn-bb btn-sm">
+                {{ trans.get("action.checkin","入住") }}
+              </a>
+              <div class="d-flex gap-1 flex-wrap">
+              <a href="/bookings/{{ b.id }}/edit" class="btn btn-outline-primary btn-sm" style="font-size:.72rem">✏️</a>
+              <form method="post" action="/bookings/{{ b.id }}/cancel"
+                    onsubmit="return confirm('確認取消？')">
+                <button class="btn btn-outline-secondary btn-sm">
+                  {{ trans.get("action.cancel","取消") }}
+                </button>
+              </form>
+            </div>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="text-center text-muted py-4">{{ trans.get("label.no_bookings","目前無預約記錄") }}</p>
+    {% endif %}
+  </div>
+</div>
+
+{% block scripts %}
+<script>
+// Show auto-cancel reminder after new booking created
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const msg = params.get("msg") || "";
+  if (!msg.startsWith("created")) return;
+
+  const toast = document.createElement("div");
+  toast.style.cssText = "position:fixed;bottom:24px;right:24px;z-index:9999;max-width:380px;background:#fff;border:1px solid #e5e7eb;border-left:4px solid #f59e0b;border-radius:10px;padding:16px 18px;box-shadow:0 4px 20px rgba(0,0,0,.12);font-size:.85rem";
+  toast.innerHTML = `
+    <div style="font-weight:700;margin-bottom:6px;color:#92400e">
+      ⚠️ {{ trans.get("booking.created_reminder_title","預約自動取消提醒") }}
+    </div>
+    <div style="color:#374151;line-height:1.5">
+      {{ trans.get("booking.created_reminder_body","預約已建立。請提醒旅客：若於入住時間起 <strong>30 分鐘</strong>內未辦理入住，系統將自動取消並標記為 No-show。") | safe }}
+    </div>
+    <button onclick="this.closest('div[style]').remove()"
+            style="position:absolute;top:8px;right:10px;background:none;border:none;font-size:1.1rem;cursor:pointer;color:#9ca3af">✕</button>
+  `;
+  document.body.appendChild(toast);
+  // Auto-dismiss after 15 seconds
+  setTimeout(() => { if (toast.parentNode) toast.remove(); }, 15000);
+})();
+</script>
+{% endblock %}
+{% endblock %}

@@ -1,0 +1,868 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center gap-3 mb-4">
+  <a href="/bookings" class="text-muted text-decoration-none">← {{ trans.get("nav.bookings","Bookings") }}</a>
+  <h2 class="fw-bold mb-0">{{ trans.get("nav.bookings_new","New Booking") }}</h2>
+
+</div>
+
+<!-- Server-side error banner -->
+{% if error_msg %}
+<div class="flash-bar alert alert-danger">
+  <strong>{{ trans.get("label.conflict_warning","⚠ 衝突警告") }}</strong> {{ error_msg }}
+</div>
+{% endif %}
+
+<div class="row g-4">
+
+  <!-- ── LEFT: form ── -->
+  <div class="col-lg-7">
+    <div class="card rounded-3 shadow-sm border-0 p-4">
+      <form method="post" action="/bookings/new" id="bookingForm" novalidate>
+
+        <!-- Room -->
+        <div class="mb-3">
+          <label class="form-label fw-semibold">{{ trans.get("room.id","Room") }}</label>
+          <select name="room" id="roomSel" class="form-select" required
+                  onchange="triggerCheck()">
+            <option value="">── {{ trans.get("label.select_room","Select a room") }} ──</option>
+            {% for r in rooms %}
+            <option value="{{ r.id }}"
+              {% if r.id == prefill_room %}selected
+              {% elif prefill and r.id == prefill.room %}selected{% endif %}>
+              {{ r.id }}
+              {% if r.current_guest %} · 🔴 {{ r.current_guest }}{% endif %}
+              {% if r.next_booking %} · {{ trans.get("label.next_booking_hint","Next") }}: {{ r.next_booking }}{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Guest + Phone -->
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.guest","Guest") }}</label>
+            <input type="text" name="guest" class="form-control" required
+                   value="{{ prefill.guest if prefill else '' }}"
+                   placeholder="{{ trans.get('booking.guest','Guest name') }}">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.phone","Phone") }}</label>
+            <input type="text" name="phone" class="form-control"
+                   value="{{ prefill.phone if prefill else '' }}"
+                   placeholder="0912-345-678">
+          </div>
+        </div>
+
+        <!-- Check-in / Check-out with live validation status -->
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.checkin","Check-in") }}</label>
+            <input type="datetime-local" data-dtype="datetime-local" name="checkin" id="ciInput"
+                   class="form-control" required step="60"
+                   value="{{ prefill.checkin | replace(' ','T') if prefill else '' }}"
+                   oninput="onDateChange()">
+            <div id="ciErr" class="form-text text-danger d-none"></div>
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.checkout","Check-out") }}</label>
+            <input type="datetime-local" data-dtype="datetime-local" name="checkout" id="coInput"
+                   class="form-control" required step="60"
+                   value="{{ prefill.checkout | replace(' ','T') if prefill else '' }}"
+                   oninput="onDateChange()">
+            <div id="coErr" class="form-text text-danger d-none"></div>
+          </div>
+        </div>
+
+        <!-- Live availability badge -->
+        <div id="availBadge" class="rounded-2 px-3 py-2 mb-3 d-none"
+             style="font-size:.85rem;border:1px solid transparent"></div>
+
+        <!-- Plan + Rate type + Amount -->
+        <div class="row">
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.plan","Plan") }}</label>
+            <select name="plan" id="planSel" class="form-select"
+                    onchange="autoCheckout(); triggerCheck()">
+              {% for p in plans %}
+              <option value="{{ p }}"
+                {% if prefill and prefill.plan == p %}selected{% endif %}>{{ p }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.rate_type","Rate Type") }}</label>
+            <select name="rate_type" class="form-select" id="rateTypeSel">
+              {% for rt in rate_types %}
+              <option value="{{ rt }}"
+                {% if (prefill and prefill.rate_type == rt) or (not prefill and rt == ("假日" if today_rate == "假日" else "非假日")) %}selected{% endif %}>
+                {%- if rt == "非假日" -%}{{ trans.get("label.rate_type_weekday","Weekday") }}
+                {%- elif rt == "假日" -%}{{ trans.get("label.rate_type_holiday","Weekend / Holiday") }}
+                {%- else -%}{{ rt }}{%- endif -%}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("label.amount","Amount (NT$)") }}</label>
+            <input type="number" name="amount" id="amountInput"
+                   class="form-control"
+                   value="{{ prefill.amount if prefill else 1000 }}"
+                   min="0" step="100">
+            
+          </div>
+        </div>
+
+        <!-- ── Multi-slot list: Slot cards appear ABOVE the action buttons ── -->
+        <div id="slotList" class="mt-3"></div>
+
+        <!-- Action buttons row: [+ Add Slot] [Confirm] [Cancel]  Total -->
+        <div class="d-flex gap-2 align-items-center mt-3 flex-wrap">
+          <button type="button" class="btn btn-outline-primary" id="btnAddSlot" onclick="addSlot()">
+            + {{ trans.get("booking.add_slot","Add Slot") }}
+          </button>
+          <button type="submit" id="submitBtn" class="btn btn-bb px-4">
+            {{ trans.get("action.confirm","Confirm") }} · {{ trans.get("action.new_booking","New Booking") }}
+          </button>
+          <a href="/bookings" class="btn btn-outline-secondary">
+            {{ trans.get("action.cancel","Cancel") }}
+          </a>
+          <span id="totalAmountBadge" class="d-none ms-auto fw-semibold" style="color:#db2877;font-size:.95rem"></span>
+        </div>
+
+        <div class="text-muted mt-2 d-none" id="multiHint" style="font-size:.77rem">
+          {{ trans.get("booking.multi_hint","Each slot is checked independently. Non-conflicting slots are created.") }}
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  <!-- ── RIGHT: validation status panel ── -->
+  <div class="col-lg-5">
+    <div class="card rounded-3 border-0 shadow-sm p-3" id="validationPanel">
+      <h6 class="fw-semibold mb-3 text-muted">{{ trans.get("label.conflict","Conflict Check") }}</h6>
+
+      <!-- Date validation results -->
+      <div id="dateValidationArea" class="mb-3">
+        <div class="check-row" id="chkPast">
+          <span class="check-icon">⬜</span>
+          <span class="check-label">{{ trans.get("validation.past_warning","Check-in not in past") }}</span>
+        </div>
+        <div class="check-row" id="chkOrder">
+          <span class="check-icon">⬜</span>
+          <span class="check-label">{{ trans.get("validation.co_before_ci","Check-out after check-in") }}</span>
+        </div>
+        <div class="check-row" id="chkConflict">
+          <span class="check-icon">⬜</span>
+          <span class="check-label">{{ trans.get("validation.unavailable","No conflicting bookings") }}</span>
+        </div>
+      </div>
+
+      <!-- Conflict detail card -->
+      <div id="conflictDetail" class="rounded-2 p-2 d-none"
+           style="background:#fef2f2;border:1px solid #fecaca;font-size:.82rem">
+        <div class="fw-semibold text-danger mb-1">
+          {{ trans.get("validation.conflict_with","Conflicts with") }}:
+        </div>
+        <div id="conflictId"    class="text-muted"></div>
+        <div id="conflictGuest"></div>
+        <div id="conflictPeriod" class="text-muted"></div>
+      </div>
+
+      <!-- Rate reference -->
+      <div class="mt-3 pt-3 border-top">
+        <div class="fw-semibold mb-2" style="font-size:.82rem">💡 {{ trans.get("label.rate_type_weekday","Weekday") }} / {{ trans.get("label.rate_type_holiday","Holiday") }}</div>
+        <table class="table table-sm table-bordered mb-0" style="font-size:.78rem">
+          <thead class="table-light text-center">
+            <tr>
+              <th></th>
+              <th>{{ trans.get("label.rate_type_weekday","Mon–Thu") }}</th>
+              <th>{{ trans.get("label.rate_type_holiday","Fri–Sun") }}</th>
+            </tr>
+          </thead>
+          <tbody class="text-center">
+            <tr><td>12hrs</td><td>NT$800</td><td>NT$1,000</td></tr>
+            <tr><td>24hrs</td><td>NT$1,000</td><td>NT$1,200</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script id="holidayDatesBk" type="application/json">{{ holiday_dates_json | default('[]') | safe }}</script>
+<script>
+// ── i18n strings for JS ──────────────────────────────────────────────────
+const T = {
+  checking:       "{{ trans.get('validation.checking','Checking...') }}",
+  available:      "{{ trans.get('validation.available','✅ Available') }}",
+  unavailable:    "{{ trans.get('validation.unavailable','⚠ Not available') }}",
+  conflictWith:   "{{ trans.get('validation.conflict_with','Conflicts with') }}",
+  conflictGuest:  "{{ trans.get('validation.conflict_guest','Guest') }}",
+  conflictPeriod: "{{ trans.get('validation.conflict_period','Period') }}",
+  pastWarn:       "{{ trans.get('validation.past_warning','⚠ Check-in is in the past') }}",
+  coBeforeCi:     "{{ trans.get('validation.co_before_ci','⚠ Check-out before check-in') }}",
+  minStay:        "{{ trans.get('validation.min_stay','Min 30 min stay') }}",
+};
+
+// ── Base amount lookup ─────────────────────────────────────────────────────
+const BASE_RATES = {
+  "非假日": { "12hrs": 800, "24hrs": 1000 },
+  "假日":   { "12hrs": 1000, "24hrs": 1200 },
+};
+
+// ── DOM refs ──────────────────────────────────────────────────────────────
+const ciInput    = document.getElementById('ciInput');
+const coInput    = document.getElementById('coInput');
+const roomSel    = document.getElementById('roomSel');
+const planSel    = document.getElementById('planSel');
+const rateTypeSel= document.getElementById('rateTypeSel');
+const amountInput= document.getElementById('amountInput');
+const badge      = document.getElementById('availBadge');
+const submitBtn  = document.getElementById('submitBtn');
+
+// ── Auto-fill checkout from checkin + plan ────────────────────────────────
+function autoCheckout() {
+  // ciInput.value may be "YYYY-MM-DD HH:MM" (Flatpickr space format)
+  // or "YYYY-MM-DDTHH:MM" (native datetime-local format)
+  const ci = ciInput.value;
+  if (!ci) return;
+  const ciNorm = ci.trim().replace(' ', 'T');
+  const dt = new Date(ciNorm);
+  if (isNaN(dt.getTime())) return;
+  dt.setHours(dt.getHours() + (planSel.value === '12hrs' ? 12 : 24));
+  const pad = n => String(n).padStart(2,'0');
+  // Output in Flatpickr space format: "YYYY-MM-DD HH:MM"
+  const coVal = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+  coInput.value = coVal;
+  // Notify Flatpickr to update its display
+  if (coInput._flatpickr) coInput._flatpickr.setDate(coVal, false);
+}
+
+// ── Auto-fill amount from plan + rate_type ────────────────────────────────
+function autoRateTypeFromDate(dateStr) {
+  if (!dateStr) return null;
+
+  // Parse date safely without timezone shift
+  // dateStr from <input type="datetime-local" data-dtype="datetime-local"> is "YYYY-MM-DDTHH:MM"
+  // dateStr from <input type="date"> is "YYYY-MM-DD"
+  const datePart = dateStr.slice(0, 10);           // "YYYY-MM-DD"
+  const [yr, mo, dy] = datePart.split('-').map(Number);
+  const d  = new Date(yr, mo - 1, dy);             // local time, no UTC shift
+  const wd = d.getDay();                            // 0=Sun,1=Mon…5=Fri,6=Sat
+
+  // Saturday (6) or Sunday (0) → holiday
+  if (wd === 0 || wd === 6) return "假日";
+
+  // Friday (5) = day before Saturday → holiday
+  if (wd === 5) return "假日";
+
+  // Get national holidays list from hidden input
+  const hwInput  = document.getElementById('holidayDatesBk');
+  const holidays = hwInput ? JSON.parse(hwInput.textContent || '[]') : [];
+
+  // National holiday itself
+  if (holidays.includes(datePart)) return "假日";
+
+  // Day before a national holiday → holiday
+  const nextD   = new Date(yr, mo - 1, dy + 1);
+  const nextStr = `${nextD.getFullYear()}-${String(nextD.getMonth()+1).padStart(2,'0')}-${String(nextD.getDate()).padStart(2,'0')}`;
+  if (holidays.includes(nextStr)) return "假日";
+
+  // Day before Saturday (Friday already handled above)
+  // Day before Sunday (Saturday already handled above)
+
+  return "非假日";
+}
+
+// Called when checkin date changes: auto-detect rate type AND amount
+// ── Rate type: manual-first logic ────────────────────────────────────────────
+// _userEditedRate = true  → user manually picked rate type → auto-detect must NOT override
+// _userEditedRate = false → auto-detect from date is allowed
+let _userEditedRate = false;
+
+// Called ONLY when ciInput date changes → auto-detect rate + amount (unless user already edited)
+function autoAmount() {
+  if (!_userEditedRate) {
+    const ciVal      = ciInput ? ciInput.value : '';
+    const detectedRt = autoRateTypeFromDate(ciVal);
+    if (detectedRt) rateTypeSel.value = detectedRt;
+  }
+  _updateAmount();
+}
+
+// Called when plan changes: update amount only, never touch rate type
+function _updateAmount() {
+  const rt = rateTypeSel.value;
+  const pl = planSel.value;
+  if (BASE_RATES[rt] && BASE_RATES[rt][pl]) {
+    amountInput.value = BASE_RATES[rt][pl];
+  }
+}
+
+// ── Date validation (client-side, instant) ────────────────────────────────
+function validateDates() {
+  const ci = ciInput.value;
+  const co = coInput.value;
+  let ciOk = true, coOk = true;
+
+  // Reset
+  document.getElementById('ciErr').classList.add('d-none');
+  document.getElementById('coErr').classList.add('d-none');
+  setCheckRow('chkPast',  'pending');
+  setCheckRow('chkOrder', 'pending');
+
+  if (!ci || !co) return { valid: false };
+
+  const now  = new Date();
+  const ciDt = new Date(ci);
+  const coDt = new Date(co);
+
+  // Past check (5-min buffer)
+  if (ciDt < new Date(now - 5*60000)) {
+    document.getElementById('ciErr').textContent = T.pastWarn;
+    document.getElementById('ciErr').classList.remove('d-none');
+    setCheckRow('chkPast', 'fail');
+    ciOk = false;
+  } else {
+    setCheckRow('chkPast', 'ok');
+  }
+
+  // Order check (min 30 min)
+  if (coDt <= ciDt) {
+    document.getElementById('coErr').textContent = T.coBeforeCi;
+    document.getElementById('coErr').classList.remove('d-none');
+    setCheckRow('chkOrder', 'fail');
+    coOk = false;
+  } else {
+    setCheckRow('chkOrder', 'ok');
+  }
+
+  return { valid: ciOk && coOk, ci, co };
+}
+
+// ── Debounced availability check (server) ─────────────────────────────────
+let checkTimer = null;
+
+function onDateChange() {
+  autoAmount();
+  const result = validateDates();
+  if (!result.valid) {
+    setBadge('', '');
+    setCheckRow('chkConflict', 'pending');
+    hideConflictDetail();
+    enableSubmit(false);
+    return;
+  }
+  triggerCheck();
+}
+
+function triggerCheck() {
+  clearTimeout(checkTimer);
+  checkTimer = setTimeout(doCheck, 400);
+}
+
+async function doCheck() {
+  const room = roomSel.value;
+  const ci   = ciInput.value;
+  const co   = coInput.value;
+
+  if (!room || !ci || !co) return;
+
+  const { valid } = validateDates();
+  if (!valid) return;
+
+  setBadge(T.checking, 'checking');
+  setCheckRow('chkConflict', 'loading');
+
+  try {
+    const url = `/api/check-availability?room=${encodeURIComponent(room)}&checkin=${encodeURIComponent(ci)}&checkout=${encodeURIComponent(co)}`;
+    const res  = await fetch(url);
+    const data = await res.json();
+
+    if (data.available) {
+      setBadge(T.available, 'ok');
+      setCheckRow('chkConflict', 'ok');
+      hideConflictDetail();
+      enableSubmit(true);
+    } else {
+      const msg = data.reason === 'error.conflict'
+        ? T.unavailable
+        : (data.detail ? data.detail : T.unavailable);
+      setBadge(T.unavailable, 'fail');
+      setCheckRow('chkConflict', 'fail');
+      if (data.detail) showConflictDetail(data.detail);
+      enableSubmit(false);
+    }
+  } catch(e) {
+    // Network error — allow submit (server will validate)
+    setBadge('', '');
+    enableSubmit(true);
+  }
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────
+function setBadge(text, state) {
+  if (!text) { badge.classList.add('d-none'); return; }
+  badge.classList.remove('d-none');
+  const styles = {
+    ok:       { bg: '#f0fdf4', border: '#86efac', color: '#166534' },
+    fail:     { bg: '#fef2f2', border: '#fca5a5', color: '#991b1b' },
+    checking: { bg: '#eff6ff', border: '#93c5fd', color: '#1e40af' },
+  };
+  const s = styles[state] || styles.checking;
+  badge.style.background   = s.bg;
+  badge.style.borderColor  = s.border;
+  badge.style.color        = s.color;
+  badge.textContent        = text;
+}
+
+function setCheckRow(id, state) {
+  const row  = document.getElementById(id);
+  if (!row) return;
+  const icon = row.querySelector('.check-icon');
+  const icons = { ok: '✅', fail: '❌', loading: '⏳', pending: '⬜' };
+  icon.textContent = icons[state] || '⬜';
+}
+
+function showConflictDetail(d) {
+  const el = document.getElementById('conflictDetail');
+  document.getElementById('conflictId').textContent    = d.id || '';
+  document.getElementById('conflictGuest').textContent = T.conflictGuest + ': ' + (d.guest || '');
+  document.getElementById('conflictPeriod').textContent= T.conflictPeriod + ': ' + (d.checkin || '') + ' → ' + (d.checkout || '');
+  el.classList.remove('d-none');
+}
+
+function hideConflictDetail() {
+  document.getElementById('conflictDetail').classList.add('d-none');
+}
+
+function enableSubmit(ok) {
+  submitBtn.disabled = !ok;
+  submitBtn.style.opacity = ok ? '1' : '0.5';
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+// datetime-local: fire on both 'change' and 'input' (Chrome datetime-local may fire either)
+// NOTE: NO 'blur' on ciInput — blur fires when user opens rateTypeSel dropdown,
+//       which would overwrite their manual rate choice before they can confirm it.
+function _ciHandler() {
+  _userEditedRate = false;  // new date selected → reset manual override, re-auto-detect
+  autoCheckout();
+  autoAmount();
+  onDateChange();
+}
+ciInput.addEventListener('change', _ciHandler);
+ciInput.addEventListener('input',  _ciHandler);
+coInput.addEventListener('change', onDateChange);
+coInput.addEventListener('input',  onDateChange);
+planSel.addEventListener('change', () => { autoCheckout(); _updateAmount(); });
+rateTypeSel.addEventListener('change', function() {
+  _userEditedRate = true;   // user manually chose rate type → lock it
+  _updateAmount();
+});
+roomSel.addEventListener('change', triggerCheck);
+
+// Trigger check on load if dates are prefilled
+if (ciInput.value && coInput.value) { onDateChange(); }
+else { enableSubmit(true); }  // allow submit if no dates yet (server validates)
+</script>
+
+<style>
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .25rem 0;
+  font-size: .84rem;
+}
+.check-icon { font-size: 1rem; min-width: 1.4rem; }
+.check-label { color: #374151; }
+</style>
+
+<script>
+// ── Multi-slot booking ────────────────────────────────────────────────────────
+// Slots are appended BELOW the single form in the same card.
+// Each slot mirrors the single-form field layout (figure 2 style).
+
+let _slotCount = 0;
+
+// Translated labels for multi-slot UI (renamed to avoid conflict with main T)
+const SLOT_T = {
+  room:       "{{ trans.get('label.room','Room') }}",
+  checkin:    "{{ trans.get('label.checkin','Check-in') }}",
+  checkout:   "{{ trans.get('label.checkout','Check-out') }}",
+  plan:       "{{ trans.get('label.plan','Plan') }}",
+  rateType:   "{{ trans.get('label.rate_type','Rate Type') }}",
+  amount:     "{{ trans.get('label.amount','Amount (NT$)') }}",
+  weekday:    "{{ trans.get('label.rate_type_weekday','Weekday') }}",
+  holiday:    "{{ trans.get('label.rate_type_holiday','Weekend / Holiday') }}",
+};
+
+function addSlot() {
+  _slotCount++;
+  const n = _slotCount;
+
+  // Show the multi-slot hint
+  const hint = document.getElementById("multiHint");
+  if (hint) hint.classList.remove("d-none");
+
+  // Build room options from the main form's room selector
+  const mainRoomSel = document.getElementById("roomSel");
+  const roomOpts = mainRoomSel
+    ? Array.from(mainRoomSel.options).map(o =>
+        `<option value="${o.value}"${o.value === mainRoomSel.value ? " selected" : ""}>${o.text}</option>`
+      ).join("")
+    : "";
+
+  const html = `
+<div class="card rounded-3 border border-pink-light mb-3" id="slot_${n}" style="border-color:#fce7f3!important">
+  <div class="card-body p-3">
+
+    <!-- Slot header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <span class="fw-semibold" style="font-size:.88rem;color:#db2877">
+        📅 Slot ${n}
+      </span>
+      <button type="button" class="btn btn-outline-danger btn-sm" style="font-size:.72rem"
+              onclick="removeSlot(${n})">✕ Remove</button>
+    </div>
+
+    <!-- Row 1: Room -->
+    <div class="mb-3">
+      <label class="form-label fw-semibold">${SLOT_T.room}</label>
+      <select id="slot_room_${n}" class="form-select" onchange="slotCheck(${n})">${roomOpts}</select>
+    </div>
+
+    <!-- Row 2: Check-in / Check-out -->
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        <label class="form-label fw-semibold">${SLOT_T.checkin}</label>
+        <input type="datetime-local" data-dtype="datetime-local" id="slot_ci_${n}" class="form-control"
+               onchange="slotDetectRate(${n});slotCheck(${n})" oninput="slotDetectRate(${n});slotCheck(${n})">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label fw-semibold">${SLOT_T.checkout}</label>
+        <input type="datetime-local" data-dtype="datetime-local" id="slot_co_${n}" class="form-control"
+               onchange="slotCheck(${n})" oninput="slotCheck(${n})">
+      </div>
+    </div>
+
+    <!-- Row 3: Plan / Rate Type / Amount -->
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">${SLOT_T.plan}</label>
+        <select id="slot_plan_${n}" class="form-select" onchange="slotUpdateAmount(${n})">
+          <option value="24hrs">24hrs</option>
+          <option value="12hrs">12hrs</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">${SLOT_T.rateType}</label>
+        <select id="slot_rt_${n}" class="form-select" onchange="slotUpdateAmount(${n})">
+          <option value="非假日">${SLOT_T.weekday}</option>
+          <option value="假日">${SLOT_T.holiday}</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label fw-semibold">${SLOT_T.amount}</label>
+        <input type="number" id="slot_amt_${n}" class="form-control fw-semibold"
+               value="1000" min="0" step="100" style="color:#db2877"
+               oninput="updateTotal()">
+      </div>
+    </div>
+
+    <!-- Availability badge for this slot -->
+    <div id="slot_badge_${n}" class="mt-2 d-none rounded-2 px-3 py-2"
+         style="font-size:.82rem;font-weight:600;border:1px solid #ccc"></div>
+
+  </div>
+</div>`;
+
+  document.getElementById("slotList").insertAdjacentHTML("beforeend", html);
+  slotDetectRate(n);  // auto-detect rate from today's date
+  updateTotal();
+}
+
+function removeSlot(n) {
+  const el = document.getElementById("slot_"+n);
+  if (el) { el.remove(); updateTotal(); }
+  // Clear state for removed slot and re-evaluate submit button
+  delete _slotAvailState[n];
+  _evalSubmitBtn();
+  // Hide hint if no slots left
+  const list = document.getElementById("slotList");
+  if (list && !list.children.length) {
+    const hint = document.getElementById("multiHint");
+    if (hint) hint.classList.add("d-none");
+    // Back to single-slot mode: re-enable submit if main form is valid
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.style.opacity = "1";
+    }
+    doCheck(); // re-run main form check
+  }
+}
+
+function slotDetectRate(n) {
+  const ciVal = document.getElementById("slot_ci_"+n)?.value || "";
+  if (!ciVal) return;
+  const datePart = ciVal.slice(0,10);
+  const [yr,mo,dy] = datePart.split("-").map(Number);
+  const d  = new Date(yr, mo-1, dy);
+  const wd = d.getDay(); // 0=Sun,5=Fri,6=Sat
+
+  // Sat(6) Sun(0) Fri(5) = holiday
+  let isHol = (wd===0||wd===5||wd===6);
+  if (!isHol) {
+    const hols = JSON.parse(document.getElementById("holidayDatesBk")?.textContent||"[]");
+    isHol = hols.includes(datePart);
+    if (!isHol) {
+      const nx = new Date(yr,mo-1,dy+1);
+      const ns = `${nx.getFullYear()}-${String(nx.getMonth()+1).padStart(2,"0")}-${String(nx.getDate()).padStart(2,"0")}`;
+      isHol = hols.includes(ns);
+    }
+  }
+  const rtSel = document.getElementById("slot_rt_"+n);
+  if (rtSel) rtSel.value = isHol ? "假日" : "非假日";
+  slotUpdateAmount(n);
+  // Auto-fill checkout based on plan
+  slotAutoCheckout(n);
+}
+
+function slotAutoCheckout(n) {
+  const ciVal = document.getElementById("slot_ci_"+n)?.value || "";
+  if (!ciVal) return;
+  const plan = document.getElementById("slot_plan_"+n)?.value || "24hrs";
+  const hours = plan === "12hrs" ? 12 : 24;
+  const ciNorm = ciVal.trim().replace(' ', 'T');
+  const ci = new Date(ciNorm);
+  if (isNaN(ci.getTime())) return;
+  ci.setHours(ci.getHours() + hours);
+  const pad = v => String(v).padStart(2,"0");
+  // Output in Flatpickr space format
+  const coStr = `${ci.getFullYear()}-${pad(ci.getMonth()+1)}-${pad(ci.getDate())} ${pad(ci.getHours())}:${pad(ci.getMinutes())}`;
+  const coEl = document.getElementById("slot_co_"+n);
+  if (coEl && !coEl.value) {
+    coEl.value = coStr;
+    if (coEl._flatpickr) coEl._flatpickr.setDate(coStr, false);
+  }
+}
+
+function slotUpdateAmount(n) {
+  const rt  = document.getElementById("slot_rt_"+n)?.value   || "非假日";
+  const pl  = document.getElementById("slot_plan_"+n)?.value || "24hrs";
+  const amt = BASE_RATES?.[rt]?.[pl];
+  if (amt !== undefined) {
+    const inp = document.getElementById("slot_amt_"+n);
+    if (inp) inp.value = amt;
+  }
+  updateTotal();
+  // Re-calculate checkout if plan changes
+  const coEl = document.getElementById("slot_co_"+n);
+  if (coEl) coEl.value = "";  // clear so slotAutoCheckout can refill
+  slotAutoCheckout(n);
+}
+
+// ── Per-slot availability check ──────────────────────────────────────────────
+const _slotCheckTimers = {};
+const _slotAvailState  = {};  // n → 'ok' | 'fail' | 'checking' | 'unknown'
+
+// 每次 slot 狀態變更後重新評估提交按鈕
+function _evalSubmitBtn() {
+  const slotCards = document.querySelectorAll("#slotList .card");
+  if (!slotCards.length) return; // 單段模式由 enableSubmit 控制
+
+  // 取得主表單狀態（第一段已有 enableSubmit 控制）
+  const mainOk = submitBtn && !submitBtn.disabled;
+
+  // 檢查所有 extra slots
+  let allOk = true;
+  for (let i = 1; i <= _slotCount; i++) {
+    const el = document.getElementById("slot_" + i);
+    if (!el || !el.closest("#slotList")) continue; // 已被 remove 的 slot 跳過
+    const state = _slotAvailState[i] || "unknown";
+    if (state !== "ok") { allOk = false; break; }
+  }
+
+  if (submitBtn) {
+    const ok = mainOk && allOk;
+    submitBtn.disabled = !ok;
+    submitBtn.style.opacity = ok ? "1" : "0.5";
+  }
+}
+
+function slotSetBadge(n, text, state) {
+  const el = document.getElementById("slot_badge_" + n);
+  if (!el) return;
+  if (!text) {
+    el.classList.add("d-none");
+    _slotAvailState[n] = "unknown";
+    _evalSubmitBtn();
+    return;
+  }
+  el.classList.remove("d-none");
+  const styles = {
+    ok:       { bg: "#f0fdf4", border: "#86efac", color: "#166534" },
+    fail:     { bg: "#fef2f2", border: "#fca5a5", color: "#991b1b" },
+    checking: { bg: "#eff6ff", border: "#93c5fd", color: "#1e40af" },
+  };
+  const s = styles[state] || styles.checking;
+  el.style.background  = s.bg;
+  el.style.borderColor = s.border;
+  el.style.color       = s.color;
+  el.textContent       = text;
+  _slotAvailState[n] = state || "unknown";
+  _evalSubmitBtn();
+}
+
+function slotCheck(n) {
+  clearTimeout(_slotCheckTimers[n]);
+  _slotCheckTimers[n] = setTimeout(() => _doSlotCheck(n), 400);
+}
+
+async function _doSlotCheck(n) {
+  const room = document.getElementById("slot_room_" + n)?.value || "";
+  const ci   = document.getElementById("slot_ci_"   + n)?.value || "";
+  const co   = document.getElementById("slot_co_"   + n)?.value || "";
+
+  if (!room || !ci || !co) {
+    slotSetBadge(n, "", "");
+    return;
+  }
+
+  // Basic validation before API call
+  const ciD = new Date(ci), coD = new Date(co);
+  if (isNaN(ciD) || isNaN(coD) || coD <= ciD) {
+    slotSetBadge(n, T.checking && "{{ trans.get('validation.co_before_ci','⚠ Check-out before check-in') }}", "fail");
+    return;
+  }
+
+  slotSetBadge(n, T.checking, "checking");
+
+  try {
+    const url = `/api/check-availability?room=${encodeURIComponent(room)}&checkin=${encodeURIComponent(ci)}&checkout=${encodeURIComponent(co)}`;
+    const res  = await fetch(url);
+    const data = await res.json();
+
+    if (data.available) {
+      slotSetBadge(n, T.available, "ok");
+    } else {
+      let msg = T.unavailable;
+      if (data.detail) {
+        const d = data.detail;
+        msg += " — " + T.conflictWith + ": " + (d.guest || "") + " " + (d.checkin || "") + "→" + (d.checkout || "");
+      }
+      slotSetBadge(n, msg, "fail");
+    }
+  } catch(e) {
+    slotSetBadge(n, "", "");
+  }
+}
+
+function updateTotal() {
+  // Sum: single form amount + all extra slots
+  let total = parseFloat(document.getElementById("amountInput")?.value||0) || 0;
+  for (let i = 1; i <= _slotCount; i++) {
+    const el = document.getElementById("slot_amt_"+i);
+    if (el && el.closest("#slotList")) {
+      total += parseFloat(el.value||0)||0;
+    }
+  }
+  const badge = document.getElementById("totalAmountBadge");
+  if (!badge) return;
+  const slotCount = document.querySelectorAll("#slotList .card").length;
+  if (slotCount > 0) {
+    badge.classList.remove("d-none");
+    badge.textContent = `Total: NT$${total.toLocaleString()}`;
+  } else {
+    badge.classList.add("d-none");
+  }
+}
+
+// Update total when main form amount changes
+document.getElementById("amountInput")?.addEventListener("input", updateTotal);
+
+// Override form submit: if extra slots exist, use /bookings/multi
+const _singleForm = document.querySelector("form[action='/bookings/new']");
+if (_singleForm) {
+  _singleForm.addEventListener("submit", function(e) {
+    const slotCards = document.querySelectorAll("#slotList .card");
+    if (!slotCards.length) return; // no extra slots → normal single submit
+
+    e.preventDefault();
+
+    // ── 提交前最終狀態驗證 ──────────────────────────────────────────────
+    // 檢查所有 extra slots 是否全部通過可用性檢查
+    const failedSlots = [];
+    for (let i = 1; i <= _slotCount; i++) {
+      const el = document.getElementById("slot_" + i);
+      if (!el || !el.closest("#slotList")) continue;
+      const state = _slotAvailState[i] || "unknown";
+      if (state !== "ok") failedSlots.push(i);
+    }
+    if (failedSlots.length > 0) {
+      // 讓問題 slot 的徽章閃爍提示
+      failedSlots.forEach(i => {
+        const badge = document.getElementById("slot_badge_" + i);
+        if (badge) {
+          badge.style.outline = "2px solid #dc2626";
+          setTimeout(() => { if(badge) badge.style.outline = ""; }, 2000);
+        }
+      });
+      alert("{{ trans.get('booking.slots_not_ready', '⚠ 請確認所有時段均顯示「可預約」後再送出') }}");
+      return;
+    }
+    const guest = document.querySelector("[name=guest]")?.value || "";
+    const phone = document.querySelector("[name=phone]")?.value || "";
+
+    // Build slots array: first slot = single form data
+    const slots = [];
+
+    // Primary slot from main form
+    const mainRt  = document.getElementById("rateTypeSel")?.value || "非假日";
+    const mainCi  = (document.querySelector("[name=checkin]")?.value  || "").replace("T"," ");
+    const mainCo  = (document.querySelector("[name=checkout]")?.value || "").replace("T"," ");
+    const mainPl  = document.querySelector("[name=plan]")?.value   || "24hrs";
+    const mainAmt = parseFloat(document.getElementById("amountInput")?.value||0)||0;
+    const mainRm  = document.getElementById("roomSel")?.value || "";
+    if (mainRm && mainCi && mainCo) {
+      slots.push({ room:mainRm, checkin:mainCi, checkout:mainCo,
+                   plan:mainPl, amount:mainAmt, rate_type:mainRt });
+    }
+
+    // Extra slots
+    for (let i = 1; i <= _slotCount; i++) {
+      const roomEl = document.getElementById("slot_room_"+i);
+      if (!roomEl || !roomEl.closest("#slotList")) continue;
+      const ci  = (document.getElementById("slot_ci_"+i)?.value  || "").replace("T"," ");
+      const co  = (document.getElementById("slot_co_"+i)?.value  || "").replace("T"," ");
+      const pl  = document.getElementById("slot_plan_"+i)?.value || "24hrs";
+      const rt  = document.getElementById("slot_rt_"+i)?.value   || "非假日";
+      const amt = parseFloat(document.getElementById("slot_amt_"+i)?.value||0)||0;
+      slots.push({ room:roomEl.value, checkin:ci, checkout:co, plan:pl, amount:amt, rate_type:rt });
+    }
+
+    if (slots.length < 2) {
+      // Only 1 slot (main form only, somehow) → normal submit
+      _singleForm.removeEventListener("submit", arguments.callee);
+      _singleForm.submit();
+      return;
+    }
+
+    const f = document.createElement("form");
+    f.method = "post"; f.action = "/bookings/multi";
+    [["guest",guest],["phone",phone],["slots_json",JSON.stringify(slots)]].forEach(([k,v])=>{
+      const inp = document.createElement("input");
+      inp.type="hidden"; inp.name=k; inp.value=v; f.appendChild(inp);
+    });
+    document.body.appendChild(f); f.submit();
+  });
+}
+</script>
+{% endblock %}

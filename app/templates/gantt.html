@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h2 class="fw-bold mb-0">{{ trans.get("gantt.title","Room Gantt") }}</h2>
+  <div class="text-muted" style="font-size:.82rem">
+    {{ start_s[:10] }} → {{ end_s[:10] }}
+    <span class="ms-2 badge bg-success">■ {{ trans.get("gantt.stay","入住中") }}</span>
+    <span class="ms-1 badge bg-warning text-dark">■ {{ trans.get("gantt.booking","預約") }}</span>
+    <span class="ms-1 badge bg-danger">■ {{ trans.get("gantt.maintenance","維修") }}</span>
+    <span class="ms-1 badge bg-light border text-muted">□ {{ trans.get("gantt.available","空房") }}</span>
+  </div>
+</div>
+
+<div class="card rounded-3 border-0 shadow-sm p-0" style="overflow:hidden">
+  <!--
+    Layout: frozen left label column + scrollable right timeline
+    ┌────────────┬──────────────────────────────────┐
+    │ labelCanvas│  scrollWrap > timelineCanvas      │
+    │ (fixed)    │  (overflow-x: auto)               │
+    └────────────┴──────────────────────────────────┘
+  -->
+  <div style="display:flex;max-height:80vh;overflow-y:auto" id="ganttOuter">
+
+    <!-- Frozen label column -->
+    <div style="flex:0 0 auto;position:sticky;left:0;z-index:10;background:#fff;box-shadow:2px 0 6px rgba(0,0,0,.08)">
+      <canvas id="labelCanvas" style="display:block"></canvas>
+    </div>
+
+    <!-- Scrollable timeline -->
+    <div id="scrollWrap" style="flex:1 1 auto;overflow-x:auto;overflow-y:hidden">
+      <canvas id="timelineCanvas" style="display:block"></canvas>
+    </div>
+
+  </div>
+</div>
+
+<div id="tooltip" style="
+  position:fixed;display:none;z-index:9999;
+  background:#fff;border:1px solid #e5e7eb;border-radius:8px;
+  padding:8px 12px;font-size:.82rem;box-shadow:0 4px 12px rgba(0,0,0,.1);
+  pointer-events:none;max-width:220px;
+"></div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const ROOM_IDS  = {{ room_ids_json | safe }};
+const EVENTS    = {{ events_json   | safe }};
+const START_MS  = {{ start_ts }};
+const END_MS    = {{ end_ts }};
+
+const COLORS = {
+  stay:        { bg: "#86efac", border: "#16a34a", label: "#15803d" },
+  booking:     { bg: "#fde68a", border: "#d97706", label: "#92400e" },
+  maintenance: { bg: "#fca5a5", border: "#dc2626", label: "#991b1b" },
+};
+
+const ROW_H       = 44;
+const HDR_H       = 56;
+const LABEL_W     = 72;
+const HOUR_PX     = 36;
+const TOTAL_HOURS = (END_MS - START_MS) / 3_600_000;
+
+const TW = TOTAL_HOURS * HOUR_PX;          // timeline width
+const H  = HDR_H + ROOM_IDS.length * ROW_H + 1;
+
+// ── Label canvas (frozen left column) ────────────────────────────────────
+const labelCanvas  = document.getElementById("labelCanvas");
+const lCtx         = labelCanvas.getContext("2d");
+labelCanvas.width  = LABEL_W;
+labelCanvas.height = H;
+labelCanvas.style.width  = LABEL_W + "px";
+labelCanvas.style.height = H + "px";
+
+// ── Timeline canvas (scrollable right panel) ──────────────────────────────
+const tlCanvas     = document.getElementById("timelineCanvas");
+const tCtx         = tlCanvas.getContext("2d");
+tlCanvas.width     = TW;
+tlCanvas.height    = H;
+tlCanvas.style.width  = TW + "px";
+tlCanvas.style.height = H + "px";
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+
+// ── Draw label column ─────────────────────────────────────────────────────
+function drawLabels() {
+  lCtx.clearRect(0, 0, LABEL_W, H);
+
+  // Header cell
+  lCtx.fillStyle = "#f3f4f6";
+  lCtx.fillRect(0, 0, LABEL_W, HDR_H);
+  lCtx.strokeStyle = "#d1d5db";
+  lCtx.lineWidth = 0.5;
+  lCtx.strokeRect(0, 0, LABEL_W, HDR_H);
+  lCtx.fillStyle = "#6b7280";
+  lCtx.font = "bold 11px system-ui";
+  lCtx.textAlign = "center";
+  lCtx.textBaseline = "middle";
+  lCtx.fillText("房號", LABEL_W / 2, HDR_H / 2);
+
+  // Room rows
+  ROOM_IDS.forEach((rid, ri) => {
+    const y = HDR_H + ri * ROW_H;
+    lCtx.fillStyle = ri % 2 === 0 ? "#f9fafb" : "#fff";
+    lCtx.fillRect(0, y, LABEL_W, ROW_H);
+    lCtx.strokeStyle = "#e5e7eb";
+    lCtx.lineWidth = 0.5;
+    lCtx.strokeRect(0, y, LABEL_W, ROW_H);
+    lCtx.fillStyle = "#db2877";
+    lCtx.font = "bold 14px system-ui";
+    lCtx.textAlign = "center";
+    lCtx.textBaseline = "middle";
+    lCtx.fillText(rid, LABEL_W / 2, y + ROW_H / 2);
+  });
+}
+
+// ── Draw timeline ─────────────────────────────────────────────────────────
+function drawTimeline() {
+  tCtx.clearRect(0, 0, TW, H);
+
+  // Row backgrounds
+  ROOM_IDS.forEach((_, ri) => {
+    const y = HDR_H + ri * ROW_H;
+    tCtx.fillStyle = ri % 2 === 0 ? "#f9fafb" : "#fff";
+    tCtx.fillRect(0, y, TW, ROW_H);
+  });
+
+  // Hour columns + header
+  tCtx.fillStyle = "#f3f4f6";
+  tCtx.fillRect(0, 0, TW, HDR_H);
+
+  for (let h = 0; h <= TOTAL_HOURS; h++) {
+    const x  = h * HOUR_PX;
+    const ts = new Date(START_MS + h * 3_600_000);
+    const isDay = ts.getHours() === 0;
+
+    // Vertical grid line
+    tCtx.strokeStyle = isDay ? "#6b7280" : "#e5e7eb";
+    tCtx.lineWidth   = isDay ? 1.5 : 0.5;
+    tCtx.beginPath(); tCtx.moveTo(x, 0); tCtx.lineTo(x, H); tCtx.stroke();
+
+    // Date label at midnight
+    if (isDay) {
+      tCtx.fillStyle = "#374151";
+      tCtx.font = "bold 11px system-ui";
+      tCtx.textAlign = "left";
+      const mm = String(ts.getMonth()+1).padStart(2,"0");
+      const dd = String(ts.getDate()).padStart(2,"0");
+      const wd = ["日","一","二","三","四","五","六"][ts.getDay()];
+      tCtx.fillText(`${mm}/${dd}(${wd})`, x + 3, 16);
+    }
+
+    // Hour label every 4 hours
+    if (ts.getHours() % 4 === 0 && ts.getHours() !== 0) {
+      tCtx.fillStyle = "#9ca3af";
+      tCtx.font = "10px system-ui";
+      tCtx.textAlign = "center";
+      tCtx.fillText(String(ts.getHours()).padStart(2,"0") + ":00", x, 40);
+    }
+  }
+
+  // Row separators
+  ROOM_IDS.forEach((_, ri) => {
+    const y = HDR_H + ri * ROW_H + ROW_H - 0.5;
+    tCtx.strokeStyle = "#e5e7eb";
+    tCtx.lineWidth = 0.5;
+    tCtx.beginPath(); tCtx.moveTo(0, y); tCtx.lineTo(TW, y); tCtx.stroke();
+  });
+
+  // NOW line
+  const nowMs = Date.now();
+  if (nowMs >= START_MS && nowMs <= END_MS) {
+    const nowX = (nowMs - START_MS) / 3_600_000 * HOUR_PX;
+    tCtx.strokeStyle = "#db2877";
+    tCtx.lineWidth   = 2;
+    tCtx.setLineDash([4, 3]);
+    tCtx.beginPath(); tCtx.moveTo(nowX, HDR_H); tCtx.lineTo(nowX, H); tCtx.stroke();
+    tCtx.setLineDash([]);
+    tCtx.fillStyle = "#db2877";
+    tCtx.font = "bold 10px system-ui";
+    tCtx.textAlign = "center";
+    tCtx.fillText("NOW", nowX, HDR_H - 6);
+  }
+
+  // ── Events ──────────────────────────────────────────────────────────────
+  EVENTS.forEach(ev => {
+    const ri = ROOM_IDS.indexOf(ev.room);
+    if (ri < 0) return;
+
+    const evStart = new Date(ev.start.replace(" ","T")).getTime();
+    const evEnd   = new Date(ev.end.replace(" ","T")).getTime();
+    const cStart  = Math.max(evStart, START_MS);
+    const cEnd    = Math.min(evEnd,   END_MS);
+    if (cEnd <= cStart) return;
+
+    const x = (cStart - START_MS) / 3_600_000 * HOUR_PX;
+    const w = (cEnd   - cStart)   / 3_600_000 * HOUR_PX;
+    const y = HDR_H + ri * ROW_H + 4;
+    const bh = ROW_H - 8;
+
+    const c = COLORS[ev.type] || COLORS.booking;
+    tCtx.fillStyle   = c.bg;
+    tCtx.strokeStyle = c.border;
+    tCtx.lineWidth   = 1.5;
+    roundRect(tCtx, x, y, Math.max(w, 3), bh, 4);
+    tCtx.fill(); tCtx.stroke();
+
+    if (w > 24) {
+      tCtx.save();
+      tCtx.beginPath(); tCtx.rect(x+2, y, w-4, bh); tCtx.clip();
+      tCtx.fillStyle = c.label;
+      tCtx.font = "bold 11px system-ui";
+      tCtx.textAlign = "left";
+      tCtx.textBaseline = "middle";
+      tCtx.fillText(ev.guest || "", x + 6, y + bh / 2);
+      tCtx.restore();
+    }
+  });
+}
+
+// ── Tooltip ───────────────────────────────────────────────────────────────
+const tooltip = document.getElementById("tooltip");
+
+tlCanvas.addEventListener("mousemove", e => {
+  const rect = tlCanvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  let found = null;
+  for (const ev of EVENTS) {
+    const ri = ROOM_IDS.indexOf(ev.room);
+    if (ri < 0) continue;
+    const evStart = new Date(ev.start.replace(" ","T")).getTime();
+    const evEnd   = new Date(ev.end.replace(" ","T")).getTime();
+    const cStart  = Math.max(evStart, START_MS);
+    const cEnd    = Math.min(evEnd,   END_MS);
+    if (cEnd <= cStart) continue;
+    const x = (cStart - START_MS) / 3_600_000 * HOUR_PX;
+    const w = (cEnd   - cStart)   / 3_600_000 * HOUR_PX;
+    const y = HDR_H + ri * ROW_H + 4;
+    const bh = ROW_H - 8;
+    if (mx >= x && mx <= x+w && my >= y && my <= y+bh) { found = ev; break; }
+  }
+
+  if (found) {
+    const types = {"stay":"入住中","booking":"預約","maintenance":"維修"};
+    tooltip.innerHTML = `<b>${found.room}</b> · ${types[found.type]||found.type}<br>
+      👤 ${found.guest||"-"}<br>📅 ${found.start}<br>🔚 ${found.end}`;
+    tooltip.style.display = "block";
+    tooltip.style.left = (e.clientX + 16) + "px";
+    tooltip.style.top  = (e.clientY - 10) + "px";
+  } else {
+    tooltip.style.display = "none";
+  }
+});
+tlCanvas.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+
+// ── Sync vertical scroll between label and timeline ───────────────────────
+const outer = document.getElementById("ganttOuter");
+outer.addEventListener("scroll", () => {
+  // Both label and timeline share the same outer scroll for Y
+  // (they are siblings so outer controls vertical)
+});
+
+// ── Initial render ────────────────────────────────────────────────────────
+drawLabels();
+drawTimeline();
+
+// Scroll timeline to NOW
+const nowOffset = (Date.now() - START_MS) / 3_600_000 * HOUR_PX - 200;
+document.getElementById("scrollWrap").scrollLeft = Math.max(0, nowOffset);
+</script>
+{% endblock %}

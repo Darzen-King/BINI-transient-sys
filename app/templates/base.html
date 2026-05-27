@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="{{ "zh-TW" if lang == "zh" else "en-US" }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title or "BINI Blooms" }}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <!-- Flatpickr: locale-aware datetime picker (replaces native datetime-local) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <style>
+    .flatpickr-input { background:#fff !important; }
+    .flatpickr-calendar { font-family: inherit; font-size: .9rem; }
+    /* AM/PM in English, 上午/下午 in Chinese */
+    .flatpickr-am-pm { min-width: 40px; }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════
+     NAVBAR  — sticky, single-row, horizontal-scroll on overflow
+     ══════════════════════════════════════════════════════════════ -->
+<nav class="bb-nav">
+
+  <!-- Brand -->
+  <a class="navbar-brand d-flex align-items-center gap-2" href="/">
+    <img src="/static/bini_blooms_logo.jpg" alt="BINI Blooms"
+         style="height:32px;width:auto;object-fit:contain">
+  </a>
+
+  <!-- Nav strip (scrollable) -->
+  {% set _cu  = request.state.current_user if (request.state is defined and request.state.current_user is defined) else none %}
+  {% set role = _cu.role if _cu else "" %}
+  {% set _ap  = _cu.allowed_pages if _cu else none %}
+  {% if _ap %}
+    {% set nav_pages   = _ap | from_json %}
+    {% set use_override = true %}
+  {% else %}
+    {% set nav_pages    = [] %}
+    {% set use_override = false %}
+  {% endif %}
+
+  <ul class="navbar-nav">
+
+    {# Hub always visible #}
+    <li class="nav-item">
+      <a class="nav-link{% if request.url.path=='/' %} fw-bold text-pink{% endif %}" href="/">
+        Prototype Hub
+      </a>
+    </li>
+
+    {# rooms #}
+    {% if (use_override and "rooms" in nav_pages) or (not use_override and role in ["admin","manager","front_desk","housekeeping","maintenance"]) %}
+    <li class="nav-item">
+      <a class="nav-link{% if request.url.path=='/rooms' %} fw-bold text-pink{% endif %}" href="/rooms">
+        {{ trans.get("nav.rooms","房間總覽") }}
+      </a>
+    </li>
+    {% endif %}
+
+    {# gantt #}
+    {% if "gantt" in allowed_pages or role in ("admin","manager","front_desk") %}
+    <li class="nav-item">
+      <a class="nav-link{% if '/gantt' in request.url.path %} fw-bold text-pink{% endif %}" href="/gantt">
+        {{ trans.get("nav.gantt","甘特圖") }}
+      </a>
+    </li>
+    {% endif %}
+
+    {# payments #}
+    {% if (use_override and "payments" in nav_pages) or (not use_override and role in ["admin","manager","front_desk"]) %}
+    <li class="nav-item">
+      <a class="nav-link{% if request.url.path=='/payments' %} fw-bold text-pink{% endif %}" href="/payments">
+        {{ trans.get("nav.payments","付款管理") }}
+      </a>
+    </li>
+    {% endif %}
+
+    {# bookings #}
+    {% if (use_override and "bookings" in nav_pages) or (not use_override and role in ["admin","manager","front_desk"]) %}
+    <li class="nav-item">
+      <a class="nav-link{% if request.url.path=='/bookings' %} fw-bold text-pink{% endif %}" href="/bookings">
+        {{ trans.get("nav.bookings","預約管理") }}
+      </a>
+    </li>
+    {% endif %}
+
+    {# bookings_new #}
+    {% if (use_override and "bookings_new" in nav_pages) or (not use_override and role in ["admin","manager","front_desk"]) %}
+    <li class="nav-item">
+      <a class="nav-link{% if request.url.path=='/bookings/new' %} fw-bold text-pink{% endif %}" href="/bookings/new">
+        {{ trans.get("nav.bookings_new","新增預約") }}
+      </a>
+    </li>
+    {% endif %}
+
+    {# checkin #}
+    {% if (use_override and "checkin" in nav_pages) or (not use_override and role in ["admin","manager","front_desk"]) %}
+    <li class="nav-item">
+      <a class="nav-link{% if request.url.path=='/checkin' %} fw-bold text-pink{% endif %}" href="/checkin">
+        {{ trans.get("nav.checkin","入住登記") }}
+      </a>
+    </li>
+    {% endif %}
+
+    {# extend #}
+    {% if (use_override and "extend" in nav_pages) or (not use_override and role in ["admin","manager","front_desk"]) %}
+    <li class="nav-item">
+      <a class="nav-link{% if request.url.path=='/extend' %} fw-bold text-pink{% endif %}" href="/extend">
+        {{ trans.get("nav.extend","延住處理") }}
+      </a>
+    </li>
+    {% endif %}
+
+    {# checkout #}
+    {% if (use_override and "checkout" in nav_pages) or (not use_override and role in ["admin","manager","front_desk"]) %}
+    <li class="nav-item">
+      <a class="nav-link{% if request.url.path=='/checkout' %} fw-bold text-pink{% endif %}" href="/checkout">
+        {{ trans.get("nav.checkout","退房辦理") }}
+      </a>
+    </li>
+    {% endif %}
+
+    {# room_management #}
+    {% if (use_override and "room_management" in nav_pages) or (not use_override and role in ["admin","manager","front_desk","housekeeping","maintenance"]) %}
+    <li class="nav-item">
+      <a class="nav-link{% if request.url.path=='/room-management' %} fw-bold text-pink{% endif %}" href="/room-management">
+        {{ trans.get("nav.room_management","房間管理") }}
+      </a>
+    </li>
+    {% endif %}
+
+    {# housekeeping #}
+    {% if (use_override and "housekeeping" in nav_pages) or (not use_override and role in ["admin","manager","housekeeping"]) %}
+    <li class="nav-item">
+      <a class="nav-link{% if request.url.path=='/housekeeping' %} fw-bold text-pink{% endif %}" href="/housekeeping">
+        {{ trans.get("housekeeping.title","清潔管理") }}
+      </a>
+    </li>
+    {% endif %}
+
+    {# maintenance #}
+    {% if (use_override and "maintenance" in nav_pages) or (not use_override and role in ["admin","manager","maintenance"]) %}
+    <li class="nav-item">
+      <a class="nav-link{% if request.url.path=='/maintenance' %} fw-bold text-pink{% endif %}" href="/maintenance">
+        {{ trans.get("maintenance.title","維修管理") }}
+      </a>
+    </li>
+    {% endif %}
+
+    {# reports #}
+    {% if (use_override and "reports" in nav_pages) or (not use_override and role in ["admin","manager"]) %}
+    <li class="nav-item">
+      <a class="nav-link{% if request.url.path=='/reports' %} fw-bold text-pink{% endif %}" href="/reports">
+        {{ trans.get("nav.reports","統計報表") }}
+      </a>
+    </li>
+    {% endif %}
+
+    {# backup #}
+    {% if (use_override and "backup" in nav_pages) or (not use_override and role in ["admin","manager"]) %}
+    <li class="nav-item">
+      <a class="nav-link{% if request.url.path=='/backup' %} fw-bold text-pink{% endif %}" href="/backup">
+        {{ trans.get("nav.backup","雲端備份") }}
+      </a>
+    </li>
+    {% endif %}
+
+    {# audit #}
+    {% if (use_override and "audit" in nav_pages) or (not use_override and role in ["admin","manager"]) %}
+    <li class="nav-item">
+      <a class="nav-link{% if '/admin/audit' in request.url.path %} fw-bold text-pink{% endif %}" href="/admin/audit">
+        {{ trans.get("nav.audit","審計軌跡") }}
+      </a>
+    </li>
+    {% endif %}
+
+    {# users — admin only #}
+    {% if role == "admin" %}
+    <li class="nav-item">
+      <a class="nav-link{% if '/admin/users' in request.url.path %} fw-bold text-pink{% endif %}" href="/admin/users">
+        {{ trans.get("nav.users","使用者") }}
+      </a>
+    </li>
+    {% endif %}
+
+    {# properties — admin only #}
+    {% if role == "admin" %}
+    <li class="nav-item">
+      <a class="nav-link{% if '/properties' in request.url.path %} fw-bold text-pink{% endif %}" href="/properties">
+        {{ trans.get("property.title","館別管理") }}
+      </a>
+    </li>
+    {% endif %}
+
+    {# costs — admin only #}
+    {% if role == "admin" %}
+    <li class="nav-item">
+      <a class="nav-link{% if '/costs' in request.url.path %} fw-bold text-pink{% endif %}" href="/costs">
+        {{ trans.get("nav.costs","成本紀錄") }}
+      </a>
+    </li>
+    {% endif %}
+
+    {# holidays — admin + manager #}
+    {% if role in ("admin","manager") %}
+    <li class="nav-item">
+      <a class="nav-link{% if '/admin/holidays' in request.url.path %} fw-bold text-pink{% endif %}"
+         href="/admin/holidays">
+        {{ trans.get("nav.holidays","假日管理") }}
+      </a>
+    </li>
+    {% endif %}
+
+  </ul><!-- /.navbar-nav -->
+
+  <!-- Right-side controls -->
+  <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:8px;">
+
+    <!-- Sync status -->
+    <div id="syncStatus" style="font-size:12px;display:none;align-items:center;gap:3px;white-space:nowrap"></div>
+
+    <!-- User badge + logout -->
+    {% if _cu %}
+    <span class="badge
+      {% if _cu.role=='admin' %}bg-danger
+      {% elif _cu.role=='manager' %}bg-primary
+      {% elif _cu.role=='front_desk' %}bg-success
+      {% elif _cu.role=='housekeeping' %}bg-info text-dark
+      {% else %}bg-warning text-dark{% endif %}"
+      style="font-size:11px;white-space:nowrap" title="{{ _cu.role }}">
+      {{ _cu.display_name or _cu.username }}
+    </span>
+    <a href="/logout" style="font-size:15px;opacity:.55;color:#374151;text-decoration:none;transition:opacity .12s"
+       title="{{ trans.get('auth.logout','Logout') }}"
+       onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='.55'">⏻</a>
+    {% endif %}
+
+    <!-- Language switcher -->
+    <div class="lang-switcher">
+      <form method="post" action="/set-lang">
+        <input type="hidden" name="lang" value="zh">
+        <button type="submit" class="{% if lang=='zh' %}active{% endif %}">中文</button>
+      </form>
+      <form method="post" action="/set-lang">
+        <input type="hidden" name="lang" value="en">
+        <button type="submit" class="{% if lang=='en' %}active{% endif %}">EN</button>
+      </form>
+    </div>
+
+  </div>
+
+</nav>
+<!-- ══ End Navbar ══════════════════════════════════════════════════ -->
+
+<!-- Fresh-install restore prompt -->
+<div id="freshInstallBanner" class="d-none alert alert-warning alert-dismissible fade show mx-3 mt-3 mb-0" role="alert"
+     style="border-left:4px solid #f59e0b;font-size:.88rem">
+  <strong>🆕 偵測到全新安裝</strong> —
+  如果您在其他電腦已有資料，請先前往
+  <a href="/backup" class="alert-link fw-bold">雲端備份</a> 頁面點「↓ 還原」，
+  即可將資料從雲端還原到此電腦。
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+
+<main class="container py-4">
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="text-center text-muted py-3" style="font-size:.76rem;border-top:1px solid #f9a8d4">
+  BINI Blooms PMS &nbsp;·&nbsp; FastAPI + SQLite &nbsp;·&nbsp;
+  <span class="badge bg-light text-muted border" style="font-size:.68rem">{{ app_version }}</span>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Sync error modal -->
+<div class="modal fade" id="syncErrorModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content rounded-3">
+      <div class="modal-header" style="background:#fef2f2">
+        <h5 class="modal-title fw-bold text-danger">⚠️ {{ trans.get("alert.sync_failed","同步失敗") }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="syncErrorBody" style="max-height:280px;overflow-y:auto"></div>
+      </div>
+      <div class="modal-footer">
+        <a href="/backup" class="btn btn-bb btn-sm">→ {{ trans.get("nav.backup","備份") }}</a>
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">
+          {{ trans.get("action.cancel","關閉") }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% block scripts %}{% endblock %}
+
+<script>
+(function(){
+  const el = document.getElementById('syncStatus');
+  if (!el) return;
+  function updateStatus(){
+    fetch('/api/backup-status').then(r=>r.json()).then(d=>{
+      const st = d.status||'unconfigured';
+      if(st==='unconfigured'||st==='未設定'){el.style.display='none';return;}
+      el.style.display='flex';
+      const map={'已同步':['✅','#166534',false],'同步失敗':['⚠️','#991b1b',true],'同步中':['⏳','#92400e',false]};
+      const [icon,color,clickable]=map[st]||['☁','#6b7280',false];
+      el.innerHTML=clickable
+        ?`${icon}<button onclick="showSyncErr()" style="color:${color};background:none;border:none;padding:0;font-size:12px;cursor:pointer;text-decoration:underline">同步失敗</button>`
+        :`${icon}<a href="/backup" style="color:${color};text-decoration:none;font-size:12px">${st}</a>`;
+    }).catch(()=>{ el.style.display='none'; });
+  }
+  updateStatus(); setInterval(updateStatus,30000);
+  window.showSyncErr=function(){
+    fetch('/api/backup-logs-error').then(r=>r.json()).then(logs=>{
+      const b=document.getElementById('syncErrorBody');
+      if(b) b.innerHTML=logs.length
+        ?logs.map(l=>`<div class="border-bottom py-1" style="font-family:monospace;font-size:.78rem">${l}</div>`).join('')
+        :'<div class="text-muted">無錯誤記錄</div>';
+      new bootstrap.Modal(document.getElementById('syncErrorModal')).show();
+    });
+  };
+})();
+</script>
+<!-- Flatpickr datetime picker initialization -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh-tw.js"></script>
+<script>
+(function() {
+  const isEn  = document.documentElement.lang.startsWith("en");
+  const locale = isEn ? "default" : flatpickr.l10ns.zh_tw;
+
+  const fpConfig = {
+    enableTime:   true,
+    time_24hr:    !isEn,        // 24hr for Chinese, AM/PM for English
+    dateFormat:   "Y-m-d H:i",  // server expects YYYY-MM-DD HH:MM
+    locale:       locale,
+    allowInput:   true,
+    minuteIncrement: 1,
+  };
+
+  function initFlatpickr(el) {
+    if (el._flatpickr) return;           // already initialized
+    if (el.dataset.fpInit) return;
+    el.dataset.fpInit = "1";
+
+    // Copy existing value (datetime-local uses T separator, flatpickr uses space)
+    const existing = el.value ? el.value.replace("T", " ").slice(0, 16) : "";
+
+    // Build config, preserve onchange callbacks
+    const cfg = Object.assign({}, fpConfig, {
+      defaultDate: existing || undefined,
+      onChange: function(selectedDates, dateStr) {
+        // Fire native change + input events so existing JS handlers still work
+        el.value = dateStr;
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+        el.dispatchEvent(new Event("input",  { bubbles: true }));
+      },
+    });
+
+    // Convert type to text so flatpickr can style it
+    el.type = "text";
+    el.placeholder = isEn ? "YYYY-MM-DD HH:MM" : "YYYY/MM/DD HH:MM";
+    if (existing) el.value = existing;
+
+    flatpickr(el, cfg);
+  }
+
+  // Init all current datetime-local inputs
+  function initAll() {
+    document.querySelectorAll("input[data-dtype='datetime-local']").forEach(initFlatpickr);
+  }
+
+  // Watch for dynamically added inputs (multi-slot booking adds them)
+  const observer = new MutationObserver(() => initAll());
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  document.addEventListener("DOMContentLoaded", initAll);
+  // Also init after short delay for dynamic content
+  setTimeout(initAll, 300);
+})();
+</script>
+
+<!-- Booking-soon alert banner (arrival within 15 min) -->
+<div id="bookingSoonBanner"
+     style="position:fixed;top:58px;left:0;right:0;z-index:8001;
+            background:#d97706;color:#fff;padding:10px 20px;
+            display:none;align-items:flex-start;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.3)">
+  <span style="font-size:1.3rem">🔔</span>
+  <div style="flex:1">
+    <div id="bookingSoonMsg" style="font-weight:600;font-size:.9rem;margin-bottom:6px"></div>
+    <div id="bookingSoonActions" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+  </div>
+  <button onclick="document.getElementById('bookingSoonBanner').style.display='none'"
+          style="background:none;border:none;color:#fff;font-size:1.2rem;cursor:pointer;flex-shrink:0">✕</button>
+</div>
+
+<!-- Checkout-soon alert banner (top of page, dismissible) -->
+<div id="checkoutSoonBanner"
+     style="position:fixed;top:108px;left:0;right:0;z-index:8000;
+            background:#dc2626;color:#fff;padding:10px 20px;
+            display:none;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.3)">
+  <span style="font-size:1.3rem">🔔</span>
+  <span id="checkoutSoonMsg" style="flex:1;font-weight:600;font-size:.9rem"></span>
+  <a id="checkoutSoonLink" href="/rooms" class="btn btn-sm btn-light fw-bold" style="font-size:.8rem">
+    {{ trans.get("nav.rooms","房間總覽") }} →
+  </a>
+  <button onclick="document.getElementById('checkoutSoonBanner').classList.add('d-none')"
+          style="background:none;border:none;color:#fff;font-size:1.2rem;cursor:pointer">✕</button>
+</div>
+
+<script>
+// ── 15-min checkout warning ────────────────────────────────────────────────
+// Persist alerted rooms in sessionStorage to avoid repeat chimes on page navigation
+const _alertedData = JSON.parse(sessionStorage.getItem("_checkoutAlerted") || "[]");
+const _alerted = new Set(_alertedData);
+const _chimeUrl = "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAA" +
+  "EAAQAQAAAAAQABAAAQABAAQABAAAQABAAQABAAQABAAQABAAQABAAQABAA==";  // placeholder
+
+function _playChime() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = "sine"; osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.4, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.8);
+  } catch(e) {}
+}
+
+function _checkCheckoutSoon() {
+  fetch("/api/checkout-soon")
+    .then(r => r.json())
+    .then(d => {
+      if (!d.soon || !d.soon.length) return;
+      const newRooms = d.soon.filter(s => !_alerted.has(s.room));
+      if (!newRooms.length) return;
+
+      newRooms.forEach(s => {
+        _alerted.add(s.room);
+        sessionStorage.setItem("_checkoutAlerted", JSON.stringify([..._alerted]));
+      });
+
+      const msgs = newRooms.map(s =>
+        `{{ trans.get("checkout.soon_msg","房間") }} ${s.room} (${s.guest}) ` +
+        `{{ trans.get("checkout.soon_left","還有") }} ${s.mins_left} {{ trans.get("label.minutes","分鐘") }}{{ trans.get("checkout.soon_suffix","退房") }}`
+      );
+
+      const banner = document.getElementById("checkoutSoonBanner");
+      document.getElementById("checkoutSoonMsg").textContent = msgs.join(" ｜ ");
+      banner.style.display = "flex";
+
+      _playChime();
+      // Auto-hide after 2 minutes (will reappear next poll if still pending)
+      setTimeout(() => {
+        banner.style.display = "none";
+      }, 120000);
+    })
+    .catch(() => {});
+}
+
+// ── Booking-soon: arrival within 15 minutes ─────────────────────────────
+const _bkAlertedData = JSON.parse(sessionStorage.getItem("_bookingAlerted") || "[]");
+const _bookingAlerted = new Set(_bkAlertedData);
+
+function _checkBookingSoon() {
+  fetch("/api/booking-soon")
+    .then(r => r.json())
+    .then(d => {
+      if (!d.soon || !d.soon.length) return;
+      const newBks = d.soon.filter(b => !_bookingAlerted.has(b.id));
+      if (!newBks.length) return;
+
+      newBks.forEach(b => {
+        _bookingAlerted.add(b.id);
+        sessionStorage.setItem("_bookingAlerted", JSON.stringify([..._bookingAlerted]));
+      });
+
+      const msgs = newBks.map(b =>
+        `🏨 {{ trans.get("booking.soon_room","房間") }} <b>${b.room}</b> ` +
+        `(${b.guest}) — ` +
+        `{{ trans.get("booking.soon_left","入住時間還有") }} <b>${b.mins_left} {{ trans.get("label.minutes","分鐘") }}</b>`
+      ).join("<br>");
+
+      document.getElementById("bookingSoonMsg").innerHTML = msgs;
+
+      // Build action buttons for each booking
+      const actionsEl = document.getElementById("bookingSoonActions");
+      actionsEl.innerHTML = "";
+      newBks.forEach(b => {
+        // Keep reservation
+        const keepBtn = document.createElement("button");
+        keepBtn.className = "btn btn-sm btn-light fw-bold";
+        keepBtn.style.fontSize = ".78rem";
+        keepBtn.innerHTML = `✅ {{ trans.get("booking.soon_keep","保留預約") }} (${b.room} ${b.guest})`;
+        keepBtn.onclick = () => {
+          _bookingAlerted.add(b.id);
+          actionsEl.removeChild(keepBtn);
+          if (cancelBtn.parentNode) actionsEl.removeChild(cancelBtn);
+          if (!actionsEl.children.length) document.getElementById("bookingSoonBanner").style.display="none";
+        };
+
+        // Cancel as no-show
+        const cancelBtn = document.createElement("button");
+        cancelBtn.className = "btn btn-sm btn-outline-light fw-bold";
+        cancelBtn.style.fontSize = ".78rem";
+        cancelBtn.innerHTML = `❌ {{ trans.get("booking.soon_cancel","取消預約") }} (${b.room} ${b.guest})`;
+        cancelBtn.onclick = () => {
+          fetch(`/api/booking-cancel-noshow/${b.id}`, {method:"POST"})
+            .then(r => r.json())
+            .then(res => {
+              if (res.ok) {
+                if (keepBtn.parentNode) actionsEl.removeChild(keepBtn);
+                actionsEl.removeChild(cancelBtn);
+                if (!actionsEl.children.length) document.getElementById("bookingSoonBanner").style.display="none";
+              }
+            });
+        };
+
+        actionsEl.appendChild(keepBtn);
+        actionsEl.appendChild(cancelBtn);
+      });
+
+      const banner = document.getElementById("bookingSoonBanner");
+      banner.style.display = "flex";
+      banner.style.alignItems = "flex-start";
+
+      _playChime();
+      // Don't auto-hide — staff needs to make a decision
+    })
+    .catch(() => {});
+}
+
+// Poll every 60 seconds
+_checkBookingSoon();
+setInterval(_checkBookingSoon, 60000);
+
+// Poll every 60 seconds (checkout)
+_checkCheckoutSoon();
+setInterval(_checkCheckoutSoon, 60000);
+
+// Fresh-install detection
+(function() {
+  if (sessionStorage.getItem("freshCheckDone")) return;
+  sessionStorage.setItem("freshCheckDone", "1");
+  fetch("/api/is-fresh-install")
+    .then(r => r.json())
+    .then(d => {
+      if (d.fresh) {
+        const b = document.getElementById("freshInstallBanner");
+        if (b) b.classList.remove("d-none");
+      }
+    })
+    .catch(() => {});
+})();
+
+// Backup connection check — runs once per session, shows toast if backup fails
+(function() {
+  if (sessionStorage.getItem("backupCheckDone")) return;
+  sessionStorage.setItem("backupCheckDone", "1");
+  fetch("/api/backup-status")
+    .then(r => r.json())
+    .then(d => {
+      if (!d.configured || d.ok) return;  // no config or all good → silent
+      const toast = document.getElementById("backupWarnToast");
+      if (!toast) return;
+      const msgEl = document.getElementById("backupWarnMsg");
+      if (msgEl) {
+        const provider = d.provider ? ` (${d.provider})` : "";
+        msgEl.textContent = "{{ trans.get('backup.warn_prefix','雲端備份連線異常') }}" + provider +
+          " — {{ trans.get('backup.warn_action','請至「雲端備份」頁面確認設定') }}";
+      }
+      toast.classList.remove("d-none");
+      // Auto-hide after 12 seconds
+      setTimeout(() => { toast.classList.add("d-none"); }, 12000);
+    })
+    .catch(() => {});
+})();
+</script>
+
+<!-- Backup warning toast (bottom-right, non-blocking) -->
+<div id="backupWarnToast"
+     class="d-none position-fixed bottom-0 end-0 m-3 alert alert-warning alert-dismissible shadow"
+     style="z-index:9999;max-width:380px;font-size:.84rem;border-left:4px solid #f59e0b"
+     role="alert">
+  <strong>⚠ {{ trans.get("backup.warn_title","備份連線警告") }}</strong><br>
+  <span id="backupWarnMsg"></span><br>
+  <a href="/backup" class="alert-link fw-bold mt-1 d-inline-block">→ {{ trans.get("nav.backup","雲端備份") }}</a>
+  <button type="button" class="btn-close" onclick="document.getElementById('backupWarnToast').classList.add('d-none')"></button>
+</div>
+
+</body>
+</html>

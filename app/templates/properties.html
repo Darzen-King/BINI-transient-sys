@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h2 class="fw-bold mb-0">{{ trans.get("property.title","Properties") }}</h2>
+  <button class="btn btn-bb btn-sm" data-bs-toggle="modal" data-bs-target="#createPropModal">
+    + {{ trans.get("property.create","New Property") }}
+  </button>
+</div>
+
+{% if msg %}<div class="flash-bar alert alert-success">✅ {{ trans.get("msg." + msg, msg) }}</div>{% endif %}
+
+<div class="row g-3">
+  {% for prop in properties %}
+  <div class="col-md-6 col-lg-4">
+    <div class="card rounded-3 border-0 shadow-sm p-3">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <div>
+          <span class="fw-bold" style="color:#db2777;font-size:1.1rem">{{ prop.id }}</span>
+          <span class="badge {% if prop.is_active %}bg-success{% else %}bg-secondary{% endif %} ms-2" style="font-size:.7rem">
+            {% if prop.is_active %}Active{% else %}Inactive{% endif %}
+          </span>
+        </div>
+      </div>
+      <div class="fw-semibold mb-1">{{ prop.name }}</div>
+      {% if prop.address %}<div class="text-muted" style="font-size:.82rem">📍 {{ prop.address }}</div>{% endif %}
+      {% if prop.phone   %}<div class="text-muted" style="font-size:.82rem">📞 {{ prop.phone }}</div>{% endif %}
+      {% if prop.note    %}<div class="text-muted mt-1" style="font-size:.78rem">{{ prop.note }}</div>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+  {% if not properties %}
+  <div class="col-12 text-center text-muted py-5">
+    <div style="font-size:2.5rem">🏨</div>
+    <div>{{ trans.get("property.none","No properties yet") }}</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Create Property Modal -->
+<div class="modal fade" id="createPropModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-3">
+      <div class="modal-header" style="background:#fdf4f9">
+        <h5 class="modal-title fw-bold" style="color:#db2877">+ {{ trans.get("property.create","New Property") }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="/properties/create">
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-4">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("property.id","ID") }} <span class="text-danger">*</span></label>
+            <input type="text" name="prop_id" class="form-control form-control-sm" required placeholder="P001">
+          </div>
+          <div class="col-8">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("property.name","Name") }} <span class="text-danger">*</span></label>
+            <input type="text" name="name" class="form-control form-control-sm" required>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("property.address","Address") }}</label>
+            <input type="text" name="address" class="form-control form-control-sm">
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("booking.phone","Phone") }}</label>
+            <input type="text" name="phone" class="form-control form-control-sm">
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("room.note","Note") }}</label>
+            <textarea name="note" class="form-control form-control-sm" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ trans.get("action.cancel","Cancel") }}</button>
+        <button type="submit" class="btn btn-bb btn-sm">{{ trans.get("action.confirm","Create") }}</button>
+      </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

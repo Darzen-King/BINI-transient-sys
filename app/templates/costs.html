@@ -1,0 +1,470 @@
+{% extends "base.html" %}
+{% block content %}
+
+{# ── Header ─────────────────────────────────────────────────────────────── #}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h2 class="fw-bold mb-0">{{ trans.get("costs.title","Costs") }}</h2>
+    <div class="text-muted" style="font-size:.8rem">
+      {{ trans.get("costs.subtitle","Monthly operating cost records & P&L") }}
+    </div>
+  </div>
+  <button class="btn btn-bb" data-bs-toggle="modal" data-bs-target="#addCostModal">
+    + {{ trans.get("costs.add","Add Cost") }}
+  </button>
+</div>
+
+{% if msg == "created" %}<div class="flash-bar alert alert-success">✅ {{ trans.get("costs.msg.created","Cost entry added") }}</div>{% endif %}
+{% if msg == "updated" %}<div class="flash-bar alert alert-success">✅ {{ trans.get("costs.msg.updated","Cost entry updated") }}</div>{% endif %}
+{% if msg == "deleted" %}<div class="flash-bar alert alert-warning">🗑 {{ trans.get("costs.msg.deleted","Cost entry deleted") }}</div>{% endif %}
+{% if err %}<div class="flash-bar alert alert-danger">⚠ {{ err }}</div>{% endif %}
+
+{# ── P&L Summary Cards ───────────────────────────────────────────────────── #}
+<div class="row g-3 mb-4">
+
+  <div class="col-6 col-md col-lg">
+    <div class="kpi-card card rounded-3 border-0 shadow-sm text-center p-3 h-100">
+      <div class="kpi-icon">💰</div>
+      <div class="kpi-num text-success">NT${{ "{:,.0f}".format(pnl.revenue) }}</div>
+      <div class="kpi-label">{{ trans.get("costs.revenue","本月營收") }}</div>
+      <div class="kpi-sub">{{ cur_month }}</div>
+      <div class="text-muted mt-1" style="font-size:.68rem;line-height:1.2">
+        {{ trans.get("costs.revenue_note","整月合計（StayLog＋預約）") }}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md col-lg">
+    <div class="kpi-card card rounded-3 border-0 shadow-sm text-center p-3 h-100">
+      <div class="kpi-icon">📤</div>
+      <div class="kpi-num text-danger">NT${{ "{:,.0f}".format(pnl.total_cost) }}</div>
+      <div class="kpi-label">{{ trans.get("costs.total_cost","Total Cost") }}</div>
+      <div class="kpi-sub">{{ pnl.entry_count }} {{ trans.get("costs.entries","entries") }}</div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md col-lg">
+    <div class="kpi-card card rounded-3 border-0 shadow-sm text-center p-3 h-100">
+      <div class="kpi-icon">📊</div>
+      <div class="kpi-num {% if pnl.profitable %}text-primary{% else %}text-danger{% endif %}">
+        NT${{ "{:,.0f}".format(pnl.gross_profit) }}
+      </div>
+      <div class="kpi-label">{{ trans.get("costs.gross_profit","Gross Profit") }}</div>
+      <div class="kpi-sub">
+        {% if not pnl.profitable %}⚠ {{ trans.get("costs.loss","Loss") }}{% else %}✅{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md col-lg">
+    <div class="kpi-card card rounded-3 border-0 shadow-sm text-center p-3 h-100">
+      <div class="kpi-icon">💹</div>
+      <div class="kpi-num {% if pnl.profitable %}text-success{% else %}text-danger{% endif %}">
+        NT${{ "{:,.0f}".format(pnl.gross_profit) }}
+      </div>
+      <div class="kpi-label">{{ trans.get("costs.net_profit","Net Profit") }}</div>
+      <div class="kpi-sub">{{ trans.get("costs.net_note","= Revenue − Cost") }}</div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md col-lg">
+    <div class="kpi-card card rounded-3 border-0 shadow-sm text-center p-3 h-100">
+      <div class="kpi-icon">📉</div>
+      <div class="kpi-num {% if pnl.cost_ratio is not none and pnl.cost_ratio > 80 %}text-danger{% elif pnl.cost_ratio is not none and pnl.cost_ratio > 50 %}text-warning{% else %}text-success{% endif %}">
+        {% if pnl.cost_ratio is not none %}{{ pnl.cost_ratio }}%{% else %}—{% endif %}
+      </div>
+      <div class="kpi-label">{{ trans.get("costs.cost_ratio","Cost Ratio") }}</div>
+      <div class="kpi-sub">{{ trans.get("costs.cost_ratio_note","Cost / Revenue") }}</div>
+    </div>
+  </div>
+
+</div>
+
+{# ── Category breakdown ─────────────────────────────────────────────────── #}
+{% if pnl.by_category %}
+<div class="card rounded-3 border-0 shadow-sm mb-4 p-3">
+  <div class="fw-semibold mb-2" style="font-size:.86rem;color:#db2777">
+    📂 {{ trans.get("costs.by_category","Cost by Category") }} — {{ cur_month }}
+  </div>
+  <div class="row g-2">
+    {% for cat, amt in pnl.by_category | dictsort(by='value', reverse=True) %}
+    <div class="col-6 col-md-4 col-lg-3">
+      <div class="d-flex justify-content-between align-items-center p-2 rounded-2"
+           style="background:#f9fafb;font-size:.82rem">
+        <span class="text-muted">{{ trans.get("costs.cat." + cat, cat) }}</span>
+        <span class="fw-semibold">NT${{ "{:,.0f}".format(amt) }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{# ── Filter bar ──────────────────────────────────────────────────────────── #}
+<div class="card rounded-3 border-0 shadow-sm mb-3 p-3">
+  <form method="get" action="/costs" class="d-flex flex-wrap gap-3 align-items-end">
+
+    <div>
+      <label class="form-label fw-semibold mb-1" style="font-size:.82rem">{{ trans.get("costs.month","Month") }}</label>
+      <select name="year_month" class="form-select form-select-sm" style="width:140px" onchange="this.form.submit()">
+        {% for m in months %}
+        <option value="{{ m }}" {% if m == cur_month %}selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label class="form-label fw-semibold mb-1" style="font-size:.82rem">{{ trans.get("costs.category","Category") }}</label>
+      <select name="category" class="form-select form-select-sm" style="width:160px" onchange="this.form.submit()">
+        <option value="">── {{ trans.get("costs.all","All") }} ──</option>
+        {% for cat in categories %}
+        <option value="{{ cat }}" {% if category == cat %}selected{% endif %}>
+          {{ trans.get("costs.cat." + cat, cat) }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% if properties %}
+    <div>
+      <label class="form-label fw-semibold mb-1" style="font-size:.82rem">{{ trans.get("property.title","Property") }}</label>
+      <select name="property_id" class="form-select form-select-sm" style="width:160px" onchange="this.form.submit()">
+        <option value="">── {{ trans.get("property.all","All") }} ──</option>
+        {% for prop in properties %}
+        <option value="{{ prop.id }}" {% if property_id == prop.id %}selected{% endif %}>{{ prop.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
+    <div>
+      <label class="form-label fw-semibold mb-1" style="font-size:.82rem">{{ trans.get("costs.payment_method","Payment") }}</label>
+      <select name="payment_method" class="form-select form-select-sm" style="width:130px" onchange="this.form.submit()">
+        <option value="">── {{ trans.get("costs.all","All") }} ──</option>
+        {% for pm in pay_methods %}
+        <option value="{{ pm }}" {% if payment_method == pm %}selected{% endif %}>
+          {{ trans.get("payment.type." + pm, pm) }}
+        </option>
+        {% endfor %}
+    </select>
+    </div>
+
+    <div>
+      <a href="/costs" class="btn btn-outline-secondary btn-sm">{{ trans.get("action.reset","Reset") }}</a>
+    </div>
+
+    {# Keep hidden to preserve state #}
+    <input type="hidden" name="year_month" value="{{ cur_month }}">
+  </form>
+</div>
+
+{# ── Cost table ──────────────────────────────────────────────────────────── #}
+<div class="card rounded-3 border-0 shadow-sm">
+  <div class="card-body p-0">
+    {% if costs %}
+    <div class="table-responsive">
+    <table class="table table-hover mb-0" style="font-size:.83rem">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-3">{{ trans.get("costs.date","Date") }}</th>
+          <th>{{ trans.get("costs.category","Category") }}</th>
+          <th>{{ trans.get("costs.vendor","Vendor") }}</th>
+          <th class="text-end">{{ trans.get("costs.amount","Amount") }}</th>
+          <th>{{ trans.get("costs.payment_method","Payment") }}</th>
+          <th>{{ trans.get("costs.note","Note") }}</th>
+          <th>{{ trans.get("auth.col_operator","By") }}</th>
+          <th style="width:100px">{{ trans.get("auth.actions","Actions") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in costs %}
+        <tr>
+          <td class="ps-3 text-muted" style="white-space:nowrap">{{ c.cost_date }}</td>
+          <td>
+            <span class="badge bg-light border text-dark" style="font-size:.74rem">
+              {{ trans.get("costs.cat." + c.category, c.category) }}
+            </span>
+            {% if c.subcategory %}<div class="text-muted" style="font-size:.73rem">{{ c.subcategory }}</div>{% endif %}
+            {% if c.is_recurring %}<span class="badge bg-info text-dark" style="font-size:.68rem">↻</span>{% endif %}
+          </td>
+          <td>{{ c.vendor or "—" }}</td>
+          <td class="text-end fw-semibold text-danger">NT${{ "{:,.0f}".format(c.amount) }}</td>
+          <td>{{ trans.get("payment.type." + c.payment_method, c.payment_method) }}</td>
+          <td class="text-muted" style="font-size:.78rem;max-width:160px">
+            <span title="{{ c.description or '' }}">{{ (c.note or c.description or "—")[:40] }}</span>
+          </td>
+          <td class="text-muted" style="font-size:.75rem">{{ c.created_by or "—" }}</td>
+          <td>
+            <div class="d-flex gap-1">
+              <button class="btn btn-outline-primary btn-sm" style="font-size:.72rem"
+                      onclick="openEditModal({{ c.id }})">✏</button>
+              <form method="post" action="/costs/{{ c.id }}/delete"
+                    onsubmit="return confirm('{{ trans.get('costs.confirm_delete','Delete this entry?') }}')">
+                <button type="submit" class="btn btn-outline-danger btn-sm" style="font-size:.72rem">✕</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot class="table-light">
+        <tr>
+          <td colspan="3" class="ps-3 fw-semibold">{{ trans.get("costs.total","Total") }}</td>
+          <td class="text-end fw-bold text-danger">
+            NT${{ "{:,.0f}".format(costs | sum(attribute='amount')) }}
+          </td>
+          <td colspan="4"></td>
+        </tr>
+      </tfoot>
+    </table>
+    </div>
+
+    {% else %}
+    <div class="text-center text-muted py-5">
+      <div style="font-size:2.5rem">📋</div>
+      <div>{{ trans.get("costs.no_entries","No cost entries for this period") }}</div>
+      <button class="btn btn-bb btn-sm mt-3" data-bs-toggle="modal" data-bs-target="#addCostModal">
+        + {{ trans.get("costs.add","Add Cost") }}
+      </button>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+
+{# ── Add Cost Modal ──────────────────────────────────────────────────────── #}
+<div class="modal fade" id="addCostModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content rounded-3">
+      <div class="modal-header" style="background:#fdf4f9">
+        <h5 class="modal-title fw-bold" style="color:#db2777">
+          + {{ trans.get("costs.add","Add Cost") }}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="/costs/create">
+      <div class="modal-body">
+        <div class="row g-3">
+
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("costs.date","Date") }} <span class="text-danger">*</span></label>
+            <input type="date" name="cost_date" class="form-control form-control-sm"
+                   value="{{ cur_month }}-01" required>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("costs.category","Category") }} <span class="text-danger">*</span></label>
+            <select name="category" class="form-select form-select-sm" required>
+              {% for cat in categories %}
+              <option value="{{ cat }}">{{ trans.get("costs.cat." + cat, cat) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("costs.subcategory","Subcategory") }}</label>
+            <input type="text" name="subcategory" class="form-control form-control-sm"
+                   placeholder="{{ trans.get('costs.subcategory_hint','e.g. Electricity, Water') }}">
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("costs.amount","Amount (NT$)") }} <span class="text-danger">*</span></label>
+            <input type="number" name="amount" class="form-control form-control-sm"
+                   min="0" step="1" required>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("costs.payment_method","Payment Method") }}</label>
+            <select name="payment_method" class="form-select form-select-sm">
+              {% for pm in pay_methods %}
+              <option value="{{ pm }}">{{ trans.get("payment.type." + pm, pm) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("costs.vendor","Vendor") }}</label>
+            <input type="text" name="vendor" class="form-control form-control-sm">
+          </div>
+
+          {% if properties %}
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("property.title","Property") }}</label>
+            <select name="property_id" class="form-select form-select-sm">
+              <option value="">— {{ trans.get("property.all","All") }} —</option>
+              {% for prop in properties %}
+              <option value="{{ prop.id }}" {% if property_id == prop.id %}selected{% endif %}>{{ prop.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
+
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("costs.receipt_no","Receipt No.") }}</label>
+            <input type="text" name="receipt_no" class="form-control form-control-sm">
+          </div>
+
+          <div class="col-md-4 d-flex align-items-end">
+            <div class="form-check mb-1">
+              <input class="form-check-input" type="checkbox" name="is_recurring" value="1" id="addRecurring">
+              <label class="form-check-label fw-semibold" for="addRecurring" style="font-size:.84rem">
+                ↻ {{ trans.get("costs.is_recurring","Recurring") }}
+              </label>
+            </div>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("costs.description","Description") }}</label>
+            <input type="text" name="description" class="form-control form-control-sm">
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("costs.note","Note") }}</label>
+            <textarea name="note" class="form-control form-control-sm" rows="2"></textarea>
+          </div>
+
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">
+          {{ trans.get("auth.cancel","Cancel") }}
+        </button>
+        <button type="submit" class="btn btn-bb btn-sm px-4">
+          {{ trans.get("costs.save","Save") }}
+        </button>
+      </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+{# ── Edit Cost Modal ─────────────────────────────────────────────────────── #}
+<div class="modal fade" id="editCostModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content rounded-3">
+      <div class="modal-header" style="background:#fdf4f9">
+        <h5 class="modal-title fw-bold" style="color:#db2777">
+          ✏️ {{ trans.get("costs.edit","Edit Cost") }}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" id="editCostForm">
+      <div class="modal-body">
+        <div class="row g-3">
+
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("costs.date","Date") }}</label>
+            <input type="date" name="cost_date" id="e_cost_date" class="form-control form-control-sm" required>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("costs.category","Category") }}</label>
+            <select name="category" id="e_category" class="form-select form-select-sm">
+              {% for cat in categories %}
+              <option value="{{ cat }}">{{ trans.get("costs.cat." + cat, cat) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("costs.subcategory","Subcategory") }}</label>
+            <input type="text" name="subcategory" id="e_subcategory" class="form-control form-control-sm">
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("costs.amount","Amount (NT$)") }}</label>
+            <input type="number" name="amount" id="e_amount" class="form-control form-control-sm" min="0" step="1">
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("costs.payment_method","Payment Method") }}</label>
+            <select name="payment_method" id="e_payment_method" class="form-select form-select-sm">
+              {% for pm in pay_methods %}
+              <option value="{{ pm }}">{{ trans.get("payment.type." + pm, pm) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("costs.vendor","Vendor") }}</label>
+            <input type="text" name="vendor" id="e_vendor" class="form-control form-control-sm">
+          </div>
+
+          {% if properties %}
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("property.title","Property") }}</label>
+            <select name="property_id" id="e_property_id" class="form-select form-select-sm">
+              <option value="">— {{ trans.get("property.all","All") }} —</option>
+              {% for prop in properties %}
+              <option value="{{ prop.id }}">{{ prop.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
+
+          <div class="col-md-4">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("costs.receipt_no","Receipt No.") }}</label>
+            <input type="text" name="receipt_no" id="e_receipt_no" class="form-control form-control-sm">
+          </div>
+
+          <div class="col-md-4 d-flex align-items-end">
+            <div class="form-check mb-1">
+              <input class="form-check-input" type="checkbox" name="is_recurring" value="1" id="e_recurring">
+              <label class="form-check-label fw-semibold" for="e_recurring" style="font-size:.84rem">
+                ↻ {{ trans.get("costs.is_recurring","Recurring") }}
+              </label>
+            </div>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("costs.description","Description") }}</label>
+            <input type="text" name="description" id="e_description" class="form-control form-control-sm">
+          </div>
+
+          <div class="col-12">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("costs.note","Note") }}</label>
+            <textarea name="note" id="e_note" class="form-control form-control-sm" rows="2"></textarea>
+          </div>
+
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">
+          {{ trans.get("auth.cancel","Cancel") }}
+        </button>
+        <button type="submit" class="btn btn-bb btn-sm px-4">
+          {{ trans.get("costs.save","Save") }}
+        </button>
+      </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openEditModal(id) {
+  fetch('/api/costs/' + id)
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById('editCostForm').action = '/costs/' + id + '/edit';
+      document.getElementById('e_cost_date').value       = d.cost_date;
+      document.getElementById('e_category').value        = d.category;
+      document.getElementById('e_subcategory').value     = d.subcategory;
+      document.getElementById('e_amount').value          = d.amount;
+      document.getElementById('e_payment_method').value  = d.payment_method;
+      document.getElementById('e_vendor').value          = d.vendor;
+      document.getElementById('e_description').value     = d.description;
+      document.getElementById('e_note').value            = d.note;
+      document.getElementById('e_receipt_no').value      = d.receipt_no;
+      document.getElementById('e_recurring').checked     = d.is_recurring == 1;
+      const ep = document.getElementById('e_property_id');
+      if (ep) ep.value = d.property_id || '';
+      new bootstrap.Modal(document.getElementById('editCostModal')).show();
+    });
+}
+</script>
+{% endblock %}

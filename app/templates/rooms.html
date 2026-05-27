@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div class="d-flex align-items-center gap-3 flex-wrap mb-1">
+  <h2 class="fw-bold mb-0">{{ trans.get("nav.rooms","房間總覽") }}</h2>
+  {% if properties %}
+  <form method="get" class="d-flex align-items-center gap-2 ms-auto">
+    <select name="property_id" class="form-select form-select-sm" style="width:180px"
+            onchange="this.form.submit()">
+      <option value="">── {{ trans.get("property.all","所有館別") }} ──</option>
+      {% for prop in properties %}
+      <option value="{{ prop.id }}" {% if property_id == prop.id %}selected{% endif %}>
+        {{ prop.id }} {{ prop.name }}
+      </option>
+      {% endfor %}
+    </select>
+  </form>
+  {% endif %}
+</div>
+  <a href="/bookings/new" class="btn btn-bb btn-sm px-3">
+    + {{ trans.get("action.new_booking","新增預約") }}
+  </a>
+</div>
+
+{% if msg == "checkin_ok" %}
+<div class="flash-bar alert alert-success">{{ trans.get("label.checkin_ok","✅ 入住成功") }}</div>
+{% endif %}
+
+<!-- Status summary tiles (click to filter) -->
+<div class="d-flex flex-wrap gap-2 mb-4" id="statusFilterRow">
+  <div class="summary-tile bg-light" style="cursor:pointer;border:2px solid transparent"
+       id="filter-all" onclick="filterRooms('all')" title="{{ trans.get('room_filter.all','顯示全部') }}">
+    <div class="num">{{ summary.total }}</div>
+    <div class="lbl">{{ trans.get("label.all_rooms","全部房間") }}</div>
+  </div>
+  <div class="summary-tile" style="background:#dcfce7;cursor:pointer;border:2px solid transparent"
+       id="filter-可入住" onclick="filterRooms('可入住')" title="{{ trans.get('room_filter.available','篩選可入住') }}">
+    <div class="num text-success">{{ summary.available }}</div>
+    <div class="lbl">{{ trans.get("status.available","可入住") }}</div>
+  </div>
+  <div class="summary-tile" style="background:#dbeafe;cursor:pointer;border:2px solid transparent"
+       id="filter-使用中" onclick="filterRooms('使用中')" title="{{ trans.get('room_filter.occupied','篩選使用中') }}">
+    <div class="num text-primary">{{ summary.occupied }}</div>
+    <div class="lbl">{{ trans.get("status.occupied","使用中") }}</div>
+  </div>
+  <div class="summary-tile" style="background:#fef9c3;cursor:pointer;border:2px solid transparent"
+       id="filter-待清潔" onclick="filterRooms('待清潔')" title="{{ trans.get('room_filter.cleaning','篩選待清潔') }}">
+    <div class="num text-warning">{{ summary.cleaning }}</div>
+    <div class="lbl">{{ trans.get("status.cleaning","待清潔") }}</div>
+  </div>
+  <div class="summary-tile" style="background:#fee2e2;cursor:pointer;border:2px solid transparent"
+       id="filter-維修中" onclick="filterRooms('維修中')" title="{{ trans.get('room_filter.maintenance','篩選維修中') }}">
+    <div class="num text-danger">{{ summary.repair }}</div>
+    <div class="lbl">{{ trans.get("status.maintenance","維修中") }}</div>
+  </div>
+</div>
+
+<!-- Room cards grid -->
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
+  {% for room in rooms %}
+  <div class="col room-card-col" data-status="{{ room.status }}">
+    <div class="room-card card p-3 h-100">
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <span class="fw-bold fs-5" style="color:#db2777">{{ room.id }}</span>
+        <span class="badge bg-{{ room.badge_color }}">{{ trans.get("status." + room.status, room.status) }}</span>
+      </div>
+
+      <dl class="mb-0" style="font-size:.85rem">
+        {% if room.current_guest %}
+        <div class="d-flex gap-2 mb-1">
+          <dt class="fw-normal text-muted" style="min-width:80px">{{ trans.get("room.current_guest","目前旅客") }}</dt>
+          <dd class="mb-0 fw-semibold">{{ room.current_guest }}</dd>
+        </div>
+        {% endif %}
+        {% if room.checkin %}
+        <div class="d-flex gap-2 mb-1">
+          <dt class="fw-normal text-muted" style="min-width:80px">{{ trans.get("room.checkin","入住") }}</dt>
+          <dd class="mb-0">{{ room.checkin }}</dd>
+        </div>
+        {% endif %}
+        {% if room.checkout %}
+        <div class="d-flex gap-2 mb-1">
+          <dt class="fw-normal text-muted" style="min-width:80px">{{ trans.get("room.checkout","退房") }}</dt>
+          <dd class="mb-0">{{ room.checkout }}</dd>
+        </div>
+        {% endif %}
+        {% if room.total_due is not none %}
+        <div class="rounded-2 p-2 mt-2 mb-1" style="background:#fdf4f9;font-size:.82rem">
+          <div class="d-flex justify-content-between mb-1">
+            <span class="text-muted">💰 {{ trans.get("checkout.total_due","應付總額") }}</span>
+            <span class="fw-semibold">NT$ {{ "%.0f"|format(room.total_due) }}</span>
+          </div>
+          <div class="d-flex justify-content-between mb-1">
+            <span class="text-muted">💳 {{ trans.get("checkout.deposit_paid","已收押金") }}</span>
+            <span class="fw-semibold text-success">NT$ {{ "%.0f"|format(room.deposit_paid) }}</span>
+          </div>
+          <div class="d-flex justify-content-between pt-1" style="border-top:1px solid #fce7f3">
+            <span class="fw-bold" style="color:{% if room.balance_due > 0 %}#dc2626{% else %}#16a34a{% endif %}">
+              {{ trans.get("checkout.balance_due","餘額應收") }}
+            </span>
+            <span class="fw-bold" style="color:{% if room.balance_due > 0 %}#dc2626{% else %}#16a34a{% endif %}">
+              NT$ {{ "%.0f"|format(room.balance_due) }}
+              {% if room.balance_due <= 0 %}✅{% endif %}
+            </span>
+          </div>
+        </div>
+        {% endif %}
+        {% if room.maint_title %}
+        <div class="d-flex gap-2 mb-1">
+          <dt class="fw-normal text-muted" style="min-width:80px">🔧 {{ trans.get("maintenance.schedule_title","維修項目") }}</dt>
+          <dd class="mb-0 text-danger fw-semibold">{{ room.maint_title }}</dd>
+        </div>
+        {% endif %}
+        {% if room.maint_end %}
+        <div class="d-flex gap-2 mb-1">
+          <dt class="fw-normal text-muted" style="min-width:80px">{{ trans.get("label.checkout","預計完成") }}</dt>
+          <dd class="mb-0 text-danger">{{ room.maint_end }}</dd>
+        </div>
+        {% endif %}
+        {% if room.next_booking %}
+        <div class="d-flex gap-2 mb-1">
+          <dt class="fw-normal text-muted" style="min-width:80px">{{ trans.get("room.next_booking","下一筆") }}</dt>
+          <dd class="mb-0 text-info">{{ room.next_booking }}</dd>
+        </div>
+        {% endif %}
+        {% if room.note %}
+        <div class="d-flex gap-2">
+          <dt class="fw-normal text-muted" style="min-width:80px">{{ trans.get("room.note","備註") }}</dt>
+          <dd class="mb-0 text-secondary">{{ room.note }}</dd>
+        </div>
+        {% endif %}
+      </dl>
+
+      <!-- Quick actions -->
+      <div class="d-flex gap-2 mt-3 flex-wrap">
+        {% if room.status == "可入住" %}
+          <a href="/checkin?room={{ room.id }}" class="btn btn-bb btn-sm">
+            {{ trans.get("action.checkin","辦理入住") }}
+          </a>
+        {% endif %}
+        {% if room.status in ["使用中","即將退房"] %}
+          <a href="/extend?room={{ room.id }}" class="btn btn-outline-warning btn-sm">
+            {{ trans.get("nav.extend","延住") }}
+          </a>
+          <a href="/checkout?room={{ room.id }}" class="btn btn-outline-secondary btn-sm">
+            {{ trans.get("nav.checkout","退房") }}
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% block scripts %}
+<script>
+let _currentFilter = "all";
+
+function filterRooms(status) {
+  _currentFilter = status;
+
+  // Update tile active state
+  document.querySelectorAll(".summary-tile").forEach(el => {
+    el.style.border = "2px solid transparent";
+    el.style.boxShadow = "";
+    el.style.transform = "";
+  });
+  const active = document.getElementById("filter-" + status);
+  if (active) {
+    active.style.border = "2px solid #db2877";
+    active.style.boxShadow = "0 0 0 3px rgba(219,40,119,.15)";
+    active.style.transform = "scale(1.04)";
+  }
+
+  // Show/hide room cards
+  document.querySelectorAll(".room-card-col").forEach(col => {
+    if (status === "all") {
+      col.style.display = "";
+    } else {
+      const roomStatus = col.dataset.status || "";
+      col.style.display = (roomStatus === status) ? "" : "none";
+    }
+  });
+}
+
+// Init: highlight "all" on load
+document.addEventListener("DOMContentLoaded", () => filterRooms("all"));
+</script>
+{% endblock %}
+{% endblock %}

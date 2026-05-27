@@ -1,0 +1,432 @@
+{% extends "base.html" %}
+{% block content %}
+
+{# holiday_map passed from router as plain Python dict #}
+
+<style>
+:root {
+  --bb-pink:   #db2777;
+  --bb-light:  #fdf4f9;
+  --cal-hday:  #fce7f3;
+  --cal-hday-border: #db2777;
+  --cal-weekend: #fff1f7;
+  --cal-today: #fbcfe8;
+}
+
+.cal-container { max-width: 960px; margin: 0 auto; }
+
+/* Month nav */
+.cal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.cal-nav-btn {
+  background: none; border: 1.5px solid #e5e7eb; border-radius: 8px;
+  width: 36px; height: 36px; cursor: pointer; font-size: 1rem;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.cal-nav-btn:hover { background: var(--bb-light); border-color: var(--bb-pink); }
+
+/* Calendar grid */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.cal-dow {
+  text-align: center; font-size: .72rem; font-weight: 700;
+  color: #9ca3af; padding: 4px 0; letter-spacing: .05em;
+}
+.cal-dow.weekend { color: var(--bb-pink); }
+
+.cal-day {
+  border-radius: 10px;
+  border: 1.5px solid transparent;
+  padding: 6px 4px 4px;
+  min-height: 64px;
+  position: relative;
+  cursor: default;
+  background: #fff;
+  transition: all .12s;
+}
+.cal-day.other-month { opacity: .3; }
+.cal-day.weekend { background: var(--cal-weekend); }
+.cal-day.today {
+  border-color: var(--bb-pink) !important;
+  background: var(--cal-today) !important;
+}
+.cal-day.is-holiday {
+  background: var(--cal-hday) !important;
+  border-color: var(--cal-hday-border) !important;
+  cursor: pointer;
+}
+.cal-day.is-holiday:hover {
+  transform: scale(1.04);
+  box-shadow: 0 4px 16px rgba(219,39,119,.18);
+  z-index: 5;
+}
+.cal-day.is-manual {
+  border-style: dashed !important;
+  border-color: #f59e0b !important;
+  background: #fffbeb !important;
+}
+.cal-day .day-num {
+  font-size: .82rem; font-weight: 600;
+  color: #374151;
+  line-height: 1;
+}
+.cal-day.weekend .day-num { color: var(--bb-pink); }
+.cal-day.is-holiday .day-num { color: var(--bb-pink); font-weight: 800; }
+.cal-day .day-label {
+  font-size: .62rem; color: var(--bb-pink); font-weight: 600;
+  margin-top: 3px; line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hday-dot {
+  position: absolute; top: 5px; right: 6px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--bb-pink);
+}
+.hday-dot.manual { background: #f59e0b; }
+
+/* Tooltip / popup */
+.day-popup {
+  display: none;
+  position: absolute; z-index: 100;
+  top: calc(100% + 6px); left: 50%;
+  transform: translateX(-50%);
+  background: #1f2937; color: #fff;
+  border-radius: 10px; padding: 10px 14px;
+  font-size: .8rem; white-space: nowrap;
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  pointer-events: none;
+  min-width: 120px;
+}
+.day-popup::before {
+  content: '';
+  position: absolute; bottom: 100%; left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-bottom-color: #1f2937;
+}
+.cal-day.is-holiday:hover .day-popup { display: block; }
+
+/* Legend */
+.cal-legend {
+  display: flex; gap: 16px; flex-wrap: wrap;
+  margin-top: 1rem; font-size: .78rem; color: #6b7280;
+}
+.leg-item { display: flex; align-items: center; gap: 6px; }
+.leg-swatch {
+  width: 16px; height: 16px; border-radius: 5px;
+  border: 1.5px solid rgba(0,0,0,.12);
+}
+
+/* Add form panel */
+.add-panel {
+  background: var(--bb-light);
+  border: 1.5px solid #fce7f3;
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-bottom: 1.5rem;
+}
+
+/* Month chips */
+.month-chips {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1rem;
+}
+.month-chip {
+  border: 1.5px solid #e5e7eb; border-radius: 20px;
+  padding: 3px 12px; font-size: .78rem; cursor: pointer;
+  background: #fff; transition: all .12s;
+}
+.month-chip:hover { border-color: var(--bb-pink); color: var(--bb-pink); }
+.month-chip.active {
+  background: var(--bb-pink); color: #fff; border-color: var(--bb-pink);
+}
+</style>
+
+<div class="cal-container py-4">
+
+  <!-- Header -->
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-3">
+      <h2 class="fw-bold mb-0">📅 {{ trans.get("nav.holidays","假日管理") }}</h2>
+      <form method="get" class="d-flex gap-2 align-items-center">
+        <select name="year" class="form-select form-select-sm" style="width:100px"
+                onchange="this.form.submit()">
+          {% for y in years %}
+          <option value="{{ y }}" {% if y==year %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+    <div class="d-flex gap-2">
+      <form method="post" action="/admin/holidays/resync">
+        <input type="hidden" name="year" value="{{ year }}">
+        <button type="submit" class="btn btn-outline-primary btn-sm"
+                onclick="return confirm(RESYNC_CONFIRM.replace('{year}', '{{ year }}'))">
+          🔄 {{ trans.get("holiday.resync","重新抓取") }}
+        </button>
+      </form>
+      <button class="btn btn-bb btn-sm" onclick="toggleAddPanel()">
+        ➕ {{ trans.get("holiday.add","新增假日") }}
+      </button>
+    </div>
+  </div>
+
+  {% if request.query_params.get("msg") %}
+  <div class="alert alert-success py-2 mb-3">✅ {{ trans.get("label.saved","操作完成") }}</div>
+  {% endif %}
+
+  <!-- Add holiday panel (hidden by default) -->
+  <div class="add-panel" id="addPanel" style="display:none">
+    <h6 class="fw-semibold mb-3">➕ {{ trans.get("holiday.add","手動新增假日") }}</h6>
+    <form method="post" action="/admin/holidays/add"
+          class="d-flex gap-2 flex-wrap align-items-end">
+      <div>
+        <label class="form-label mb-1" style="font-size:.8rem">{{ trans.get("label.date","日期") }}</label>
+        <input type="date" name="date" id="addDateInput" class="form-control form-control-sm"
+               style="width:160px" required>
+      </div>
+      <div>
+        <label class="form-label mb-1" style="font-size:.8rem">{{ trans.get("holiday.description","說明") }}</label>
+        <input type="text" name="description" class="form-control form-control-sm"
+               style="width:180px"
+               placeholder="{{ trans.get('holiday.desc_placeholder','如：端午節') }}">
+      </div>
+      <button type="submit" class="btn btn-bb btn-sm">{{ trans.get("label.add","新增") }}</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm"
+              onclick="toggleAddPanel()">{{ trans.get("auth.cancel","取消") }}</button>
+    </form>
+    <div class="text-muted mt-2" style="font-size:.73rem">
+      ℹ️ {{ trans.get("holiday.manual_note","手動新增的假日不會被自動抓取覆蓋") }}
+    </div>
+  </div>
+
+  <!-- Month navigation chips -->
+  <div class="month-chips" id="monthChips">
+    {% set month_names_zh = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"] %}
+    {% set month_names_en = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"] %}
+    {% for m in range(1,13) %}
+    <button class="month-chip" id="chip-{{ m }}"
+            onclick="jumpToMonth({{ m }})">
+      {{ month_names_zh[m-1] if lang=='zh' else month_names_en[m-1] }}
+    </button>
+    {% endfor %}
+  </div>
+
+  <!-- Calendar area — rendered by JS -->
+  <div id="calendarArea"></div>
+
+  <!-- Legend -->
+  <div class="cal-legend mt-3">
+    <div class="leg-item">
+      <div class="leg-swatch" style="background:var(--cal-hday);border-color:var(--cal-hday-border)"></div>
+      <span>{{ trans.get("holiday.legend_auto","國定假日（自動）") }}</span>
+    </div>
+    <div class="leg-item">
+      <div class="leg-swatch" style="background:#fffbeb;border:1.5px dashed #f59e0b"></div>
+      <span>{{ trans.get("holiday.legend_manual","手動新增") }}</span>
+    </div>
+    <div class="leg-item">
+      <div class="leg-swatch" style="background:var(--cal-weekend);border-color:#fce7f3"></div>
+      <span>{{ trans.get("holiday.legend_weekend","週末") }}</span>
+    </div>
+    <div class="leg-item">
+      <div class="leg-swatch" style="background:var(--cal-today);border-color:var(--bb-pink)"></div>
+      <span>{{ trans.get("holiday.legend_today","今日") }}</span>
+    </div>
+    <div class="ms-auto text-muted" style="font-size:.78rem">
+      {{ trans.get("holiday.total","共") }} {{ holidays|length }} {{ trans.get("holiday.days","筆假日") }}
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}{# end content #}
+
+{% block scripts %}
+<script>
+// Holiday data from server
+const HOLIDAYS = {{ holiday_map | tojson | safe }};
+const YEAR     = {{ year }};
+const LANG     = "{{ lang }}";
+const DELETE_URL = "/admin/holidays/delete/";
+const CONFIRM_DELETE  = "{{ trans.get('holiday.confirm_delete','刪除此假日？') }}";
+const RESYNC_CONFIRM  = "{{ trans.get('holiday.resync_confirm','重新從政府 API 抓取 {year} 年假日？將清除自動抓取的記錄（手動新增保留）') }}";
+const MONTH_NAMES_ZH = ["一月","二月","三月","四月","五月","六月","七月","八月","九月","十月","十一月","十二月"];
+const MONTH_NAMES_EN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const DOW_ZH = ["日","一","二","三","四","五","六"];
+const DOW_EN = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+let currentMonth = new Date().getMonth() + 1;
+if (new Date().getFullYear() !== YEAR) currentMonth = 1;
+
+function pad(n){ return String(n).padStart(2,'0'); }
+
+function renderCalendar() {
+  const area = document.getElementById("calendarArea");
+  area.innerHTML = "";
+
+  for (let m = 1; m <= 12; m++) {
+    area.appendChild(buildMonth(YEAR, m));
+  }
+
+  // Update chips
+  document.querySelectorAll(".month-chip").forEach((c,i) => {
+    c.classList.toggle("active", i+1 === currentMonth);
+  });
+
+  // Scroll to current month
+  const el = document.getElementById("month-" + currentMonth);
+  if (el) el.scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+function buildMonth(year, month) {
+  const wrapper = document.createElement("div");
+  wrapper.id = "month-" + month;
+  wrapper.style.cssText = "margin-bottom:2rem";
+
+  // Month title
+  const title = document.createElement("div");
+  title.style.cssText = "font-weight:700;font-size:1.05rem;color:#db2777;margin-bottom:.6rem;padding-left:2px";
+  title.textContent = (LANG==="zh" ? MONTH_NAMES_ZH[month-1] : MONTH_NAMES_EN[month-1]) + " " + year;
+  wrapper.appendChild(title);
+
+  // Grid
+  const grid = document.createElement("div");
+  grid.className = "cal-grid";
+
+  // Day of week headers
+  const dows = LANG==="zh" ? DOW_ZH : DOW_EN;
+  dows.forEach((d,i) => {
+    const hdr = document.createElement("div");
+    hdr.className = "cal-dow" + (i===0||i===6 ? " weekend" : "");
+    hdr.textContent = d;
+    grid.appendChild(hdr);
+  });
+
+  // First day of month (0=Sun)
+  const firstDay = new Date(year, month-1, 1).getDay();
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const daysInPrev  = new Date(year, month-1, 0).getDate();
+  const today = new Date();
+
+  // Prev month padding
+  for (let i = firstDay-1; i >= 0; i--) {
+    grid.appendChild(makeDayCell(year, month-1||12, daysInPrev-i, true));
+  }
+
+  // This month's days
+  for (let d = 1; d <= daysInMonth; d++) {
+    const isToday = (year===today.getFullYear() && month===today.getMonth()+1 && d===today.getDate());
+    grid.appendChild(makeDayCell(year, month, d, false, isToday));
+  }
+
+  // Next month padding
+  const total = firstDay + daysInMonth;
+  const remainder = total % 7 === 0 ? 0 : 7 - (total % 7);
+  for (let d = 1; d <= remainder; d++) {
+    grid.appendChild(makeDayCell(year, month+1>12?1:month+1, d, true));
+  }
+
+  wrapper.appendChild(grid);
+  return wrapper;
+}
+
+function makeDayCell(year, month, day, otherMonth, isToday) {
+  const cell = document.createElement("div");
+  const dateStr = `${year}-${pad(month)}-${pad(day)}`;
+  const dow = new Date(year, month-1, day).getDay(); // 0=Sun,6=Sat
+  const isWeekend = dow===0 || dow===6;
+  const hdata = HOLIDAYS[dateStr];
+  const isHoliday = !!hdata;
+  const isManual  = hdata && hdata.manual;
+
+  let cls = "cal-day";
+  if (otherMonth)  cls += " other-month";
+  if (isWeekend && !otherMonth)   cls += " weekend";
+  if (isToday)     cls += " today";
+  if (isHoliday && !otherMonth)   cls += " is-holiday";
+  if (isManual && !otherMonth)    cls += " is-manual";
+  cell.className = cls;
+
+  // Day number
+  const num = document.createElement("div");
+  num.className = "day-num";
+  num.textContent = day;
+  cell.appendChild(num);
+
+  // Holiday label
+  if (isHoliday && !otherMonth && hdata.desc) {
+    const lbl = document.createElement("div");
+    lbl.className = "day-label";
+    lbl.textContent = hdata.desc;
+    cell.appendChild(lbl);
+  }
+
+  // Dot indicator
+  if (isHoliday && !otherMonth) {
+    const dot = document.createElement("div");
+    dot.className = "hday-dot" + (isManual ? " manual" : "");
+    cell.appendChild(dot);
+  }
+
+  // Tooltip popup
+  if (isHoliday && !otherMonth) {
+    const popup = document.createElement("div");
+    popup.className = "day-popup";
+    const src = hdata.source === "api" ? "🌐 政府API" :
+                hdata.source === "manual" ? "✏️ 手動" : "📋 內建";
+    popup.innerHTML = `<strong>${hdata.desc || dateStr}</strong><br>
+      <span style="opacity:.7;font-size:.72rem">${src}</span><br>
+      <span style="opacity:.55;font-size:.7rem;margin-top:4px;display:block">點擊刪除</span>`;
+    cell.appendChild(popup);
+
+    // Click to delete
+    cell.addEventListener("click", () => {
+      if (confirm(CONFIRM_DELETE + "\n" + dateStr + (hdata.desc ? " (" + hdata.desc + ")" : ""))) {
+        const f = document.createElement("form");
+        f.method = "post";
+        f.action = DELETE_URL + hdata.id;
+        document.body.appendChild(f);
+        f.submit();
+      }
+    });
+  }
+
+  // Click non-holiday to add
+  if (!isHoliday && !otherMonth) {
+    cell.style.cursor = "pointer";
+    cell.title = LANG==="zh" ? "點擊新增為假日" : "Click to add as holiday";
+    cell.addEventListener("click", () => {
+      document.getElementById("addDateInput").value = dateStr;
+      document.getElementById("addPanel").style.display = "block";
+      document.getElementById("addPanel").scrollIntoView({behavior:"smooth",block:"nearest"});
+    });
+  }
+
+  return cell;
+}
+
+function jumpToMonth(m) {
+  currentMonth = m;
+  const el = document.getElementById("month-" + m);
+  if (el) el.scrollIntoView({behavior:"smooth", block:"start"});
+  document.querySelectorAll(".month-chip").forEach((c,i) => {
+    c.classList.toggle("active", i+1 === m);
+  });
+}
+
+function toggleAddPanel() {
+  const p = document.getElementById("addPanel");
+  p.style.display = p.style.display === "none" ? "block" : "none";
+  if (p.style.display === "block")
+    p.scrollIntoView({behavior:"smooth", block:"nearest"});
+}
+
+document.addEventListener("DOMContentLoaded", renderCalendar);
+</script>
+{% endblock %}{# end scripts #}

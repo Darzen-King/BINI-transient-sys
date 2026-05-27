@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h2 class="fw-bold mb-0">{{ trans.get("payment.title","Payments") }}</h2>
+  <div class="d-flex gap-2">
+    <a href="/export/payments?date_from={{ date_from }}&date_to={{ date_to }}"
+       class="btn btn-outline-success btn-sm">⬇ CSV</a>
+    <button class="btn btn-bb btn-sm" data-bs-toggle="modal" data-bs-target="#addPaymentModal">
+      + {{ trans.get("payment.add","Add Payment") }}
+    </button>
+  </div>
+</div>
+
+{% if msg %}<div class="flash-bar alert alert-success">✅ {{ trans.get("msg." + msg, msg) }}</div>{% endif %}
+{% if err %}<div class="flash-bar alert alert-danger">⚠ {{ err }}</div>{% endif %}
+
+<!-- Daily summary cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card card rounded-3 border-0 shadow-sm text-center p-3">
+      <div class="kpi-icon">💰</div>
+      <div class="kpi-num text-success">NT$ {{ "{:,.0f}".format(summary.received) }}</div>
+      <div class="kpi-label">{{ trans.get("payment.received","Received Today") }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card card rounded-3 border-0 shadow-sm text-center p-3">
+      <div class="kpi-icon">↩</div>
+      <div class="kpi-num text-danger">NT$ {{ "{:,.0f}".format(summary.refunds) }}</div>
+      <div class="kpi-label">{{ trans.get("payment.refunds","Refunds") }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card card rounded-3 border-0 shadow-sm text-center p-3">
+      <div class="kpi-icon">🏦</div>
+      <div class="kpi-num text-primary">NT$ {{ "{:,.0f}".format(summary.net) }}</div>
+      <div class="kpi-label">{{ trans.get("payment.net","Net Revenue") }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card card rounded-3 border-0 shadow-sm text-center p-3">
+      <div class="kpi-icon">⏳</div>
+      <div class="kpi-num text-warning">NT$ {{ "{:,.0f}".format(summary.pending) }}</div>
+      <div class="kpi-label">{{ trans.get("payment.pending","Outstanding") }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Payment type breakdown -->
+<div class="row g-2 mb-4">
+  {% for pt, amt in summary.by_type.items() %}
+  <div class="col-6 col-md-3">
+    <div class="card rounded-2 border-0 shadow-sm p-2 text-center" style="font-size:.82rem">
+      <div class="fw-semibold">{{ trans.get("payment.type." + pt, pt) }}</div>
+      <div class="fw-bold text-success">NT$ {{ "{:,.0f}".format(amt) }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Date filter + cashier close -->
+<div class="card rounded-3 border-0 shadow-sm mb-3 p-3">
+  <form method="get" class="d-flex flex-wrap gap-3 align-items-end">
+    <div>
+      <label class="form-label fw-semibold mb-1" style="font-size:.82rem">{{ trans.get("report.date_from","From") }}</label>
+      <input type="date" name="date_from" class="form-control form-control-sm" value="{{ date_from }}" style="width:150px">
+    </div>
+    <div>
+      <label class="form-label fw-semibold mb-1" style="font-size:.82rem">{{ trans.get("report.date_to","To") }}</label>
+      <input type="date" name="date_to" class="form-control form-control-sm" value="{{ date_to }}" style="width:150px">
+    </div>
+    <button type="submit" class="btn btn-bb btn-sm px-4">🔍 {{ trans.get("report.apply","Filter") }}</button>
+    {% if current_user and current_user.role in ["admin","manager"] %}
+    <form method="post" action="/cashier/close" class="ms-auto">
+      <button type="submit" class="btn btn-outline-danger btn-sm"
+              onclick="return confirm('{{ trans.get('payment.confirm_close','Close today\'s cashier session?') }}')">
+        🔒 {{ trans.get("payment.close_cashier","Close Cashier") }}
+      </button>
+    </form>
+    {% endif %}
+  </form>
+</div>
+
+<!-- Payment history table -->
+<div class="card rounded-3 border-0 shadow-sm">
+  <div class="card-body p-0">
+    {% if payments %}
+    <div class="table-responsive">
+    <table class="table table-hover mb-0" style="font-size:.83rem">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-3">{{ trans.get("payment.time","Time") }}</th>
+          <th>{{ trans.get("booking.guest","Guest") }}</th>
+          <th>{{ trans.get("room.id","Room") }}</th>
+          <th>{{ trans.get("payment.type","Type") }}</th>
+          <th class="text-end">{{ trans.get("payment.amount","Amount") }}</th>
+          <th>{{ trans.get("payment.status","Status") }}</th>
+          <th>{{ trans.get("room.note","Note") }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in payments %}
+        <tr {% if p.is_refund %}class="table-danger"{% elif p.is_deposit %}class="table-info"{% endif %}>
+          <td class="ps-3 text-muted">{{ p.created_at }}</td>
+          <td>{{ p.guest or "—" }}</td>
+          <td>{{ p.room_id or "—" }}</td>
+          <td>
+            {{ trans.get("payment.type." + p.payment_type, p.payment_type) }}
+            {% if p.is_deposit %}<span class="badge bg-info text-dark ms-1" style="font-size:.7rem">Dep.</span>{% endif %}
+            {% if p.is_refund  %}<span class="badge bg-danger ms-1" style="font-size:.7rem">Refund</span>{% endif %}
+          </td>
+          <td class="text-end fw-bold {% if p.is_refund %}text-danger{% else %}text-success{% endif %}">
+            {% if p.is_refund %}-{% endif %}NT$ {{ "{:,.0f}".format(p.amount) }}
+          </td>
+          <td>
+            <span class="badge
+              {% if p.payment_status == 'paid' %}bg-success
+              {% elif p.payment_status == 'pending' %}bg-warning text-dark
+              {% elif p.payment_status == 'refunded' %}bg-danger
+              {% else %}bg-secondary{% endif %}"
+              style="font-size:.72rem">
+              {{ trans.get("payment.status." + p.payment_status, p.payment_status) }}
+            </span>
+          </td>
+          <td class="text-muted" style="font-size:.78rem">{{ p.note or "—" }}</td>
+          <td>
+            {% if current_user and current_user.role == "admin" %}
+            <form method="post" action="/payments/delete/{{ p.id }}"
+                  onsubmit="return confirm('{{ trans.get("payment.confirm_delete","刪除此筆付款記錄？此操作無法復原") }}')">
+              <button type="submit" class="btn btn-outline-danger btn-sm" style="font-size:.72rem;padding:2px 8px">
+                🗑
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center py-4">{{ trans.get("payment.no_records","No payments found") }}</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Add Payment Modal -->
+<div class="modal fade" id="addPaymentModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-3">
+      <div class="modal-header" style="background:#fdf4f9">
+        <h5 class="modal-title fw-bold" style="color:#db2777">+ {{ trans.get("payment.add","Add Payment") }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="/payments/add">
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-6">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("booking.guest","Guest") }}</label>
+            <input type="text" name="guest" class="form-control form-control-sm">
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("room.id","Room") }}</label>
+            <input type="text" name="room_id" class="form-control form-control-sm" placeholder="201">
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("payment.type","Type") }}</label>
+            <select name="payment_type" class="form-select form-select-sm">
+              {% for pt in pay_types %}
+              <option value="{{ pt }}">{{ trans.get("payment.type." + pt, pt) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("payment.amount","Amount (NT$)") }}</label>
+            <input type="number" name="amount" class="form-control form-control-sm" min="0" step="100">
+          </div>
+          <div class="col-6">
+            <div class="form-check mt-3">
+              <input class="form-check-input" type="checkbox" name="is_deposit" value="1" id="isDeposit">
+              <label class="form-check-label" for="isDeposit" style="font-size:.84rem">{{ trans.get("payment.is_deposit","Deposit") }}</label>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="form-check mt-3">
+              <input class="form-check-input" type="checkbox" name="is_refund" value="1" id="isRefund">
+              <label class="form-check-label" for="isRefund" style="font-size:.84rem">{{ trans.get("payment.is_refund","Refund") }}</label>
+            </div>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("room.note","Note") }}</label>
+            <input type="text" name="note" class="form-control form-control-sm">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ trans.get("action.cancel","Cancel") }}</button>
+        <button type="submit" class="btn btn-bb btn-sm">{{ trans.get("action.confirm","Confirm") }}</button>
+      </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,351 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h2 class="fw-bold mb-0">{{ trans.get("room_mgmt.title","Room Management") }}</h2>
+  <a href="/rooms" class="btn btn-outline-secondary btn-sm">
+    ← {{ trans.get("nav.rooms","Room Overview") }}
+  </a>
+</div>
+
+{% if msg == "updated" %}
+<div class="flash-bar alert alert-success">{{ trans.get("room_mgmt.msg_updated","✅ Saved") }}</div>
+{% elif msg == "transferred" %}
+<div class="flash-bar alert alert-success">
+  {{ trans.get("room_mgmt.msg_transferred","✅ Room transferred") }}
+</div>
+{% endif %}
+{% if err %}
+<div class="flash-bar alert alert-danger">⚠ {{ err }}</div>
+{% endif %}
+
+<div class="row g-3">
+  {% for room in rooms %}
+  <div class="col-md-6 col-lg-4">
+    <div class="card rounded-3 border-0 shadow-sm h-100">
+
+      <!-- Card header -->
+      <div class="card-header d-flex justify-content-between align-items-center"
+           style="background:#fdf4f9;border-bottom:1px solid #f9a8d4">
+        <span class="fw-bold" style="color:#db2777;font-size:1.1rem">{{ room.id }}</span>
+        <span class="badge bg-{{ room.badge_color }}">{{ trans.get("status." + room.status, room.status) }}</span>
+      </div>
+
+      <div class="card-body p-3">
+
+        <!-- Active stay info + free-cancel indicator -->
+        {% if room.active_stay %}
+        {% set st = room.active_stay %}
+        {% set fc = room.free_cancel_st %}
+        <div class="rounded-2 p-2 mb-2"
+             style="background:{% if fc and fc.eligible %}#eff6ff{% else %}#f9fafb{% endif %};font-size:.8rem">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <div class="fw-semibold">{{ st.guest }} · {{ st.plan }}</div>
+              <div class="text-muted">
+                {{ trans.get("room.checkin","CI") }}:
+                <strong>{{ st.checkin_time or room.checkin or "—" }}</strong>
+              </div>
+              <div class="text-muted">
+                {{ trans.get("room.checkout","CO") }}:
+                <strong>{{ st.checkout_time or room.checkout or "—" }}</strong>
+              </div>
+            </div>
+            <div class="text-end">
+              <div class="fw-bold" style="color:#db2777">NT$ {{ "%.0f"|format(st.total_due) }}</div>
+              {% if fc and fc.eligible %}
+              <div class="badge bg-info text-dark mt-1" style="font-size:.68rem">
+                {{ trans.get("label.free_cancel_window","15-min free cancel") }}
+                <span class="fc-timer" data-remaining="{{ fc.mins_remaining }}"></span>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Transfer button (only for occupied rooms) -->
+        <button type="button" class="btn btn-outline-primary btn-sm w-100 mb-2"
+                onclick="openTransferModal('{{ room.id }}', '{{ st.guest }}')">
+          🔄 {{ trans.get("room_mgmt.transfer_title","Transfer Room") }}
+        </button>
+        {% endif %}
+
+        {% if room.current_guest and not room.active_stay %}
+        <p class="mb-2" style="font-size:.83rem">
+          <span class="text-muted">{{ trans.get("room.current_guest","Guest") }}:</span>
+          <strong>{{ room.current_guest }}</strong>
+        </p>
+        {% endif %}
+
+        {% if room.status == "維修中" and room.maintenance_note %}
+        <div class="rounded-2 p-2 mb-2" style="background:#fef2f2;font-size:.79rem;border-left:3px solid #f87171">
+          <div class="fw-semibold text-danger">🔧 {{ trans.get("room_mgmt.maintenance_note","Note") }}</div>
+          <div>{{ room.maintenance_note }}</div>
+          {% if room.maintenance_due %}
+          <div class="mt-1">
+            {{ trans.get("room_mgmt.maintenance_due","Due") }}:
+            <strong class="{% if room.maintenance_due < today %}text-danger{% else %}text-warning{% endif %}">
+              {{ room.maintenance_due }}
+              {% if room.maintenance_due < today %} ⚠ {{ trans.get("room_mgmt.overdue","Overdue") }}{% endif %}
+            </strong>
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Status edit form -->
+        <form method="post" action="/room-management/update">
+          <input type="hidden" name="room_id" value="{{ room.id }}">
+
+          <div class="mb-2">
+            <label class="form-label fw-semibold" style="font-size:.8rem">
+              {{ trans.get("room.status","Status") }}
+            </label>
+            <select name="status" class="form-select form-select-sm">
+              {% for s in statuses %}
+              <option value="{{ s }}" {% if room.status == s %}selected{% endif %}>{{ trans.get("status_select." + s, s) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label fw-semibold" style="font-size:.8rem">
+              {{ trans.get("room.note","Note") }}
+            </label>
+            <input type="text" name="note" class="form-control form-control-sm"
+                   value="{{ room.note or '' }}">
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label fw-semibold" style="font-size:.8rem">
+              {{ trans.get("room.next_booking","Next Booking") }}
+            </label>
+            <input type="text" name="next_booking" class="form-control form-control-sm"
+                   value="{{ room.next_booking or '' }}" placeholder="YYYY-MM-DD HH:MM">
+          </div>
+
+          {% if room.status == "待清潔" %}
+          <div class="alert alert-warning py-1 px-2 mb-2" style="font-size:.78rem">
+            {{ trans.get("room_mgmt.cleaning_hint","💡 After cleaning, set to Available.") }}
+          </div>
+          {% endif %}
+
+          <!-- Maintenance fields — visible only when 維修中 is selected -->
+          <div class="maintenance-fields" id="maint-{{ room.id }}"
+               style="display:{% if room.status == '維修中' %}block{% else %}none{% endif %}">
+            <div class="rounded-2 p-2 mb-2" style="background:#fef2f2;border:1px solid #fca5a5">
+              <div class="fw-semibold mb-2" style="font-size:.8rem;color:#991b1b">
+                🔧 {{ trans.get("room_mgmt.maintenance_required","Maintenance Details (required)") }}
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-semibold mb-1" style="font-size:.78rem">
+                  {{ trans.get("room_mgmt.maintenance_note","Maintenance Note") }}
+                  <span class="text-danger">*</span>
+                </label>
+                <textarea name="maintenance_note" class="form-control form-control-sm"
+                          rows="2" placeholder="{{ trans.get('room_mgmt.maintenance_note_hint','Describe the issue…') }}"
+                          >{{ room.maintenance_note or '' }}</textarea>
+              </div>
+              <div>
+                <label class="form-label fw-semibold mb-1" style="font-size:.78rem">
+                  {{ trans.get("room_mgmt.maintenance_due","Due Date") }}
+                  <span class="text-danger">*</span>
+                </label>
+                <input type="date" name="maintenance_due" class="form-control form-control-sm"
+                       value="{{ room.maintenance_due or '' }}">
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-bb btn-sm w-100">
+            💾 {{ trans.get("action.save","Save") }}
+          </button>
+        </form>
+
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+
+<!-- ── Transfer Room Modal ── -->
+<div class="modal fade" id="transferModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-3">
+      <div class="modal-header" style="background:#fdf4f9;border-bottom:1px solid #f9a8d4">
+        <h5 class="modal-title fw-bold" style="color:#db2777">
+          🔄 {{ trans.get("room_mgmt.transfer_title","Transfer Room") }}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted mb-3" style="font-size:.88rem">
+          {{ trans.get("room_mgmt.transfer_desc","Move guest to another available room.") }}
+        </p>
+
+        <!-- Current room info -->
+        <div class="rounded-2 p-2 mb-3" style="background:#fdf4f9;font-size:.85rem">
+          <span class="text-muted">{{ trans.get("label.occupied_since","From") }}:</span>
+          <strong id="modalRoomId"></strong>
+          <span class="ms-2 text-muted" id="modalGuestName"></span>
+        </div>
+
+        <!-- Loading state -->
+        <div id="transferLoading" class="text-center py-3 text-muted" style="font-size:.85rem">
+          ⏳ {{ trans.get("validation.checking","Checking...") }}
+        </div>
+
+        <!-- Room list -->
+        <div id="transferRoomList" class="d-none"></div>
+
+        <!-- Error state -->
+        <div id="transferNoRooms" class="d-none text-muted text-center py-3" style="font-size:.85rem">
+          {{ trans.get("room_mgmt.transfer_no_rooms","No available rooms") }}
+        </div>
+      </div>
+      <div class="modal-footer">
+        <form method="post" action="/room-management/transfer" id="transferForm">
+          <input type="hidden" name="old_room_id" id="transferOldRoom">
+          <input type="hidden" name="new_room_id" id="transferNewRoom">
+          <button type="button" class="btn btn-outline-secondary btn-sm"
+                  data-bs-dismiss="modal">
+            {{ trans.get("room_mgmt.transfer_cancel","Cancel") }}
+          </button>
+          <button type="submit" class="btn btn-bb btn-sm" id="transferConfirmBtn" disabled>
+            {{ trans.get("room_mgmt.transfer_btn","Confirm Transfer") }}
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Translated status labels for JS use
+const STATUS_LABELS = {
+  "可入住":  "{{ trans.get('status.available','Available') }}",
+  "使用中":  "{{ trans.get('status.occupied','Occupied') }}",
+  "即將退房": "{{ trans.get('status.checkout_soon','Checking Out') }}",
+  "待清潔":  "{{ trans.get('status.cleaning','Cleaning') }}",
+  "清潔中":  "{{ trans.get('status.cleaning_inprog','Cleaning') }}",
+  "維修中":  "{{ trans.get('status.maintenance','Maintenance') }}",
+};
+</script>
+<script>
+// ── Free-cancel countdown timers ─────────────────────────────────────────
+document.querySelectorAll('.fc-timer').forEach(el => {
+  let secs = parseFloat(el.dataset.remaining) * 60;
+  function tick() {
+    if (secs <= 0) { el.textContent = ''; return; }
+    const m = String(Math.floor(secs/60)).padStart(2,'0');
+    const s = String(Math.floor(secs%60)).padStart(2,'0');
+    el.textContent = ' ' + m + ':' + s;
+    secs--;
+    setTimeout(tick, 1000);
+  }
+  tick();
+});
+
+// ── Transfer Modal ────────────────────────────────────────────────────────
+const transferModal = new bootstrap.Modal(document.getElementById('transferModal'));
+
+function openTransferModal(roomId, guest) {
+  document.getElementById('modalRoomId').textContent  = roomId;
+  document.getElementById('modalGuestName').textContent = guest;
+  document.getElementById('transferOldRoom').value    = roomId;
+  document.getElementById('transferNewRoom').value    = '';
+  document.getElementById('transferConfirmBtn').disabled = true;
+
+  // Reset state
+  document.getElementById('transferLoading').classList.remove('d-none');
+  document.getElementById('transferRoomList').classList.add('d-none');
+  document.getElementById('transferNoRooms').classList.add('d-none');
+
+  transferModal.show();
+
+  // Fetch candidates
+  fetch(`/api/transfer-candidates?old_room=${encodeURIComponent(roomId)}`)
+    .then(r => r.json())
+    .then(data => renderTransferRooms(data.rooms))
+    .catch(() => {
+      document.getElementById('transferLoading').classList.add('d-none');
+      document.getElementById('transferNoRooms').classList.remove('d-none');
+    });
+}
+
+function renderTransferRooms(rooms) {
+  document.getElementById('transferLoading').classList.add('d-none');
+  const list = document.getElementById('transferRoomList');
+
+  if (!rooms || rooms.length === 0) {
+    document.getElementById('transferNoRooms').classList.remove('d-none');
+    return;
+  }
+
+  list.innerHTML = '';
+  const T_CONFLICT = "{{ trans.get('room_mgmt.transfer_conflict','⚠ Booking conflict') }}";
+
+  rooms.forEach(r => {
+    const item = document.createElement('div');
+    item.className = 'border rounded-2 p-2 mb-2 d-flex justify-content-between align-items-center';
+    item.style.cursor = r.conflict ? 'not-allowed' : 'pointer';
+    item.style.opacity = r.conflict ? '0.55' : '1';
+    item.style.background = r.conflict ? '#fef2f2' : '#f9fafb';
+
+    item.innerHTML = `
+      <div>
+        <strong>${r.id}</strong>
+        <span class="text-muted ms-2" style="font-size:.8rem">${STATUS_LABELS[r.status] || r.status}</span>
+        ${r.next_booking ? `<div class="text-muted" style="font-size:.76rem">Next: ${r.next_booking}</div>` : ''}
+        ${r.note ? `<div class="text-muted" style="font-size:.76rem">${r.note}</div>` : ''}
+        ${r.conflict ? `<div class="text-danger" style="font-size:.76rem">${T_CONFLICT}</div>` : ''}
+      </div>
+      ${!r.conflict ? `<button class="btn btn-outline-primary btn-sm" onclick="selectTransferRoom('${r.id}', this)">
+        {{ trans.get("action.confirm","Select") }}
+      </button>` : '<span class="text-danger">🚫</span>'}
+    `;
+    list.appendChild(item);
+  });
+
+  list.classList.remove('d-none');
+}
+
+function selectTransferRoom(roomId, btn) {
+  // Deselect all
+  document.querySelectorAll('#transferRoomList .btn-primary').forEach(b => {
+    b.classList.replace('btn-primary','btn-outline-primary');
+    b.textContent = "{{ trans.get('action.confirm','Select') }}";
+  });
+
+  btn.classList.replace('btn-outline-primary','btn-primary');
+  btn.textContent = '✓ {{ trans.get("action.confirm","Selected") }}';
+
+  document.getElementById('transferNewRoom').value = roomId;
+  document.getElementById('transferConfirmBtn').disabled = false;
+}
+
+// Show/hide maintenance fields when status dropdown changes
+document.querySelectorAll('select[name=status]').forEach(sel => {
+  sel.addEventListener('change', function() {
+    const roomId = this.closest('form').querySelector('[name=room_id]').value;
+    const maint  = document.getElementById('maint-' + roomId);
+    if (maint) {
+      maint.style.display = this.value === '維修中' ? 'block' : 'none';
+    }
+    const fields = maint ? maint.querySelectorAll('textarea,input[type=date]') : [];
+    fields.forEach(f => f.required = this.value === '維修中');
+  });
+  // Init on load
+  const roomId = sel.closest('form').querySelector('[name=room_id]')?.value;
+  const maint  = roomId ? document.getElementById('maint-' + roomId) : null;
+  if (maint) {
+    const fields = maint.querySelectorAll('textarea,input[type=date]');
+    fields.forEach(f => f.required = sel.value === '維修中');
+  }
+});
+</script>
+{% endblock %}

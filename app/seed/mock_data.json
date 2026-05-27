@@ -1,0 +1,81 @@
+{
+  "_comment": "Production initial seed — all rooms vacant and clean. No test data.",
+  "rooms": [
+    {
+      "id": "201",
+      "status": "可入住",
+      "current_guest": null,
+      "checkin": null,
+      "checkout": null,
+      "next_booking": null,
+      "note": null,
+      "maintenance_note": null,
+      "maintenance_due": null,
+      "property_id": null
+    },
+    {
+      "id": "202",
+      "status": "可入住",
+      "current_guest": null,
+      "checkin": null,
+      "checkout": null,
+      "next_booking": null,
+      "note": null,
+      "maintenance_note": null,
+      "maintenance_due": null,
+      "property_id": null
+    },
+    {
+      "id": "203",
+      "status": "可入住",
+      "current_guest": null,
+      "checkin": null,
+      "checkout": null,
+      "next_booking": null,
+      "note": null,
+      "maintenance_note": null,
+      "maintenance_due": null,
+      "property_id": null
+    },
+    {
+      "id": "205",
+      "status": "可入住",
+      "current_guest": null,
+      "checkin": null,
+      "checkout": null,
+      "next_booking": null,
+      "note": null,
+      "maintenance_note": null,
+      "maintenance_due": null,
+      "property_id": null
+    },
+    {
+      "id": "206",
+      "status": "可入住",
+      "current_guest": null,
+      "checkin": null,
+      "checkout": null,
+      "next_booking": null,
+      "note": null,
+      "maintenance_note": null,
+      "maintenance_due": null,
+      "property_id": null
+    },
+    {
+      "id": "207",
+      "status": "可入住",
+      "current_guest": null,
+      "checkin": null,
+      "checkout": null,
+      "next_booking": null,
+      "note": null,
+      "maintenance_note": null,
+      "maintenance_due": null,
+      "property_id": null
+    }
+  ],
+  "bookings": [],
+  "active_stays": [],
+  "report_summary": null,
+  "backup": null
+}

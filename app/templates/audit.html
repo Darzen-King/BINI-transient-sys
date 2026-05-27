@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h2 class="fw-bold mb-0">{{ trans.get("audit.title","Audit Trail") }}</h2>
+    <div class="text-muted" style="font-size:.82rem">
+      {{ trans.get("audit.subtitle","All critical write operations are recorded here.") }}
+    </div>
+  </div>
+  <span class="badge bg-secondary fs-6 px-3">{{ total }} {{ trans.get("audit.records","records") }}</span>
+</div>
+
+<!-- Search / Filter bar -->
+<div class="card rounded-3 border-0 shadow-sm mb-4 p-3">
+  <form method="get" action="/admin/audit"
+        class="d-flex flex-wrap align-items-end gap-3">
+
+    <!-- Action type filter -->
+    <div>
+      <label class="form-label fw-semibold mb-1" style="font-size:.82rem">
+        {{ trans.get("audit.action_type","Action") }}
+      </label>
+      <select name="action_type" class="form-select form-select-sm" style="width:180px"
+              onchange="this.form.submit()">
+        <option value="">── {{ trans.get("audit.all_actions","All Actions") }} ──</option>
+        {% for at in action_types %}
+        <option value="{{ at }}" {% if action_type == at %}selected{% endif %}>
+          {{ action_icon.get(at,'') }} {{ action_labels.get(at,{}).get(lang, at) }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Target ID filter -->
+    <div>
+      <label class="form-label fw-semibold mb-1" style="font-size:.82rem">
+        {{ trans.get("audit.target_id","Room / Booking ID") }}
+      </label>
+      <input type="text" name="target_id" class="form-control form-control-sm"
+             value="{{ target_id }}" placeholder="201 / RSV-…" style="width:160px">
+    </div>
+
+    <!-- Keyword search -->
+    <div class="flex-grow-1" style="max-width:280px">
+      <label class="form-label fw-semibold mb-1" style="font-size:.82rem">
+        {{ trans.get("audit.keyword","Keyword") }}
+      </label>
+      <input type="text" name="keyword" class="form-control form-control-sm"
+             value="{{ keyword }}" placeholder="{{ trans.get('audit.keyword_hint','Guest name, room, action…') }}">
+    </div>
+
+    <div class="d-flex gap-2 align-items-end">
+      <button type="submit" class="btn btn-bb btn-sm px-4">
+        🔍 {{ trans.get("report.apply","Search") }}
+      </button>
+      <a href="/admin/audit" class="btn btn-outline-secondary btn-sm">
+        {{ trans.get("action.reset","Reset") }}
+      </a>
+    </div>
+  </form>
+</div>
+
+<!-- Log table -->
+<div class="card rounded-3 border-0 shadow-sm">
+  <div class="card-body p-0">
+    {% if logs %}
+    <div class="table-responsive">
+    <table class="table table-hover mb-0" style="font-size:.82rem">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-3" style="width:160px">{{ trans.get("audit.col_time","Time") }}</th>
+          <th style="width:150px">{{ trans.get("audit.col_action","Action") }}</th>
+          <th style="width:120px">{{ trans.get("audit.col_target","Target") }}</th>
+          <th>{{ trans.get("audit.col_description","Description") }}</th>
+          <th style="width:80px">{{ trans.get("audit.col_operator","Operator") }}</th>
+          <th style="width:40px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        {% set icon = action_icon.get(log.action_type, '•') %}
+        {% set lbl  = action_labels.get(log.action_type, {}).get(lang, log.action_type) %}
+        <tr data-bs-toggle="collapse" data-bs-target="#detail-{{ log.id }}"
+            style="cursor:pointer">
+          <td class="ps-3 text-muted">{{ log.timestamp }}</td>
+          <td>
+            <span class="badge rounded-pill
+              {% if 'checkout' in log.action_type %}bg-secondary
+              {% elif 'checkin' in log.action_type %}bg-primary
+              {% elif 'cancel' in log.action_type %}bg-danger
+              {% elif 'transfer' in log.action_type %}bg-warning text-dark
+              {% elif 'backup' in log.action_type %}bg-info text-dark
+              {% elif 'room_status' in log.action_type %}bg-secondary
+              {% else %}bg-success{% endif %}"
+              style="font-size:.72rem">
+              {{ icon }} {{ lbl }}
+            </span>
+          </td>
+          <td>
+            {% if log.target_id %}
+            <code style="font-size:.75rem;color:#db2777">{{ log.target_id }}</code>
+            {% if log.target_type %}
+            <span class="text-muted" style="font-size:.72rem">({{ log.target_type }})</span>
+            {% endif %}
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-dark">{{ log.description or "—" }}</td>
+          <td class="text-muted">{{ log.user_id }}</td>
+          <td class="text-muted" style="font-size:.7rem">▾</td>
+        </tr>
+        <!-- Detail collapse row -->
+        <tr class="collapse" id="detail-{{ log.id }}">
+          <td colspan="6" class="py-2 px-4" style="background:#fdf4f9">
+            <div class="row g-2" style="font-size:.78rem">
+              {% if log.original_value %}
+              <div class="col-md-6">
+                <div class="fw-semibold text-muted mb-1">{{ trans.get("audit.before","Before") }}</div>
+                <pre class="mb-0 rounded-1 p-2" style="background:#fff;font-size:.74rem;max-height:80px;overflow:auto">{{ log.original_value }}</pre>
+              </div>
+              {% endif %}
+              {% if log.new_value %}
+              <div class="col-md-6">
+                <div class="fw-semibold text-muted mb-1">{{ trans.get("audit.after","After") }}</div>
+                <pre class="mb-0 rounded-1 p-2" style="background:#fff;font-size:.74rem;max-height:80px;overflow:auto">{{ log.new_value }}</pre>
+              </div>
+              {% endif %}
+              {% if not log.original_value and not log.new_value %}
+              <div class="col-12 text-muted">{{ trans.get("audit.no_detail","No additional detail.") }}</div>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top"
+         style="font-size:.82rem">
+      <span class="text-muted">
+        {{ trans.get("audit.showing","Showing") }}
+        {{ (page-1)*page_size + 1 }}–{{ [page*page_size, total]|min }}
+        / {{ total }}
+      </span>
+      <div class="d-flex gap-1">
+        {% if page > 1 %}
+        <a href="?action_type={{ action_type }}&target_id={{ target_id }}&keyword={{ keyword }}&page={{ page-1 }}"
+           class="btn btn-outline-secondary btn-sm">‹</a>
+        {% endif %}
+        {% for pg in range([1, page-2]|max, [total_pages+1, page+3]|min) %}
+        <a href="?action_type={{ action_type }}&target_id={{ target_id }}&keyword={{ keyword }}&page={{ pg }}"
+           class="btn btn-sm {% if pg == page %}btn-bb{% else %}btn-outline-secondary{% endif %}">
+          {{ pg }}
+        </a>
+        {% endfor %}
+        {% if page < total_pages %}
+        <a href="?action_type={{ action_type }}&target_id={{ target_id }}&keyword={{ keyword }}&page={{ page+1 }}"
+           class="btn btn-outline-secondary btn-sm">›</a>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="text-center text-muted py-5">
+      <div style="font-size:2rem">📋</div>
+      <div>{{ trans.get("audit.empty","No audit records found for the selected filters.") }}</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

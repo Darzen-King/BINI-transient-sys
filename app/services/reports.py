@@ -193,14 +193,22 @@ def compute_report(
     cancelled_count = len(cancelled)
 
     # ── occupancy ────────────────────────────────────────────────────
-    occupied_now     = sum(1 for r in rooms if r.status in ("使用中", "即將退房"))
-    occupancy_now    = round(occupied_now / total_rooms * 100, 1)
-    rooms_with_bk    = len({b.room for b in active_bookings})
-    range_occupancy  = round(rooms_with_bk / total_rooms * 100, 1)
+    occupied_now = sum(1 for r in rooms if r.status in ("使用中", "即將退房"))
+    occupancy_now = round(occupied_now / total_rooms * 100, 1)
+    # FIX: include completed stays (StayLog) so bookings with status "已入住"
+    # (excluded from active_bookings by BUG-5 fix) still count toward period occupancy.
+    rooms_with_activity = (
+        {b.room for b in active_bookings} |
+        {sl.room for sl in stay_logs_range}
+    )
+    range_occupancy = round(len(rooms_with_activity) / total_rooms * 100, 1)
 
     # ── avg stay ─────────────────────────────────────────────────────
-    stay_h      = [PLAN_HOURS.get(b.plan, 24) for b in active_bookings]
-    avg_stay_hrs = round(sum(stay_h) / len(stay_h), 1) if stay_h else 0
+    # FIX: include completed stays so avg is not 0 when all stays are done.
+    stay_h_bk  = [PLAN_HOURS.get(b.plan, 24)          for b in active_bookings]
+    stay_h_sl  = [PLAN_HOURS.get(sl.plan or "24hrs", 24) for sl in stay_logs_range]
+    all_stay_h = stay_h_bk + stay_h_sl
+    avg_stay_hrs = round(sum(all_stay_h) / len(all_stay_h), 1) if all_stay_h else 0
 
     # ── repair ───────────────────────────────────────────────────────
     # 問題 7 FIX: seed.repair_count is a static seed value that is never updated;
@@ -245,10 +253,20 @@ def compute_report(
     delta_days = (date_to - date_from).days + 1
 
     # Revenue by rate_type (weekday vs holiday)
+    # FIX: include completed stays; derive rate_type from checkin_time via fee_engine.
     rate_revenue: dict[str, float] = {}
     for b in active_bookings:
         rt = b.rate_type or "非假日"
         rate_revenue[rt] = rate_revenue.get(rt, 0.0) + b.amount
+    from app.services.fee_engine import get_rate_type as _grt
+    for sl in stay_logs_range:
+        if sl.checkin_time:
+            try:
+                _ci = datetime.strptime(sl.checkin_time[:16], DT_FMT)
+                rt  = "假日" if _grt(_ci.date()) == "holiday" else "非假日"
+            except Exception:
+                rt = "非假日"
+            rate_revenue[rt] = rate_revenue.get(rt, 0.0) + sl.total_charged
 
     return {
         "date_from": date_from_str,

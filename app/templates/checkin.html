@@ -196,7 +196,18 @@
 {# Pass holiday date list to JS for rate calculation #}
 <script id="holidayDatesData" type="application/json">{{ holiday_dates_json | safe }}</script>
 <script>
+// _bookingCoLocked: true when checkout was pre-filled from a booking.
+// Prevents autoCheckout() from overriding the booking's promised checkout
+// time when staff adjusts the check-in to an early arrival.
+// Reset to false when the plan changes (plan change must always recalculate).
+let _bookingCoLocked = false;
+
 function autoCheckout() {
+  // Early-checkin fix: if checkout was set from a booking, do NOT override it
+  // when only the check-in time changes.  The guest keeps the booking's
+  // promised checkout time even if they arrive early.
+  if (_bookingCoLocked) return;
+
   const ci = document.getElementById('ciInput').value;
   if (!ci) return;
   const plan = document.getElementById('planSelect').value;
@@ -223,7 +234,10 @@ function onRoomChange() {
 }
 function prefillFromBooking(sel) {
   const o = sel.options[sel.selectedIndex];
-  if (!o.value) return;
+  if (!o.value) {
+    _bookingCoLocked = false;
+    return;
+  }
   document.getElementById('roomSelect').value    = o.dataset.room   || '';
   document.getElementById('guestInput').value    = o.dataset.guest  || '';
   if (document.getElementById('phoneInput'))
@@ -232,6 +246,8 @@ function prefillFromBooking(sel) {
   document.getElementById('baseRentInput').value = o.dataset.amount || '1000';
   document.getElementById('ciInput').value       = (o.dataset.checkin  || '').replace(' ','T');
   document.getElementById('coInput').value       = (o.dataset.checkout || '').replace(' ','T');
+  // Lock checkout so early check-in won't overwrite the booking's checkout
+  _bookingCoLocked = !!(o.dataset.checkout);
   onRoomChange();
 }
 function quickFill(id, room, guest, plan, amount, ci, co, phone) {
@@ -244,10 +260,14 @@ function quickFill(id, room, guest, plan, amount, ci, co, phone) {
   document.getElementById('baseRentInput').value  = amount;
   document.getElementById('ciInput').value        = ci;
   document.getElementById('coInput').value        = co;
+  // Lock checkout so early check-in won't overwrite the booking's checkout
+  _bookingCoLocked = !!co;
   onRoomChange();
 }
 // ciInput change handled by updateBaseRent listener above
 document.getElementById('planSelect').addEventListener('change', function() {
+  // Plan change must always recalculate checkout (unlock first)
+  _bookingCoLocked = false;
   autoCheckout();
   updateBaseRent();
 });

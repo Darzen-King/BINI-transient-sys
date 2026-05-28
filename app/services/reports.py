@@ -287,7 +287,7 @@ def compute_report(
         "occupied_now":        occupied_now,
         "occupancy_now_pct":   occupancy_now,
         "range_occupancy_pct": range_occupancy,
-        "rooms_with_booking":  rooms_with_bk,
+        "rooms_with_booking":  len(rooms_with_activity),
         # Quality
         "loss_count":          cancelled_count,
         "repair_count":        repair_count,

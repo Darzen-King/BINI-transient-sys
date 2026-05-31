@@ -11,9 +11,9 @@ echo  (System Python, no venv required)
 echo ================================================
 echo.
 
-REM ── Step 1: Locate a Python that actually has pip ───────────────────────
+REM ?-?- Step 1: Locate a Python that actually has pip ?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-
 REM    The plain "python" on PATH may point to an environment without pip,
-REM    and the Windows Store alias stubs exit 0 without running — so we
+REM    and the Windows Store alias stubs exit 0 without running ??so we
 REM    validate the STDOUT of "pip --version", not the exit code.
 set "PYEXE="
 set "PROBE=%TEMP%\_bb_install_probe.txt"
@@ -51,7 +51,7 @@ echo [OK] Using interpreter: %PYEXE%
 for /f "tokens=*" %%v in ('%PYEXE% --version 2^>^&1') do echo [OK] %%v
 echo.
 
-REM ── Step 2: Choose install location ─────────────────────────────────────
+REM ?-?- Step 2: Choose install location ?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-
 echo ================================================
 echo  Choose installation folder:
 echo.
@@ -76,7 +76,7 @@ echo.
 echo [OK] Install location: %TARGET%
 echo.
 
-REM ── Step 3: Create target folder ────────────────────────────────────────
+REM ?-?- Step 3: Create target folder ?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-
 if not exist "%TARGET%" (
     mkdir "%TARGET%"
     if errorlevel 1 (
@@ -90,7 +90,7 @@ if not exist "%TARGET%" (
     echo [OK] Folder exists: %TARGET%
 )
 
-REM ── Step 4: Copy files (skip if source = target) ────────────────────────
+REM ?-?- Step 4: Copy files (skip if source = target) ?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-
 set SOURCE=%~dp0
 if "%SOURCE:~-1%"=="\" set SOURCE=%SOURCE:~0,-1%
 set TARGETCHECK=%TARGET%
@@ -113,11 +113,11 @@ echo [OK] Files copied.
 
 :after_copy
 
-REM ── Step 5: Switch to target folder ─────────────────────────────────────
+REM ?-?- Step 5: Switch to target folder ?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-
 cd /d "%TARGET%"
 echo.
 
-REM ── Step 6: Install packages using the detected interpreter ─────────────
+REM ?-?- Step 6: Install packages using the detected interpreter ?-?-?-?-?-?-?-?-?-?-?-?-?-
 echo [..] Installing packages (1-3 min)...
 %PYEXE% -m pip install --upgrade pip --quiet
 %PYEXE% -m pip install -r requirements.txt
@@ -130,7 +130,7 @@ if errorlevel 1 (
 )
 echo [OK] Packages installed.
 
-REM ── Step 7: Verify uvicorn ──────────────────────────────────────────────
+REM ?-?- Step 7: Verify uvicorn ?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-
 %PYEXE% -m uvicorn --version >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] uvicorn not found after install. Please retry.
@@ -159,7 +159,7 @@ if /i "%LAUNCH%"=="Y" (
 pause
 exit /b 0
 
-REM ── Helper: probe a launcher command (e.g. "py -3.12" / "python") ────────
+REM ?-?- Helper: probe a launcher command (e.g. "py -3.12" / "python") ?-?-?-?-?-?-?-?-
 REM    Validates STDOUT contains "pip " (Store alias stubs print nothing).
 :try_py
 %~1 -m pip --version > "%PROBE%" 2>nul
@@ -167,7 +167,7 @@ findstr /b /c:"pip " "%PROBE%" >nul 2>&1
 if not errorlevel 1 set "PYEXE=%~1"
 goto :eof
 
-REM ── Helper: probe an explicit python.exe path ───────────────────────────
+REM ?-?- Helper: probe an explicit python.exe path ?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-
 :try_path
 if not exist "%~1" goto :eof
 "%~1" -m pip --version > "%PROBE%" 2>nul

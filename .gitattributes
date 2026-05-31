@@ -1,0 +1,4 @@
+# Windows batch files MUST use CRLF line endings, or cmd.exe mis-parses them
+# (labels/goto/comments break, fragments get executed as commands).
+*.bat text eol=crlf
+*.cmd text eol=crlf

@@ -14,7 +14,7 @@ echo  BINI Blooms Transient SYS v3.6.2
 echo ================================================
 echo.
 
-REM ── Locate a Python that actually has the dependencies ──────────────────
+REM ?-?- Locate a Python that actually has the dependencies ?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-
 REM    We validate by checking the STDOUT marker, not the exit code, because
 REM    the Windows Store "py"/"python" alias stubs exit 0 without running.
 set "PYEXE="
@@ -74,14 +74,14 @@ echo Server stopped. Press any key to close.
 pause
 exit /b 0
 
-REM ── Helper: probe a launcher command word (e.g. "py -3.12" / "python") ──
+REM ?-?- Helper: probe a launcher command word (e.g. "py -3.12" / "python") ?-?-
 :try_cmd
 %~1 -c "import sqlalchemy,uvicorn,fastapi;print('BB_OK')" > "%PROBE%" 2>nul
 findstr /c:"BB_OK" "%PROBE%" >nul 2>&1
 if not errorlevel 1 set "PYEXE=%~1"
 goto :eof
 
-REM ── Helper: probe an explicit python.exe path ──────────────────────────
+REM ?-?- Helper: probe an explicit python.exe path ?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-
 :try_path
 if not exist "%~1" goto :eof
 "%~1" -c "import sqlalchemy,uvicorn,fastapi;print('BB_OK')" > "%PROBE%" 2>nul

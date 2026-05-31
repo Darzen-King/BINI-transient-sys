@@ -15,6 +15,7 @@ from app.services.rooms import (
 )
 from app.services import stays as ssvc
 from app.services import audit as _audit
+from app.services.backup import auto_backup as _auto_backup
 from app.services.bookings import get_conflict_detail
 from app.lib.i18n import get_lang, get_translations
 

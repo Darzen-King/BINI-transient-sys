@@ -180,12 +180,18 @@
         <hr class="my-2">
         <div class="row g-1 mb-1">
           <div class="col-6 text-muted" style="font-size:.85rem">
-            💳 {{ trans.get("checkout.deposit_paid","已收押金") }}
+            💳 {{ trans.get("checkout.received","已收款") }}
           </div>
           <div class="col-6 fw-semibold text-success" style="font-size:.85rem">
-            NT$ {{ "%.0f"|format(deposit_paid) }}
+            NT$ {{ "%.0f"|format(total_paid) }}
           </div>
         </div>
+        {% if deposit_paid and deposit_paid > 0 %}
+        <div class="row g-1 mb-1" style="font-size:.74rem">
+          <div class="col-6 text-muted ps-4">↳ {{ trans.get("checkout.deposit_paid","含押金") }}</div>
+          <div class="col-6 text-muted">NT$ {{ "%.0f"|format(deposit_paid) }}</div>
+        </div>
+        {% endif %}
         <div class="row g-1 p-2 rounded-2" style="background:{% if balance_due > 0 %}#fef2f2{% else %}#f0fdf4{% endif %}">
           <div class="col-6 fw-bold" style="font-size:.95rem;color:{% if balance_due > 0 %}#dc2626{% else %}#16a34a{% endif %}">
             {{ trans.get("checkout.balance_due","餘額應收") }}
@@ -339,6 +345,7 @@
 const ROOM_ID     = "{{ selected_room_id }}";
 const TOTAL_DUE   = {{ "%.0f"|format(selected_stay.total_due)  if selected_stay else 0 }};
 const DEPOSIT_PAID= {{ "%.0f"|format(deposit_paid) }};
+const TOTAL_PAID  = {{ "%.0f"|format(total_paid) }};
 const BALANCE_DUE = {{ "%.0f"|format(balance_due) }};
 
 // Step 1: overdue check → Step 2: balance collection reminder
@@ -442,7 +449,7 @@ function _doBalanceModal() {
   const depEl = document.getElementById("balanceReminderDeposit");
   if (balEl)  balEl.textContent  = "NT$ " + bal.toLocaleString();
   if (totEl)  totEl.textContent  = "NT$ " + TOTAL_DUE.toLocaleString();
-  if (depEl)  depEl.textContent  = "NT$ " + DEPOSIT_PAID.toLocaleString();
+  if (depEl)  depEl.textContent  = "NT$ " + TOTAL_PAID.toLocaleString();
   new bootstrap.Modal(document.getElementById("balanceReminderModal")).show();
 }
 
@@ -545,7 +552,7 @@ function confirmCheckoutWithBalance() {
           </div>
           <div class="col-6 fw-semibold" id="balanceReminderTotal" style="font-size:.9rem"></div>
           <div class="col-6 text-muted" style="font-size:.9rem">
-            💳 {{ trans.get("checkout.deposit_paid","已收押金") }}
+            💳 {{ trans.get("checkout.received","已收款") }}
           </div>
           <div class="col-6 fw-semibold text-success" id="balanceReminderDeposit" style="font-size:.9rem"></div>
           <div class="col-12"><hr class="my-1"></div>

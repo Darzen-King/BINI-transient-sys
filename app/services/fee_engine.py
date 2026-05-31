@@ -228,6 +228,60 @@ def calc_extension_fee(
     return round(total_fee, 0), breakdown
 
 
+# ── Stay-timeline helpers ───────────────────────────────────────────────────
+# The block-ceiling cycle (12hr-rate, 24hr−12hr, 12hr-rate, …) is anchored to
+# the CHECK-IN moment, because the rate plan caps apply to the whole stay:
+#   hours [0,12)  → 12hr-rate          (this is the base 12hr plan)
+#   hours [12,24) → 24hr-rate − 12hr   (extending to 24hr only costs the gap)
+#   hours [24,36) → 12hr-rate (new day), …
+# So an extension's fee is the difference of cumulative stay charges, NOT a
+# fresh "block 0" starting at the planned checkout (which over-charged, e.g.
+# a 12hr→24hr same-stay extension wrongly billed the next-day 12hr cap NT$800
+# instead of the NT$200 plan gap).
+
+def stay_charge(checkin_dt: datetime, hours: float) -> float:
+    """Total room charge from check-in for `hours`, using the block model."""
+    if hours <= 0:
+        return 0.0
+    fee, _ = calc_extension_fee(hours, checkin_dt)
+    return fee
+
+
+def extension_fee_between(
+    checkin_dt: datetime,
+    from_hours: float,
+    to_hours: float,
+) -> float:
+    """
+    Marginal block fee for extending a stay from `from_hours` to `to_hours`,
+    both measured from check-in. Equals stay_charge(to) − stay_charge(from).
+    """
+    if to_hours <= from_hours:
+        return 0.0
+    return max(0.0, round(stay_charge(checkin_dt, to_hours)
+                          - stay_charge(checkin_dt, from_hours), 0))
+
+
+def extension_breakdown(
+    checkin_dt: datetime,
+    from_hours: float,
+    to_hours: float,
+) -> tuple[float, list[dict]]:
+    """
+    Return (fee, breakdown) for the extension portion only — i.e. the 12-hour
+    blocks of the stay timeline that fall beyond `from_hours`. Blocks are
+    renumbered from 1 for display.
+    """
+    if to_hours <= from_hours:
+        return 0.0, []
+    _, full_bd = calc_extension_fee(to_hours, checkin_dt)
+    from_blocks = int(round(from_hours / 12.0))
+    ext_bd = [dict(b) for b in full_bd if b["block"] > from_blocks]
+    for i, b in enumerate(ext_bd):
+        b["block"] = i + 1
+    return extension_fee_between(checkin_dt, from_hours, to_hours), ext_bd
+
+
 def preview_extension(
     extension_hours: float,
     checkin_time_str: str | None,
@@ -235,17 +289,34 @@ def preview_extension(
 ) -> dict:
     DT_FMT = "%Y-%m-%d %H:%M"
     now = datetime.now()
-    start_dt = now
+
+    checkin_dt = None
+    if checkin_time_str:
+        try:
+            checkin_dt = datetime.strptime(checkin_time_str[:16], DT_FMT)
+        except ValueError:
+            checkin_dt = None
+
+    current_co_dt = now
     if checkout_time_str:
         try:
-            start_dt = datetime.strptime(checkout_time_str[:16], DT_FMT)
+            current_co_dt = datetime.strptime(checkout_time_str[:16], DT_FMT)
         except ValueError:
-            pass
+            current_co_dt = now
 
-    total, breakdown = calc_extension_fee(extension_hours, start_dt)
+    if checkin_dt:
+        # Marginal fee for adding `extension_hours` beyond the current checkout,
+        # anchored to the check-in timeline (correct block-cycle position).
+        elapsed = max(0.0, (current_co_dt - checkin_dt).total_seconds() / 3600.0)
+        to_hours = elapsed + extension_hours
+        total, breakdown = extension_breakdown(checkin_dt, elapsed, to_hours)
+    else:
+        # Fallback when check-in is unknown: legacy block-0-from-checkout calc.
+        total, breakdown = calc_extension_fee(extension_hours, current_co_dt)
+
     return {
         "extension_hours": extension_hours,
-        "start_dt":        start_dt.strftime(DT_FMT),
+        "start_dt":        current_co_dt.strftime(DT_FMT),
         "total_fee":       total,
         "breakdown":       breakdown,
     }

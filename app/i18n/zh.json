@@ -632,5 +632,6 @@
   "monthly.refund_note_hint": "如扣款原因",
   "monthly.msg_created": "✅ 月租已建立",
   "monthly.msg_ended": "✅ 月租已退房",
-  "payment.method": "收款方式"
+  "payment.method": "收款方式",
+  "checkout.received": "已收款"
 }

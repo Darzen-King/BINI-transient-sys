@@ -196,33 +196,35 @@ def extend_stay(
     if not stay or not room:
         return None, "error.stay_not_found"
 
-    # BUG-A FIX: use original_checkout_time as the fixed start for block-ceiling.
-    # Each incremental /extend call computes the TOTAL accumulated extension from
-    # the original planned checkout and sets extension_fee = total (not +=).
-    # This prevents multiple calls from each resetting block_idx to 0 and
-    # overcharging (e.g. two 12hr extends: 800 + 800 = 1600 vs correct 800 + 200).
-    orig_co_str = stay.original_checkout_time or stay.checkout_time or room.checkout
-    try:
-        orig_co_dt = _parse(orig_co_str) if orig_co_str else _now()
-    except Exception:
-        orig_co_dt = _now()
+    # Extension fee is computed on the STAY TIMELINE from check-in (not as a
+    # fresh block-0 from the planned checkout). The cumulative extension fee is
+    #   stay_charge(checkin → new_checkout) − stay_charge(checkin → original_checkout)
+    # so extending a 12hr plan to 24hr on the SAME day costs only the plan gap
+    # (24hr-rate − 12hr-rate), and multiple incremental extends never overcharge.
+    from app.services.fee_engine import extension_fee_between
 
-    # Extension starts from the current planned checkout
+    checkin_str = stay.checkin_time or room.checkin
+    orig_co_str = stay.original_checkout_time or stay.checkout_time or room.checkout
     current_co_str = stay.checkout_time or room.checkout
+    try:
+        checkin_dt = _parse(checkin_str) if checkin_str else _now()
+    except Exception:
+        checkin_dt = _now()
+    try:
+        orig_co_dt = _parse(orig_co_str) if orig_co_str else checkin_dt
+    except Exception:
+        orig_co_dt = checkin_dt
     try:
         current_co_dt = _parse(current_co_str) if current_co_str else orig_co_dt
     except Exception:
         current_co_dt = orig_co_dt
 
-    # New checkout after adding this increment
-    new_co_dt = current_co_dt + timedelta(hours=extension_hours)
+    new_co_dt   = current_co_dt + timedelta(hours=extension_hours)
+    base_hours  = max(0.0, (orig_co_dt - checkin_dt).total_seconds() / 3600.0)
+    total_hours = max(0.0, (new_co_dt  - checkin_dt).total_seconds() / 3600.0)
 
-    # Total cumulative extension hours from the original checkout
-    total_ext_hours = (new_co_dt - orig_co_dt).total_seconds() / 3600
-
-    # Compute fee for ALL accumulated extension hours — SET (not +=)
-    total_fee, _ = calc_extension_fee(max(0, total_ext_hours), orig_co_dt)
-    stay.extension_fee = total_fee
+    # Cumulative extension (everything beyond the base plan period) — SET, not +=
+    stay.extension_fee = extension_fee_between(checkin_dt, base_hours, total_hours)
     stay.total_due = stay.base_rent + stay.extension_fee + stay.extra_fee
 
     new_co = _fmt(new_co_dt)
@@ -274,16 +276,20 @@ def checkout_guest(
             over_buffer_mins = (actual_co - buffer_end).total_seconds() / 60
 
             if actual_co > buffer_end:
-                # BUG-A FIX: compute overdue fee cumulatively from original_checkout_time
-                # so manual extensions + auto-overdue use the same block-ceiling chain.
+                # Overdue fee on the STAY TIMELINE from check-in (same model as
+                # extend_stay): total extension = stay_charge(checkin → actual)
+                # − stay_charge(checkin → original_checkout); the auto portion is
+                # whatever exceeds the already-accumulated extension_fee.
+                from app.services.fee_engine import extension_fee_between
+                checkin_dt  = _parse(stay.checkin_time)
                 orig_co_str = stay.original_checkout_time or stay.checkout_time
                 orig_co_dt  = _parse(orig_co_str)
-                total_secs  = (actual_co - orig_co_dt).total_seconds()
-                total_half_hrs = math.ceil(total_secs / 1800)
-                total_ext_hours = total_half_hrs * 0.5
-                total_fee, _    = calc_extension_fee(max(0, total_ext_hours), orig_co_dt)
-                # Incremental overdue = total_fee minus manually-accumulated ext fee
-                auto_ext_fee = max(0.0, total_fee - stay.extension_fee)
+                base_hours  = max(0.0, (orig_co_dt - checkin_dt).total_seconds() / 3600.0)
+                total_secs  = (actual_co - checkin_dt).total_seconds()
+                total_stay_hours = math.ceil(total_secs / 1800) * 0.5
+                total_ext_fee = extension_fee_between(checkin_dt, base_hours, total_stay_hours)
+                # Incremental overdue = total extension minus already-charged extension
+                auto_ext_fee = max(0.0, total_ext_fee - stay.extension_fee)
 
                 # Staff override: use their adjusted value (from correction modal)
                 if override_ext_fee is not None:
@@ -485,3 +491,28 @@ def get_deposit_paid(db: Session, room_id: str) -> float:
         .all()
     )
     return sum(p.amount for p in result if not p.is_refund)
+
+
+def get_paid_for_stay(db: Session, room_id: str) -> float:
+    """
+    Net amount RECEIVED for the CURRENT active stay — counts ALL payments
+    (deposits + regular collections) minus refunds, scoped to payments recorded
+    at/after the current check-in time. Used for the room overview / checkout
+    "balance due" so that a payment added in 付款管理 (even if not flagged as a
+    deposit) reduces the outstanding balance.
+    """
+    from app.models import Payment, ActiveStay
+    stay = db.query(ActiveStay).filter(ActiveStay.room == room_id).first()
+    if not stay or not stay.checkin_time:
+        return 0.0
+    rows = (
+        db.query(Payment)
+        .filter(
+            Payment.room_id    == room_id,
+            Payment.created_at >= stay.checkin_time[:16],
+        )
+        .all()
+    )
+    received = sum(p.amount for p in rows if not p.is_refund)
+    refunded = sum(p.amount for p in rows if p.is_refund)
+    return max(0.0, received - refunded)

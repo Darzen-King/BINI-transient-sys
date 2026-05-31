@@ -216,6 +216,7 @@
 {% block scripts %}
 <script>
 const CHECKOUT_TIME = "{{ selected_stay.checkout_time or selected_room.checkout if (selected_stay and selected_room) else '' }}";
+const CHECKIN_TIME  = "{{ selected_stay.checkin_time or selected_room.checkin if (selected_stay and selected_room) else '' }}";
 
 let debounceTimer = null;
 
@@ -234,6 +235,7 @@ function _doFetch() {
   const params = new URLSearchParams({
     hours: hours,
     checkout_time: CHECKOUT_TIME,
+    checkin_time:  CHECKIN_TIME,
   });
 
   fetch('/api/extend-preview?' + params)

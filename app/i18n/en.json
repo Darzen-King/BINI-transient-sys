@@ -632,5 +632,6 @@
   "monthly.refund_note_hint": "e.g. reason for deduction",
   "monthly.msg_created": "✅ Monthly rental created",
   "monthly.msg_ended": "✅ Monthly rental ended",
-  "payment.method": "Payment Method"
+  "payment.method": "Payment Method",
+  "checkout.received": "Received"
 }

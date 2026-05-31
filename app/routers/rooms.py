@@ -80,14 +80,18 @@ async def room_overview(request: Request, db: Session = Depends(get_db)):
         # ── Fee info for active stays ──────────────────────────────────────
         active_stay = db.query(_ActiveStay).filter(_ActiveStay.room == r.id).first()
         if active_stay:
-            from app.services.stays import get_deposit_paid
-            dep = get_deposit_paid(db, r.id)
+            from app.services.stays import get_deposit_paid, get_paid_for_stay
+            dep  = get_deposit_paid(db, r.id)
+            paid = get_paid_for_stay(db, r.id)   # deposits + payments − refunds
             r.total_due    = float(active_stay.total_due)
             r.deposit_paid = dep
-            r.balance_due  = max(0.0, r.total_due - dep)
+            r.total_paid   = paid
+            # Balance reflects ALL money received for this stay, not just deposits
+            r.balance_due  = max(0.0, r.total_due - paid)
         else:
             r.total_due    = None
             r.deposit_paid = None
+            r.total_paid   = None
             r.balance_due  = None
     # Recompute summary using live status (dynamic maintenance overlay)
     dynamic_summary: dict = {}

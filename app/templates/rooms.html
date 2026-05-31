@@ -100,9 +100,15 @@
             <span class="fw-semibold">NT$ {{ "%.0f"|format(room.total_due) }}</span>
           </div>
           <div class="d-flex justify-content-between mb-1">
-            <span class="text-muted">💳 {{ trans.get("checkout.deposit_paid","已收押金") }}</span>
-            <span class="fw-semibold text-success">NT$ {{ "%.0f"|format(room.deposit_paid) }}</span>
+            <span class="text-muted">💳 {{ trans.get("checkout.received","已收款") }}</span>
+            <span class="fw-semibold text-success">NT$ {{ "%.0f"|format(room.total_paid or 0) }}</span>
           </div>
+          {% if room.deposit_paid and room.deposit_paid > 0 %}
+          <div class="d-flex justify-content-between mb-1" style="font-size:.76rem">
+            <span class="text-muted ps-3">↳ {{ trans.get("checkout.deposit_paid","含押金") }}</span>
+            <span class="text-muted">NT$ {{ "%.0f"|format(room.deposit_paid) }}</span>
+          </div>
+          {% endif %}
           <div class="d-flex justify-content-between pt-1" style="border-top:1px solid #fce7f3">
             <span class="fw-bold" style="color:{% if room.balance_due > 0 %}#dc2626{% else %}#16a34a{% endif %}">
               {{ trans.get("checkout.balance_due","餘額應收") }}

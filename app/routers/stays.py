@@ -114,9 +114,12 @@ async def checkout_form(
     over_buffer        = request.query_params.get("over_buffer", "")
 
     # Deposit and balance calculation
+    # Balance reflects ALL money received for this stay (deposits + payments
+    # recorded in 付款管理), not just deposits.
     deposit_paid = ssvc.get_deposit_paid(db, room) if room else 0.0
+    total_paid   = ssvc.get_paid_for_stay(db, room) if room else 0.0
     total_due    = float(selected_stay.total_due) if selected_stay else 0.0
-    balance_due  = max(0.0, total_due - deposit_paid)
+    balance_due  = max(0.0, total_due - total_paid)
 
     return templates.TemplateResponse("checkout.html", {
         "request":            request,
@@ -132,6 +135,7 @@ async def checkout_form(
         "checkout_buffer_st": checkout_buffer_st,
         "extension_hourly_rate": EXTENSION_HOURLY_RATE,
         "deposit_paid":       deposit_paid,
+        "total_paid":         total_paid,
         "balance_due":        balance_due,
         "title":              trans.get("checkout.title", "Check-out"),
         "trans":              trans,
@@ -187,22 +191,23 @@ async def checkout_submit(
 async def overdue_check(room_id: str, db: Session = Depends(get_db)):
     """
     Returns overdue status and the INCREMENTAL overdue fee for a room.
-    Uses original_checkout_time as base (BUG-A FIX) so manual extensions
-    and auto-overdue share the same block-ceiling chain.
-    Called by checkout page JS before confirming checkout.
+    Fee is computed on the STAY TIMELINE from check-in (same model as the
+    extend page), so the overdue charge correctly continues the block cycle
+    instead of restarting a fresh block-0 at the planned checkout.
     """
     from fastapi.responses import JSONResponse
     from app.models import ActiveStay
-    from app.services.fee_engine import calc_extension_fee
+    from app.services.fee_engine import extension_breakdown
     from app.services.stays import CHECKOUT_BUFFER_MINS
     from datetime import datetime, timedelta
     import math
 
     stay = db.query(ActiveStay).filter(ActiveStay.room == room_id).first()
-    if not stay or not stay.checkout_time:
+    if not stay or not stay.checkout_time or not stay.checkin_time:
         return JSONResponse({"overdue": False, "minutes": 0, "fee": 0})
 
     now          = datetime.now()
+    checkin_dt   = datetime.strptime(stay.checkin_time[:16], "%Y-%m-%d %H:%M")
     planned_co   = datetime.strptime(stay.checkout_time[:16], "%Y-%m-%d %H:%M")
     buffer_end   = planned_co + timedelta(minutes=CHECKOUT_BUFFER_MINS)
     over_mins    = (now - buffer_end).total_seconds() / 60
@@ -210,24 +215,20 @@ async def overdue_check(room_id: str, db: Session = Depends(get_db)):
     if over_mins <= 0:
         return JSONResponse({"overdue": False, "minutes": 0, "fee": 0})
 
-    # BUG-A FIX: use original_checkout_time as the block-ceiling start
-    orig_co_str = (stay.original_checkout_time or stay.checkout_time)[:16]
-    orig_co_dt  = datetime.strptime(orig_co_str, "%Y-%m-%d %H:%M")
+    # Hours already covered by base plan + any prior extension (= up to planned CO)
+    elapsed_planned  = max(0.0, (planned_co - checkin_dt).total_seconds() / 3600.0)
+    total_secs       = (now - checkin_dt).total_seconds()
+    total_stay_hours = math.ceil(total_secs / 1800) * 0.5
 
-    total_secs  = (now - orig_co_dt).total_seconds()
-    ext_half_hrs = math.ceil(total_secs / 1800)
-    ext_hours    = ext_half_hrs * 0.5
-
-    total_fee, breakdown = calc_extension_fee(ext_hours, orig_co_dt)
-    # Incremental overdue = total − already-accumulated manual extension fee
-    already_ext    = float(stay.extension_fee or 0)
-    incremental_fee = max(0, int(total_fee) - int(already_ext))
+    incremental_fee, breakdown = extension_breakdown(
+        checkin_dt, elapsed_planned, total_stay_hours
+    )
 
     return JSONResponse({
         "overdue":        True,
         "minutes":        round(over_mins),
-        "ext_hours":      ext_hours,
-        "fee":            incremental_fee,   # INCREMENTAL overdue only
+        "ext_hours":      round(total_stay_hours - elapsed_planned, 2),
+        "fee":            int(incremental_fee),   # INCREMENTAL overdue only
         "planned_co":     stay.checkout_time[:16],
         "breakdown":      breakdown,
     })
@@ -241,38 +242,30 @@ async def overdue_correction_preview(
 ):
     """
     Preview the INCREMENTAL overdue fee when staff enters correction hours.
-    correction_hours = hours past the CURRENT planned checkout_time (can be 0).
-    Uses original_checkout_time as base for cumulative block-ceiling.
+    correction_hours = hours past the CURRENT checkout_time (can be 0).
+    Computed on the stay timeline from check-in; the returned fee is the amount
+    ADDED on top of the already-accumulated extension fee.
     """
     from fastapi.responses import JSONResponse
     from app.models import ActiveStay
-    from app.services.fee_engine import calc_extension_fee
+    from app.services.fee_engine import extension_breakdown
     from datetime import datetime
 
     stay = db.query(ActiveStay).filter(ActiveStay.room == room_id).first()
-    if not stay or not stay.checkout_time:
+    if not stay or not stay.checkout_time or not stay.checkin_time:
         return JSONResponse({"fee": 0, "total_ext_hours": 0})
 
-    orig_co_str    = (stay.original_checkout_time or stay.checkout_time)[:16]
-    orig_co_dt     = datetime.strptime(orig_co_str, "%Y-%m-%d %H:%M")
-    current_co_dt  = datetime.strptime(stay.checkout_time[:16], "%Y-%m-%d %H:%M")
+    checkin_dt    = datetime.strptime(stay.checkin_time[:16], "%Y-%m-%d %H:%M")
+    current_co_dt = datetime.strptime(stay.checkout_time[:16], "%Y-%m-%d %H:%M")
 
-    # Total extension = already-extended window + staff correction hours from current CO
-    elapsed_hrs    = (current_co_dt - orig_co_dt).total_seconds() / 3600
-    correction     = max(0.0, float(correction_hours))
-    total_ext_hours = elapsed_hrs + correction
+    elapsed     = max(0.0, (current_co_dt - checkin_dt).total_seconds() / 3600.0)
+    correction  = max(0.0, float(correction_hours))
+    total_hours = elapsed + correction
 
-    if total_ext_hours <= 0:
-        return JSONResponse({"fee": 0, "total_ext_hours": 0})
-
-    total_fee, breakdown = calc_extension_fee(total_ext_hours, orig_co_dt)
-    already_ext     = float(stay.extension_fee or 0)
-    incremental_fee = max(0.0, total_fee - already_ext)
+    incremental_fee, breakdown = extension_breakdown(checkin_dt, elapsed, total_hours)
 
     return JSONResponse({
         "fee":             int(incremental_fee),
-        "total_ext_hours": round(total_ext_hours, 2),
-        "total_fee":       int(total_fee),
-        "already_ext":     int(already_ext),
+        "total_ext_hours": round(correction, 2),
         "breakdown":       breakdown,
     })

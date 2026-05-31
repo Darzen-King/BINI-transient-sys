@@ -143,6 +143,9 @@ async def room_management(request: Request, db: Session = Depends(get_db)):
             ssvc.free_cancel_status(r.active_stay)
             if r.active_stay else None
         )
+        # Attach active monthly rental info (for 月租套房 rooms)
+        from app.services import monthly as _msvc
+        r.monthly = _msvc.get_active_monthly_by_room(db, r.id)
     from datetime import date as _date
     msg  = request.query_params.get("msg", "")
     err  = request.query_params.get("err", "")
@@ -187,6 +190,71 @@ async def update_room(
         )
     _audit.log_room_status(db, room_id, old_status, status, note or '')
     return RedirectResponse("/room-management?msg=updated", status_code=303)
+
+
+# ── Monthly rental (月租套房) ────────────────────────────────────────────────
+
+@router.post("/room-management/monthly/create")
+async def monthly_create(
+    request:       Request,
+    room_id:       str   = Form(...),
+    tenant_name:   str   = Form(...),
+    tenant_phone:  str   = Form(""),
+    start_date:    str   = Form(...),
+    deposit:       float = Form(0),
+    rent:          float = Form(0),
+    payment_type:  str   = Form("cash"),
+    note:          str   = Form(""),
+    db: Session = Depends(get_db),
+):
+    from urllib.parse import quote
+    from app.services import monthly as msvc
+    cu = getattr(request.state, "current_user", None)
+    rental, err = msvc.create_monthly_rental(
+        db, room_id, tenant_name, tenant_phone, start_date,
+        deposit, rent, payment_type=payment_type, note=note,
+        created_by=cu.username if cu else "admin",
+    )
+    if err:
+        return RedirectResponse(f"/room-management?err={quote(err)}", status_code=303)
+    _audit.log_action(
+        db, "monthly_create", target_id=room_id, target_type="room",
+        new_value={"tenant": tenant_name, "rent": rent, "deposit": deposit,
+                   "start": rental.start_date, "end": rental.end_date},
+        description=f"月租建立: {room_id} {tenant_name} 租金NT${rent:.0f}/押金NT${deposit:.0f}",
+        user_id=cu.username if cu else "admin",
+    )
+    _auto_backup(db, trigger="monthly")
+    return RedirectResponse("/room-management?msg=monthly_created", status_code=303)
+
+
+@router.post("/room-management/monthly/checkout")
+async def monthly_checkout(
+    request:        Request,
+    room_id:        str   = Form(...),
+    deposit_refund: float = Form(0),
+    refund_type:    str   = Form("cash"),
+    note:           str   = Form(""),
+    db: Session = Depends(get_db),
+):
+    from urllib.parse import quote
+    from app.services import monthly as msvc
+    cu = getattr(request.state, "current_user", None)
+    rental, err = msvc.end_monthly_rental(
+        db, room_id, deposit_refund, refund_type=refund_type, note=note,
+        created_by=cu.username if cu else "admin",
+    )
+    if err:
+        return RedirectResponse(f"/room-management?err={quote(err)}", status_code=303)
+    _audit.log_action(
+        db, "monthly_checkout", target_id=room_id, target_type="room",
+        new_value={"tenant": rental.tenant_name,
+                   "deposit_refunded": rental.deposit_refunded},
+        description=f"月租退房: {room_id} {rental.tenant_name} 退還押金NT${rental.deposit_refunded:.0f}",
+        user_id=cu.username if cu else "admin",
+    )
+    _auto_backup(db, trigger="monthly")
+    return RedirectResponse("/room-management?msg=monthly_ended", status_code=303)
 
 
 # ── Transfer room API ─────────────────────────────────────────────────────

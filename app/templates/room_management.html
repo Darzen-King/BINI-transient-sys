@@ -14,6 +14,14 @@
 <div class="flash-bar alert alert-success">
   {{ trans.get("room_mgmt.msg_transferred","✅ Room transferred") }}
 </div>
+{% elif msg == "monthly_created" %}
+<div class="flash-bar alert alert-success">
+  {{ trans.get("monthly.msg_created","✅ 月租已建立") }}
+</div>
+{% elif msg == "monthly_ended" %}
+<div class="flash-bar alert alert-success">
+  {{ trans.get("monthly.msg_ended","✅ 月租已退房") }}
+</div>
 {% endif %}
 {% if err %}
 <div class="flash-bar alert alert-danger">⚠ {{ err }}</div>
@@ -70,7 +78,7 @@
         </button>
         {% endif %}
 
-        {% if room.current_guest and not room.active_stay %}
+        {% if room.current_guest and not room.active_stay and room.status != "月租套房" %}
         <p class="mb-2" style="font-size:.83rem">
           <span class="text-muted">{{ trans.get("room.current_guest","Guest") }}:</span>
           <strong>{{ room.current_guest }}</strong>
@@ -91,6 +99,41 @@
           </div>
           {% endif %}
         </div>
+        {% endif %}
+
+        {% if room.status == "月租套房" %}
+        <!-- ── Monthly rental info + retire button ── -->
+        {% set mr = room.monthly %}
+        <div class="rounded-2 p-2 mb-2" style="background:#f3f4f6;border-left:3px solid #1f2937;font-size:.82rem">
+          <div class="fw-semibold mb-1" style="color:#1f2937">
+            🏠 {{ trans.get("monthly.section","月租套房") }}
+          </div>
+          {% if mr %}
+          <div class="d-flex justify-content-between"><span class="text-muted">{{ trans.get("monthly.tenant","承租人") }}</span><strong>{{ mr.tenant_name }}</strong></div>
+          {% if mr.tenant_phone %}
+          <div class="d-flex justify-content-between"><span class="text-muted">{{ trans.get("booking.phone","電話") }}</span><span>{{ mr.tenant_phone }}</span></div>
+          {% endif %}
+          <div class="d-flex justify-content-between"><span class="text-muted">{{ trans.get("monthly.period","租期") }}</span><span>{{ mr.start_date }} ~ {{ mr.end_date }}</span></div>
+          <div class="d-flex justify-content-between"><span class="text-muted">{{ trans.get("monthly.rent","月租金") }}</span><span class="fw-semibold text-success">NT$ {{ "%.0f"|format(mr.rent) }}</span></div>
+          <div class="d-flex justify-content-between"><span class="text-muted">{{ trans.get("monthly.deposit","押金") }}</span><span class="fw-semibold">NT$ {{ "%.0f"|format(mr.deposit) }}</span></div>
+          {% if mr.end_date < today %}
+          <div class="text-danger mt-1">⚠ {{ trans.get("monthly.expired","租期已到期") }}</div>
+          {% endif %}
+          {% endif %}
+        </div>
+        <button type="button" class="btn btn-dark btn-sm w-100"
+                onclick="openMonthlyCheckout('{{ room.id }}', '{{ mr.tenant_name if mr else '' }}', {{ mr.deposit|int if mr else 0 }})">
+          🚪 {{ trans.get("monthly.checkout_btn","辦理退房（退租）") }}
+        </button>
+
+        {% else %}
+
+        {% if room.status == "可入住" %}
+        <!-- Set up monthly rental (only for available rooms) -->
+        <button type="button" class="btn btn-outline-dark btn-sm w-100 mb-2"
+                onclick="openMonthlyCreate('{{ room.id }}')">
+          🏠 {{ trans.get("monthly.create_btn","設定月租") }}
+        </button>
         {% endif %}
 
         <!-- Status edit form -->
@@ -161,6 +204,7 @@
             💾 {{ trans.get("action.save","Save") }}
           </button>
         </form>
+        {% endif %}
 
       </div>
     </div>
@@ -168,6 +212,119 @@
   {% endfor %}
 </div>
 
+
+<!-- ── Monthly Rental Create Modal ── -->
+<div class="modal fade" id="monthlyCreateModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-3">
+      <div class="modal-header" style="background:#1f2937;color:#fff">
+        <h5 class="modal-title fw-bold">🏠 {{ trans.get("monthly.create_title","設定月租套房") }}</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="/room-management/monthly/create">
+        <div class="modal-body">
+          <input type="hidden" name="room_id" id="mcRoomId">
+          <div class="rounded-2 p-2 mb-3" style="background:#f3f4f6;font-size:.85rem">
+            {{ trans.get("room.id","房間") }}: <strong id="mcRoomLabel"></strong>
+            <div class="text-muted mt-1" style="font-size:.78rem">
+              {{ trans.get("monthly.create_hint","租期自動為一個月；期間此房無法入住或被預約。") }}
+            </div>
+          </div>
+          <div class="row g-2">
+            <div class="col-7 mb-2">
+              <label class="form-label fw-semibold" style="font-size:.82rem">{{ trans.get("monthly.tenant","承租人") }} <span class="text-danger">*</span></label>
+              <input type="text" name="tenant_name" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-5 mb-2">
+              <label class="form-label fw-semibold" style="font-size:.82rem">{{ trans.get("booking.phone","電話") }}</label>
+              <input type="text" name="tenant_phone" class="form-control form-control-sm" placeholder="0912-345-678">
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-semibold" style="font-size:.82rem">{{ trans.get("monthly.start","起租日期") }} <span class="text-danger">*</span></label>
+            <input type="date" name="start_date" id="mcStart" class="form-control form-control-sm" value="{{ today }}" required>
+            <div class="form-text" style="font-size:.74rem">{{ trans.get("monthly.end_note","退租日（一個月後）") }}: <strong id="mcEnd">—</strong></div>
+          </div>
+          <div class="row g-2">
+            <div class="col-6 mb-2">
+              <label class="form-label fw-semibold" style="font-size:.82rem">{{ trans.get("monthly.rent","月租金") }} (NT$)</label>
+              <input type="number" name="rent" class="form-control form-control-sm" min="0" step="100" value="0">
+            </div>
+            <div class="col-6 mb-2">
+              <label class="form-label fw-semibold" style="font-size:.82rem">{{ trans.get("monthly.deposit","押金") }} (NT$)</label>
+              <input type="number" name="deposit" class="form-control form-control-sm" min="0" step="100" value="0">
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-semibold" style="font-size:.82rem">{{ trans.get("payment.method","收款方式") }}</label>
+            <select name="payment_type" class="form-select form-select-sm">
+              <option value="cash">{{ trans.get("payment.type.cash","現金") }}</option>
+              <option value="transfer">{{ trans.get("payment.type.transfer","匯款") }}</option>
+              <option value="card">{{ trans.get("payment.type.card","刷卡") }}</option>
+              <option value="other">{{ trans.get("payment.type.other","其他") }}</option>
+            </select>
+          </div>
+          <div class="mb-1">
+            <label class="form-label fw-semibold" style="font-size:.82rem">{{ trans.get("room.note","備註") }}</label>
+            <input type="text" name="note" class="form-control form-control-sm">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ trans.get("auth.cancel","取消") }}</button>
+          <button type="submit" class="btn btn-dark btn-sm">🏠 {{ trans.get("monthly.create_confirm","建立月租") }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ── Monthly Rental Checkout Modal ── -->
+<div class="modal fade" id="monthlyCheckoutModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-3 border-dark border-2">
+      <div class="modal-header" style="background:#1f2937;color:#fff">
+        <h5 class="modal-title fw-bold">🚪 {{ trans.get("monthly.checkout_title","月租退房") }}</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="/room-management/monthly/checkout">
+        <div class="modal-body">
+          <input type="hidden" name="room_id" id="moRoomId">
+          <div class="alert alert-warning py-2 mb-3" style="font-size:.9rem">
+            <strong>💰 {{ trans.get("monthly.refund_prompt","此承租人有押金，是否退還？") }}</strong>
+            <div class="mt-1">{{ trans.get("monthly.tenant","承租人") }}: <strong id="moTenant"></strong></div>
+            <div>{{ trans.get("monthly.deposit_held","已收押金") }}: <strong id="moDepositLabel" class="text-success"></strong></div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-semibold" style="font-size:.85rem">{{ trans.get("monthly.refund_amount","退還金額") }} (NT$)</label>
+            <input type="number" name="deposit_refund" id="moRefund" class="form-control" min="0" step="100" value="0">
+            <div class="form-text" style="font-size:.76rem">{{ trans.get("monthly.refund_hint","若不退還押金（如折抵或扣款），請填 0。") }}</div>
+          </div>
+          <div class="d-flex gap-2 mb-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm flex-fill" onclick="setRefund(0)">{{ trans.get("monthly.refund_none","不退（$0）") }}</button>
+            <button type="button" class="btn btn-outline-success btn-sm flex-fill" onclick="setRefundFull()">{{ trans.get("monthly.refund_full","全額退還") }}</button>
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-semibold" style="font-size:.85rem">{{ trans.get("payment.method","退款方式") }}</label>
+            <select name="refund_type" class="form-select form-select-sm">
+              <option value="cash">{{ trans.get("payment.type.cash","現金") }}</option>
+              <option value="transfer">{{ trans.get("payment.type.transfer","匯款") }}</option>
+              <option value="card">{{ trans.get("payment.type.card","刷卡") }}</option>
+              <option value="other">{{ trans.get("payment.type.other","其他") }}</option>
+            </select>
+          </div>
+          <div class="mb-1">
+            <label class="form-label fw-semibold" style="font-size:.85rem">{{ trans.get("room.note","備註") }}</label>
+            <input type="text" name="note" class="form-control form-control-sm" placeholder="{{ trans.get('monthly.refund_note_hint','如扣款原因') }}">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ trans.get("auth.cancel","取消") }}</button>
+          <button type="submit" class="btn btn-dark btn-sm">🚪 {{ trans.get("monthly.checkout_confirm","確認退房") }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 
 <!-- ── Transfer Room Modal ── -->
 <div class="modal fade" id="transferModal" tabindex="-1" aria-hidden="true">
@@ -249,6 +406,49 @@ document.querySelectorAll('.fc-timer').forEach(el => {
   }
   tick();
 });
+
+// ── Monthly rental modals ──────────────────────────────────────────────────
+const monthlyCreateModal   = new bootstrap.Modal(document.getElementById('monthlyCreateModal'));
+const monthlyCheckoutModal = new bootstrap.Modal(document.getElementById('monthlyCheckoutModal'));
+
+function _addOneMonth(dateStr) {
+  // Mirror backend add_one_month (clamp day to month end)
+  if (!dateStr) return '—';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  let ny = y, nm = m + 1;
+  if (nm > 12) { nm = 1; ny = y + 1; }
+  const lastDay = new Date(ny, nm, 0).getDate();
+  const day = Math.min(d, lastDay);
+  const pad = n => String(n).padStart(2, '0');
+  return `${ny}-${pad(nm)}-${pad(day)}`;
+}
+
+function _refreshMcEnd() {
+  const sd = document.getElementById('mcStart').value;
+  document.getElementById('mcEnd').textContent = _addOneMonth(sd);
+}
+
+function openMonthlyCreate(roomId) {
+  document.getElementById('mcRoomId').value = roomId;
+  document.getElementById('mcRoomLabel').textContent = roomId;
+  _refreshMcEnd();
+  monthlyCreateModal.show();
+}
+document.getElementById('mcStart').addEventListener('change', _refreshMcEnd);
+document.getElementById('mcStart').addEventListener('input',  _refreshMcEnd);
+
+let _moDeposit = 0;
+function openMonthlyCheckout(roomId, tenant, deposit) {
+  _moDeposit = parseFloat(deposit) || 0;
+  document.getElementById('moRoomId').value = roomId;
+  document.getElementById('moTenant').textContent = tenant;
+  document.getElementById('moDepositLabel').textContent = 'NT$ ' + _moDeposit.toLocaleString();
+  document.getElementById('moRefund').value = _moDeposit;  // default: full refund
+  document.getElementById('moRefund').max   = _moDeposit;
+  monthlyCheckoutModal.show();
+}
+function setRefund(v)    { document.getElementById('moRefund').value = v; }
+function setRefundFull() { document.getElementById('moRefund').value = _moDeposit; }
 
 // ── Transfer Modal ────────────────────────────────────────────────────────
 const transferModal = new bootstrap.Modal(document.getElementById('transferModal'));

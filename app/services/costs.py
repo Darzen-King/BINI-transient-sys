@@ -162,6 +162,10 @@ def monthly_pnl(
             except Exception:
                 pass
 
+        # 月租套房租金（start_date 在本月）
+        from app.services.monthly import monthly_rent_for_month as _mrfm
+        revenue += _mrfm(db, year_month)
+
     except Exception:
         revenue = 0.0
 

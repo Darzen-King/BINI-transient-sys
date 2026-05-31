@@ -188,6 +188,17 @@ def create_multi_bookings(
         room     = slot["room"]
         ci       = slot["checkin"]
         co       = slot["checkout"]
+
+        # Monthly suite block — cannot book a 月租套房 room
+        _rm = db.query(Room).filter(Room.id == room).first()
+        if _rm and _rm.status == "月租套房":
+            conflicts.append({"slot": slot, "conflict": {
+                "id": "MONTHLY", "guest": "[月租套房]",
+                "checkin": _rm.checkin or "", "checkout": _rm.checkout or "",
+                "status": "月租套房",
+            }})
+            continue
+
         conflict = get_conflict_detail(db, room, ci, co)
         if conflict:
             conflicts.append({"slot": slot, "conflict": conflict})

@@ -92,6 +92,12 @@ async def check_availability(
     if date_err:
         return JSONResponse({"available": False, "reason": date_err, "detail": None})
 
+    # 1b. Monthly suite block — a 月租套房 room cannot be booked
+    from app.services.rooms import get_room as _gr, STATUS_MONTHLY as _SM
+    _room = _gr(db, room)
+    if _room and _room.status == _SM:
+        return JSONResponse({"available": False, "reason": "error.room_monthly", "detail": None})
+
     # 2. Conflict check
     conflict = get_conflict_detail(db, room, ci, co, exclude_id=exclude or None)
     if conflict:
@@ -195,6 +201,12 @@ async def booking_create(
     date_err = bsvc.validate_booking_dates(ci, co)
     if date_err:
         return render_error(date_err)
+
+    # ── monthly suite block — cannot book a 月租套房 room ─────────────────
+    from app.services.rooms import get_room as _gr, STATUS_MONTHLY as _SM
+    _room_obj = _gr(db, room)
+    if _room_obj and _room_obj.status == _SM:
+        return render_error("error.room_monthly")
 
     # ── conflict check: bookings ────────────────────────────────────────
     conflict = get_conflict_detail(db, room, ci, co)

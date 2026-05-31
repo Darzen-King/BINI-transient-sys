@@ -178,22 +178,33 @@ def compute_report(
     # ── revenue ───────────────────────────────────────────────────────
     # BUG-B FIX: StayLog.total_charged already = full amount (base + ext + extra).
     # Adding deposit payments on top double-counts for same-period checkin+checkout.
-    # range_revenue = staylog only; active-stay deposits surface via live_revenue.
+    # range_revenue = staylog + monthly rent; active-stay deposits surface via live_revenue.
     staylog_revenue = sum(sl.total_charged for sl in stay_logs_range)
-    range_revenue   = staylog_revenue
+    # Monthly suite rent (月租套房) — counted by start_date within range.
+    from app.services.monthly import monthly_rent_in_range as _mrr
+    monthly_revenue = _mrr(db, date_from_str, date_to_str)
+    range_revenue   = staylog_revenue + monthly_revenue
 
     # Keep booking_revenue for backward compat (used in daily chart)
     booking_revenue  = sum(b.amount for b in active_bookings)
     hist_revenue     = seed.total_revenue if seed else 0.0
-    total_revenue    = hist_revenue + staylog_revenue
+    total_revenue    = hist_revenue + staylog_revenue + monthly_revenue
     live_revenue     = sum(s.total_due for s in active_stays)
 
     # ── orders ────────────────────────────────────────────────────────
-    total_orders    = len(active_bookings) + len(stay_logs_range)
+    from app.models import MonthlyRental as _MR0
+    monthly_count_range = sum(
+        1 for mr in db.query(_MR0).all()
+        if (mr.start_date or "")[:10]
+        and date_from_str <= (mr.start_date or "")[:10] <= date_to_str
+        and (not property_id or getattr(mr, "property_id", None) == property_id)
+    )
+    total_orders    = len(active_bookings) + len(stay_logs_range) + monthly_count_range
     cancelled_count = len(cancelled)
 
     # ── occupancy ────────────────────────────────────────────────────
-    occupied_now = sum(1 for r in rooms if r.status in ("使用中", "即將退房"))
+    # 月租套房 counts as occupied (long-term tenant in the room).
+    occupied_now = sum(1 for r in rooms if r.status in ("使用中", "即將退房", "月租套房"))
     occupancy_now = round(occupied_now / total_rooms * 100, 1)
     # FIX: include completed stays (StayLog) so bookings with status "已入住"
     # (excluded from active_bookings by BUG-5 fix) still count toward period occupancy.
@@ -245,6 +256,20 @@ def compute_report(
         if sl.plan:
             d["plans"][sl.plan] = d["plans"].get(sl.plan, 0) + 1
 
+    # Monthly suite rentals starting in range — add rent to per-room revenue.
+    from app.models import MonthlyRental as _MR
+    for mr in db.query(_MR).all():
+        sd = (mr.start_date or "")[:10]
+        if not (sd and date_from_str <= sd <= date_to_str):
+            continue
+        if property_id and getattr(mr, "property_id", None) != property_id:
+            continue
+        d = room_rentals.setdefault(mr.room_id, {"id": mr.room_id, "status": "—", "note": "",
+                                                  "count": 0, "revenue": 0.0, "plans": {}})
+        d["count"]   += 1
+        d["revenue"] += float(mr.rent or 0)
+        d["plans"]["月租"] = d["plans"].get("月租", 0) + 1
+
     room_rental_list = sorted(room_rentals.values(), key=lambda x: (-x["count"], x["id"]))
 
     # ── Phase-3: chart data ───────────────────────────────────────────
@@ -278,6 +303,7 @@ def compute_report(
         "range_revenue":       round(range_revenue, 0),
         "booking_revenue":     round(booking_revenue, 0),
         "staylog_revenue":     round(staylog_revenue, 0),
+        "monthly_revenue":     round(monthly_revenue, 0),
         "live_revenue":        round(live_revenue, 0),
         # Orders
         "total_orders":        total_orders,

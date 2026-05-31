@@ -192,6 +192,40 @@ def _migrate_cost_entries_table():
         print(f"⚠  cost_entries migration: {e}")
 
 
+def _migrate_monthly_rentals_table():
+    """Ensure monthly_rentals table exists (Monthly Rental feature)."""
+    import sqlite3
+    db_path = DB_PATH
+    if not db_path.exists():
+        return
+    try:
+        con = sqlite3.connect(str(db_path))
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS monthly_rentals (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                room_id          TEXT NOT NULL,
+                tenant_name      TEXT NOT NULL,
+                tenant_phone     TEXT,
+                start_date       TEXT NOT NULL,
+                end_date         TEXT NOT NULL,
+                deposit          REAL NOT NULL DEFAULT 0,
+                rent             REAL NOT NULL DEFAULT 0,
+                status           TEXT NOT NULL DEFAULT 'active',
+                deposit_refunded REAL NOT NULL DEFAULT 0,
+                payment_type     TEXT DEFAULT 'cash',
+                property_id      TEXT,
+                note             TEXT,
+                created_at       TEXT,
+                ended_at         TEXT,
+                created_by       TEXT
+            )
+        """)
+        con.commit()
+        con.close()
+    except Exception as e:
+        print(f"⚠  monthly_rentals migration: {e}")
+
+
 def _migrate_property_id_columns():
     """
     Add property_id column to rooms and bookings tables if missing (Phase-4 Task 4).
@@ -276,6 +310,7 @@ def startup_event():
     _migrate_room_maintenance_columns()  # Phase-3 Task3: maintenance_note/due
     _migrate_activity_log_table()        # Phase-3 Task2: activity_logs table
     _migrate_property_id_columns()       # Phase-4 Task4: property_id on rooms/bookings
+    _migrate_monthly_rentals_table()     # Monthly Rental: monthly_rentals table
     db = SessionLocal()
     try:
         seeded = run_seed(db)

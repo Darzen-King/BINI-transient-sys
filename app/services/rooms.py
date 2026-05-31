@@ -18,7 +18,11 @@ STATUS_CLEANING         = "待清潔"          # Cleaning Pending (backward comp
 STATUS_CLEANING_PENDING = "待清潔"          # explicit name
 STATUS_CLEANING_INPROG  = "清潔中"          # Cleaning In Progress
 STATUS_MAINTENANCE      = "維修中"
+STATUS_MONTHLY          = "月租套房"          # Monthly suite (long-term tenant)
 
+# NOTE: 月租套房 is intentionally NOT in ALL_STATUSES — it must be set via the
+# dedicated monthly-rental flow (requires tenant info + deposit), never the
+# plain status dropdown in room-management.
 ALL_STATUSES = [
     STATUS_AVAILABLE,
     STATUS_OCCUPIED,
@@ -36,10 +40,14 @@ STATUS_LABEL_I18N = {
     "待清潔":  "status.cleaning",
     "清潔中":  "status.cleaning_inprog",
     "維修中":  "status.maintenance",
+    "月租套房": "status.monthly",
 }
 
-# Statuses that BLOCK new check-in
-BLOCKED_FOR_CHECKIN = {STATUS_CLEANING_PENDING, STATUS_CLEANING_INPROG, STATUS_MAINTENANCE}
+# Statuses that BLOCK new check-in (and transient booking).
+# 月租套房 included: a monthly-rented room cannot be checked in or booked.
+BLOCKED_FOR_CHECKIN = {
+    STATUS_CLEANING_PENDING, STATUS_CLEANING_INPROG, STATUS_MAINTENANCE, STATUS_MONTHLY,
+}
 
 STATUS_BADGE: dict[str, str] = {
     STATUS_AVAILABLE:   "success",
@@ -48,6 +56,7 @@ STATUS_BADGE: dict[str, str] = {
     STATUS_CLEANING_PENDING:  "secondary",
     STATUS_CLEANING_INPROG:   "info",
     STATUS_MAINTENANCE: "danger",
+    STATUS_MONTHLY:     "dark",
 }
 
 # i18n key per status (for templates)
@@ -58,6 +67,7 @@ STATUS_I18N: dict[str, str] = {
     STATUS_CLEANING_PENDING:  "status.cleaning",
     STATUS_CLEANING_INPROG:   "status.cleaning_inprog",
     STATUS_MAINTENANCE: "status.maintenance",
+    STATUS_MONTHLY:     "status.monthly",
 }
 
 
@@ -90,6 +100,8 @@ def is_checkin_allowed(room: Room) -> tuple[bool, str]:
         return False, "error.room_cleaning"
     if room.status == STATUS_MAINTENANCE:
         return False, "error.room_maintenance"
+    if room.status == STATUS_MONTHLY:
+        return False, "error.room_monthly"
     if room.status == STATUS_OCCUPIED:
         return False, "error.room_occupied"
     return True, ""
@@ -169,4 +181,5 @@ def room_summary(db: Session) -> dict:
         "available": sum(1 for r in rooms if r.status == STATUS_AVAILABLE),
         "cleaning":  sum(1 for r in rooms if r.status == STATUS_CLEANING),
         "repair":    sum(1 for r in rooms if r.status == STATUS_MAINTENANCE),
+        "monthly":   sum(1 for r in rooms if r.status == STATUS_MONTHLY),
     }

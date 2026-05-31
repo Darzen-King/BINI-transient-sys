@@ -301,6 +301,33 @@ class MaintenanceSchedule(Base):
     created_at  = Column(String, nullable=True)
 
 
+class MonthlyRental(Base):
+    """
+    月租方案 — Monthly suite rental.
+    A room set to 月租套房 status has one ACTIVE MonthlyRental record.
+    Rent counts toward report revenue; deposit is held and refundable on checkout.
+    status: "active" (currently rented) | "ended" (checked out)
+    """
+    __tablename__ = "monthly_rentals"
+
+    id               = Column(Integer, primary_key=True, autoincrement=True)
+    room_id          = Column(String, nullable=False, index=True)
+    tenant_name      = Column(String, nullable=False)
+    tenant_phone     = Column(String, nullable=True)
+    start_date       = Column(String, nullable=False)   # "YYYY-MM-DD"
+    end_date         = Column(String, nullable=False)   # start + 1 month "YYYY-MM-DD"
+    deposit          = Column(Float,  nullable=False, default=0)   # 押金 (refundable)
+    rent             = Column(Float,  nullable=False, default=0)   # 月租金 (revenue)
+    status           = Column(String, nullable=False, default="active")  # active | ended
+    deposit_refunded = Column(Float,  nullable=False, default=0)   # set on checkout
+    payment_type     = Column(String, nullable=True,  default="cash")
+    property_id      = Column(String, nullable=True,  index=True)
+    note             = Column(Text,   nullable=True)
+    created_at       = Column(String, nullable=True)
+    ended_at         = Column(String, nullable=True)
+    created_by       = Column(String, nullable=True)
+
+
 class HolidayCache(Base):
     """
     Government holiday dates fetched from open data API.

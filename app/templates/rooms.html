@@ -54,6 +54,14 @@
     <div class="num text-danger">{{ summary.repair }}</div>
     <div class="lbl">{{ trans.get("status.maintenance","維修中") }}</div>
   </div>
+  {% set monthly_count = rooms | selectattr('status','equalto','月租套房') | list | length %}
+  {% if monthly_count > 0 %}
+  <div class="summary-tile" style="background:#e5e7eb;cursor:pointer;border:2px solid transparent"
+       id="filter-月租套房" onclick="filterRooms('月租套房')" title="{{ trans.get('room_filter.monthly','篩選月租套房') }}">
+    <div class="num text-dark">{{ monthly_count }}</div>
+    <div class="lbl">{{ trans.get("status.monthly","月租套房") }}</div>
+  </div>
+  {% endif %}
 </div>
 
 <!-- Room cards grid -->

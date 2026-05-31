@@ -31,7 +31,7 @@
                   onchange="onRoomChange()">
             <option value="">── {{ trans.get("checkin.select_room","Select Room") }} ──</option>
             {% for r in all_rooms %}
-            {% set blocked = r.status in ["待清潔","維修中"] %}
+            {% set blocked = r.status in ["待清潔","清潔中","維修中","月租套房"] %}
             <option value="{{ r.id }}"
               data-status="{{ r.status }}"
               data-blocked="{{ 'true' if blocked else 'false' }}"

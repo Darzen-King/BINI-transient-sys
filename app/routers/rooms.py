@@ -392,13 +392,30 @@ async def gantt_page(request: Request, db: Session = Depends(get_db)):
                 "type":  "maintenance",
             })
 
+    # Monthly suite rentals (月租套房) overlapping the window — these are not
+    # ActiveStay records, so add them explicitly. start/end use date-only
+    # strings; the gantt bar is clamped to the visible window by the front-end.
+    from app.models import MonthlyRental as _MR
+    monthly = db.query(_MR).filter(
+        _MR.status == "active",
+        _MR.start_date < end_s,
+        _MR.end_date   > start_s[:10],
+    ).all()
+    monthly_data = [{
+        "room":  mr.room_id,
+        "guest": f"{mr.tenant_name}（月租）",
+        "start": (mr.start_date or start_s)[:10] + " 00:00",
+        "end":   (mr.end_date or end_s)[:10] + " 23:59",
+        "type":  "monthly",
+    } for mr in monthly]
+
     room_ids = [r.id for r in rooms]
 
     return templates.TemplateResponse("gantt.html", {
         "request":    request,
         "rooms":      rooms,
         "room_ids_json":  _json.dumps(room_ids),
-        "events_json":    _json.dumps(bk_data + stay_data + maint_data),
+        "events_json":    _json.dumps(bk_data + stay_data + maint_data + monthly_data),
         "start_ts":   start.timestamp() * 1000,
         "end_ts":     end.timestamp()   * 1000,
         "start_s":    start_s,

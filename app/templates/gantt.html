@@ -8,6 +8,7 @@
     <span class="ms-2 badge bg-success">■ {{ trans.get("gantt.stay","入住中") }}</span>
     <span class="ms-1 badge bg-warning text-dark">■ {{ trans.get("gantt.booking","預約") }}</span>
     <span class="ms-1 badge bg-danger">■ {{ trans.get("gantt.maintenance","維修") }}</span>
+    <span class="ms-1 badge bg-dark">■ {{ trans.get("status.monthly","月租套房") }}</span>
     <span class="ms-1 badge bg-light border text-muted">□ {{ trans.get("gantt.available","空房") }}</span>
   </div>
 </div>
@@ -55,6 +56,7 @@ const COLORS = {
   stay:        { bg: "#86efac", border: "#16a34a", label: "#15803d" },
   booking:     { bg: "#fde68a", border: "#d97706", label: "#92400e" },
   maintenance: { bg: "#fca5a5", border: "#dc2626", label: "#991b1b" },
+  monthly:     { bg: "#cbd5e1", border: "#334155", label: "#1e293b" },
 };
 
 const ROW_H       = 44;
@@ -256,7 +258,7 @@ tlCanvas.addEventListener("mousemove", e => {
   }
 
   if (found) {
-    const types = {"stay":"入住中","booking":"預約","maintenance":"維修"};
+    const types = {"stay":"入住中","booking":"預約","maintenance":"維修","monthly":"月租套房"};
     tooltip.innerHTML = `<b>${found.room}</b> · ${types[found.type]||found.type}<br>
       👤 ${found.guest||"-"}<br>📅 ${found.start}<br>🔚 ${found.end}`;
     tooltip.style.display = "block";

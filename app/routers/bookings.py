@@ -110,6 +110,38 @@ async def check_availability(
     return JSONResponse({"available": True, "reason": "", "detail": None})
 
 
+@router.get("/api/booking-quote")
+async def booking_quote(
+    checkin: str = Query(...),
+    plan:    str = Query("24hrs"),
+    days:    int = Query(1),
+):
+    """
+    Authoritative multi-day price quote using the SAME block-ceiling engine as
+    extension/checkout billing. Two consecutive 12hr periods within a day are
+    capped at the 24hr rate (not double 12hr), and each 12hr block is judged
+    holiday/weekday by its own date.
+    """
+    from fastapi.responses import JSONResponse
+    from app.services.fee_engine import calc_extension_fee
+    from datetime import datetime
+    ci = checkin.replace("T", " ")[:16]
+    try:
+        ci_dt = datetime.strptime(ci, "%Y-%m-%d %H:%M")
+    except ValueError:
+        return JSONResponse({"ok": False, "gross": 0, "breakdown": []})
+    per_hours   = 12 if plan == "12hrs" else 24
+    days_i      = max(1, int(days or 1))
+    total_hours = per_hours * days_i
+    gross, breakdown = calc_extension_fee(total_hours, ci_dt)
+    return JSONResponse({
+        "ok": True,
+        "gross": int(gross),
+        "total_hours": total_hours,
+        "breakdown": breakdown,
+    })
+
+
 @router.post("/bookings/{booking_id}/cancel")
 async def cancel_booking(booking_id: str, db: Session = Depends(get_db)):
     b = bsvc.cancel_booking(db, booking_id)
@@ -160,11 +192,12 @@ async def booking_create(
     phone:     str   = Form(""),
     checkin:   str   = Form(...),
     checkout:  str   = Form(...),
-    plan:      str   = Form("24hrs"),
-    amount:    float = Form(0),
-    discount:  float = Form(0),
-    days:      int   = Form(1),
-    rate_type: str   = Form("非假日"),
+    plan:        str   = Form("24hrs"),
+    amount:      float = Form(0),
+    discount:    float = Form(0),
+    days:        int   = Form(1),
+    amount_auto: str   = Form("1"),   # "1" = use engine-computed amount; "0" = manual override
+    rate_type:   str   = Form("非假日"),
     db: Session = Depends(get_db),
 ):
     lang  = get_lang(request)
@@ -189,6 +222,21 @@ async def booking_create(
         pass  # fall back to the submitted checkout
 
     discount = max(0.0, float(discount or 0))
+
+    # Authoritative amount via the block-ceiling engine (correct for any plan ×
+    # days, incl. 12hr × N where consecutive 12hr periods cap at the 24hr rate).
+    # When amount_auto="1" (user didn't manually override) we use it; otherwise
+    # we trust the manually-entered amount.
+    if str(amount_auto) == "1":
+        try:
+            from datetime import datetime as _dtq
+            from app.services.fee_engine import calc_extension_fee as _calc
+            _ci_dt = _dtq.strptime(ci, "%Y-%m-%d %H:%M")
+            _per   = 12 if plan == "12hrs" else 24
+            _gross, _ = _calc(_per * max(1, int(days or 1)), _ci_dt)
+            amount = max(0.0, float(_gross) - discount)
+        except Exception:
+            pass  # fall back to the submitted amount
 
     import json as _json2
     from app.services.fee_engine import get_holiday_dates_from_db as _ghd2

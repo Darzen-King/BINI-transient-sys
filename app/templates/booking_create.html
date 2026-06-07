@@ -131,6 +131,7 @@
                    class="form-control fw-semibold" style="color:#db2877"
                    value="{{ prefill.amount if prefill else 1000 }}"
                    min="0" step="100" oninput="updateTotal()">
+            <input type="hidden" name="amount_auto" id="amountAuto" value="1">
             <div class="form-text" style="font-size:.72rem">{{ trans.get("booking.amount_auto_hint","自動計算，可手動調整") }}</div>
           </div>
         </div>
@@ -311,37 +312,30 @@ function autoRateTypeFromDate(dateStr) {
 // _userEditedRate = false → auto-detect from date is allowed
 let _userEditedRate = false;
 
-// Rate for one period, holiday-aware by its own date
-function _rateForDateStr(ds, plan) {
-  const rt = autoRateTypeFromDate(ds) || '非假日';
-  return (BASE_RATES[rt] && BASE_RATES[rt][plan]) ? BASE_RATES[rt][plan] : 0;
-}
+const amountAuto = document.getElementById('amountAuto');
 
-// Sum the per-period rate across `days`; each period is judged holiday/weekday
-// by its OWN date (matches the system billing method).
-function computeGross() {
+// Authoritative gross via the billing engine (/api/booking-quote). Handles the
+// 12hr-block cap correctly: e.g. 12hr × 5 = 2,800 (not 5 × 800), and each block
+// is judged holiday/weekday by its own date. Debounced; leaves values unchanged
+// on network failure (never shows a wrong fallback number).
+let _quoteTimer = null;
+function fetchQuote() {
   const ci = ciInput ? ciInput.value : '';
-  if (!ci) return 0;
+  if (!ci) { _gross = 0; if (grossDisplay) grossDisplay.value = ''; applyDiscount(); return; }
   const plan = planSel.value;
-  const perHours = plan === '12hrs' ? 12 : 24;
   const days = Math.max(1, parseInt((daysInput && daysInput.value) || '1', 10) || 1);
-  const base = new Date(ci.trim().replace(' ', 'T'));
-  if (isNaN(base.getTime())) return 0;
-  const pad = n => String(n).padStart(2, '0');
-  let gross = 0;
-  for (let i = 0; i < days; i++) {
-    const d = new Date(base.getTime());
-    d.setHours(d.getHours() + i * perHours);
-    const ds = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-    if (days === 1 && _userEditedRate) {
-      // single-day: honour a manual rate-type override
-      const rt = rateTypeSel.value;
-      gross += (BASE_RATES[rt] && BASE_RATES[rt][plan]) ? BASE_RATES[rt][plan] : 0;
-    } else {
-      gross += _rateForDateStr(ds, plan);
-    }
-  }
-  return gross;
+  const ciNorm = ci.trim().replace(' ', 'T');
+  clearTimeout(_quoteTimer);
+  _quoteTimer = setTimeout(() => {
+    const url = `/api/booking-quote?checkin=${encodeURIComponent(ciNorm)}&plan=${encodeURIComponent(plan)}&days=${days}`;
+    fetch(url).then(r => r.json()).then(d => {
+      if (d && d.ok) {
+        _gross = d.gross;
+        if (grossDisplay) grossDisplay.value = _gross ? _gross.toLocaleString() : '';
+        applyDiscount();
+      }
+    }).catch(() => { /* leave current values on failure */ });
+  }, 250);
 }
 
 // Check-out = check-in + days × plan length
@@ -367,25 +361,27 @@ function updateNightsHint() {
   hint.textContent = days > 1 ? (days + ' ' + unit) : '';
 }
 
-// amount = gross − discount (editable afterwards)
+// amount = gross − discount, unless the user manually overrode the amount
 function applyDiscount() {
   const disc = Math.max(0, parseFloat((discountInput && discountInput.value) || '0') || 0);
-  const final = Math.max(0, Math.round(_gross - disc));
-  if (amountInput) amountInput.value = final;
+  if (amountAuto && amountAuto.value === '1') {
+    const final = Math.max(0, Math.round(_gross - disc));
+    if (amountInput) amountInput.value = final;
+  }
   updateTotal();
 }
 
-// Master recompute: rate-type display + checkout + gross + discounted amount
+// Master recompute: rate-type display + checkout + (engine) gross + amount.
+// A structural change (date/plan/days) re-enables auto pricing.
 function recalc() {
   if (!_userEditedRate) {
     const detected = autoRateTypeFromDate(ciInput ? ciInput.value : '');
     if (detected) rateTypeSel.value = detected;
   }
+  if (amountAuto) amountAuto.value = '1';
   autoCheckoutDays();
-  _gross = computeGross();
-  if (grossDisplay) grossDisplay.value = _gross ? _gross.toLocaleString() : '';
-  applyDiscount();
   updateNightsHint();
+  fetchQuote();   // async → sets gross + amount
 }
 
 function onDaysChange() {
@@ -396,11 +392,7 @@ function onDaysChange() {
 // Backward-compat aliases (older code referenced these names)
 function autoAmount()   { recalc(); }
 function autoCheckout() { autoCheckoutDays(); }
-function _updateAmount() {
-  _gross = computeGross();
-  if (grossDisplay) grossDisplay.value = _gross ? _gross.toLocaleString() : '';
-  applyDiscount();
-}
+function _updateAmount() { fetchQuote(); }
 
 // ── Date validation (client-side, instant) ────────────────────────────────
 function validateDates() {
@@ -559,6 +551,11 @@ coInput.addEventListener('input',  onDateChange);
 planSel.addEventListener('change', () => { recalc(); });
 if (daysInput)     daysInput.addEventListener('input', onDaysChange);
 if (discountInput) discountInput.addEventListener('input', applyDiscount);
+// Manual edit of the amount field switches off auto pricing (kept until a
+// structural change — date/plan/days — re-enables it via recalc()).
+if (amountInput)   amountInput.addEventListener('input', function() {
+  if (amountAuto) amountAuto.value = '0';
+});
 rateTypeSel.addEventListener('change', function() {
   _userEditedRate = true;   // user manually chose rate type → lock it (single-day only)
   recalc();

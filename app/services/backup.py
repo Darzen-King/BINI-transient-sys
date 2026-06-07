@@ -155,6 +155,12 @@ def _export_db(db: Session) -> bytes:
         cost_data = [row_to_dict(c) for c in db.query(CostEntry).all()]
     except Exception:
         cost_data = []
+    # Monthly rentals (月租套房) — must be backed up or they vanish on restore.
+    try:
+        from app.models import MonthlyRental
+        monthly_data = [row_to_dict(m) for m in db.query(MonthlyRental).all()]
+    except Exception:
+        monthly_data = []
 
     payload = {
         "exported_at":           _now_str(),
@@ -169,6 +175,7 @@ def _export_db(db: Session) -> bytes:
         "payments":              [row_to_dict(pay) for pay in db.query(Payment).all()],
         "cashier_sessions":      [row_to_dict(cs)  for cs  in db.query(CashierSession).all()],
         "cost_entries":          cost_data,
+        "monthly_rentals":       monthly_data,
         # Config & users
         "users":                 [row_to_dict(usr) for usr in db.query(User).all()],
         "properties":            [row_to_dict(prp) for prp in db.query(Property).all()],
@@ -340,6 +347,15 @@ def _import_data(db: Session, payload: dict):
     try:
         from app.models import CostEntry
         _restore(CostEntry, payload.get("cost_entries", []), pop_id=True)
+    except Exception:
+        pass
+
+    # Monthly rentals — Integer PK (only restore if the backup actually has the
+    # key, so an OLD backup that predates this field never wipes current data)
+    try:
+        from app.models import MonthlyRental
+        if "monthly_rentals" in payload:
+            _restore(MonthlyRental, payload.get("monthly_rentals", []), pop_id=True)
     except Exception:
         pass
 

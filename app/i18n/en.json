@@ -637,5 +637,6 @@
   "booking.days": "Days",
   "booking.subtotal": "Subtotal (NT$)",
   "booking.discount": "Discount (NT$)",
-  "booking.amount_auto_hint": "Auto-calculated, editable"
+  "booking.amount_auto_hint": "Auto-calculated, editable",
+  "booking.checkout_auto_hint": "Auto-filled (check-in + days × plan)"
 }

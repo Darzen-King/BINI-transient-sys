@@ -637,5 +637,6 @@
   "booking.days": "天數",
   "booking.subtotal": "原價小計 (NT$)",
   "booking.discount": "折扣金額 (NT$)",
-  "booking.amount_auto_hint": "自動計算，可手動調整"
+  "booking.amount_auto_hint": "自動計算，可手動調整",
+  "booking.checkout_auto_hint": "系統自動帶出（入住時間 + 天數 × 方案）"
 }

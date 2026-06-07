@@ -67,10 +67,14 @@
           </div>
           <div class="col-md-6 mb-3">
             <label class="form-label fw-semibold">{{ trans.get("booking.checkout","Check-out") }}</label>
-            <input type="datetime-local" data-dtype="datetime-local" name="checkout" id="coInput"
-                   class="form-control" required step="60"
-                   value="{{ prefill.checkout | replace(' ','T') if prefill else '' }}"
-                   oninput="onDateChange()">
+            <input type="text" name="checkout" id="coInput"
+                   class="form-control bg-light" required readonly tabindex="-1"
+                   style="cursor:not-allowed;color:#6b7280"
+                   value="{{ prefill.checkout if prefill else '' }}"
+                   aria-readonly="true">
+            <div class="form-text" style="font-size:.74rem;color:#9ca3af">
+              🔒 {{ trans.get("booking.checkout_auto_hint","系統自動帶出（入住時間 + 天數 × 方案）") }}
+            </div>
             <div id="coErr" class="form-text text-danger d-none"></div>
           </div>
         </div>

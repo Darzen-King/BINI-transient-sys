@@ -366,6 +366,30 @@ def startup_event():
         _t = _threading.Thread(target=_bg_holiday_sync, daemon=True, name="holiday-sync")
         _t.start()
         print("✅  Holiday sync scheduled in background thread")
+
+        # ── 30-minute periodic cloud backup (second, independent lineage) ──
+        # Uploads to a DIFFERENT cloud filename than the event-triggered backup,
+        # so the two never overwrite each other. Runs only while the app is open
+        # and only if cloud credentials are configured.
+        def _bg_periodic_backup():
+            import time
+            while True:
+                time.sleep(1800)   # 30 minutes
+                try:
+                    from app.db import SessionLocal as _SL3
+                    from app.services.backup import periodic_backup as _pb
+                    _db3 = _SL3()
+                    try:
+                        res = _pb(_db3)
+                        print(f"⏱  30-min backup: {res.get('message')}")
+                    finally:
+                        _db3.close()
+                except Exception as _e:
+                    print(f"⚠️  30-min backup skipped: {_e}")
+
+        _tb = _threading.Thread(target=_bg_periodic_backup, daemon=True, name="periodic-backup")
+        _tb.start()
+        print("✅  30-min periodic backup scheduled (separate cloud file)")
     finally:
         db.close()
 

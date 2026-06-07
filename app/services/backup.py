@@ -22,6 +22,13 @@ from app.models import (
 LOCAL_BACKUP_DIR = Path(__file__).parent.parent.parent / "BINI_Blooms_Data" / "backup"
 EXPORT_FILENAME  = "bini_blooms_backup.json"
 
+# ── Periodic (timer) backup — a SECOND, independent backup lineage ──────────
+# Runs every 30 min while the app is open, uploaded under a DIFFERENT cloud
+# filename so it never overwrites the event-triggered backup (double safety).
+PERIODIC_FILENAME       = "bini_blooms_backup_30min.json"
+LOCAL_PERIODIC_DIR      = Path(__file__).parent.parent.parent / "BINI_Blooms_Data" / "backup_30min"
+PERIODIC_KEEP           = 48   # keep last 48 local copies (= 24h at 30-min cadence)
+
 
 # ── helpers ───────────────────────────────────────────────────────────────
 
@@ -244,6 +251,51 @@ def auto_backup(db: Session, trigger: str = "operation"):
     if not state or not state.auto_backup or not state.credentials:
         return
     sync_backup(db)
+
+
+# ── periodic (every-30-min) backup ──────────────────────────────────────────
+
+def _save_local_periodic(data: bytes) -> Path:
+    """Save a timestamped local copy in the SEPARATE 30-min folder."""
+    LOCAL_PERIODIC_DIR.mkdir(parents=True, exist_ok=True)
+    ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
+    path = LOCAL_PERIODIC_DIR / f"bini_backup_30min_{ts}.json"
+    path.write_bytes(data)
+    files = sorted(LOCAL_PERIODIC_DIR.glob("bini_backup_30min_*.json"))
+    for old in files[:-PERIODIC_KEEP]:
+        old.unlink()
+    return path
+
+
+def periodic_backup(db: Session) -> dict:
+    """
+    Timer-driven backup (called by the 30-min scheduler). Independent of the
+    event-triggered sync: uploads to PERIODIC_FILENAME (a different cloud file)
+    and keeps its own local copies, so the two backup lineages never overwrite
+    each other. Runs whenever cloud credentials are configured.
+    """
+    state = db.query(BackupState).first()
+    if not state or not state.credentials:
+        return {"success": False, "message": "雲端未設定，略過定時備份"}
+    try:
+        provider = _get_provider(state)
+        data     = _export_db(db)
+        _save_local_periodic(data)
+        result   = provider.upload(PERIODIC_FILENAME, data)
+        if result.success:
+            _add_log(db, f"{_stamp()} ⏱ 定時備份成功：{PERIODIC_FILENAME}（{len(data)//1024+1} KB）→ {state.provider}")
+        else:
+            _add_log(db, f"{_stamp()} ⏱ ❌ 定時備份失敗：{result.message}")
+        db.commit()
+        return {"success": result.success, "message": result.message}
+    except Exception as ex:
+        msg = f"❌ 定時備份錯誤：{ex}"
+        try:
+            _add_log(db, f"{_stamp()} ⏱ {msg}")
+            db.commit()
+        except Exception:
+            pass
+        return {"success": False, "message": msg}
 
 
 # ── restore backup ────────────────────────────────────────────────────────

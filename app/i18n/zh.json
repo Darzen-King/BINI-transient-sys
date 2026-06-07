@@ -633,5 +633,9 @@
   "monthly.msg_created": "✅ 月租已建立",
   "monthly.msg_ended": "✅ 月租已退房",
   "payment.method": "收款方式",
-  "checkout.received": "已收款"
+  "checkout.received": "已收款",
+  "booking.days": "天數",
+  "booking.subtotal": "原價小計 (NT$)",
+  "booking.discount": "折扣金額 (NT$)",
+  "booking.amount_auto_hint": "自動計算，可手動調整"
 }

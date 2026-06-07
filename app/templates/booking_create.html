@@ -79,17 +79,23 @@
         <div id="availBadge" class="rounded-2 px-3 py-2 mb-3 d-none"
              style="font-size:.85rem;border:1px solid transparent"></div>
 
-        <!-- Plan + Rate type + Amount -->
+        <!-- Plan + Days + Rate type -->
         <div class="row">
           <div class="col-md-4 mb-3">
             <label class="form-label fw-semibold">{{ trans.get("booking.plan","Plan") }}</label>
             <select name="plan" id="planSel" class="form-select"
-                    onchange="autoCheckout(); triggerCheck()">
+                    onchange="recalc(); triggerCheck()">
               {% for p in plans %}
               <option value="{{ p }}"
                 {% if prefill and prefill.plan == p %}selected{% endif %}>{{ p }}</option>
               {% endfor %}
             </select>
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.days","天數") }}</label>
+            <input type="number" name="days" id="daysInput" class="form-control"
+                   value="1" min="1" max="90" step="1" oninput="onDaysChange()">
+            <div class="form-text" id="nightsHint" style="font-size:.74rem"></div>
           </div>
           <div class="col-md-4 mb-3">
             <label class="form-label fw-semibold">{{ trans.get("booking.rate_type","Rate Type") }}</label>
@@ -104,13 +110,28 @@
               {% endfor %}
             </select>
           </div>
+        </div>
+
+        <!-- Subtotal + Discount + Final amount -->
+        <div class="row">
           <div class="col-md-4 mb-3">
-            <label class="form-label fw-semibold">{{ trans.get("label.amount","Amount (NT$)") }}</label>
+            <label class="form-label fw-semibold">{{ trans.get("booking.subtotal","原價小計 (NT$)") }}</label>
+            <input type="text" id="grossDisplay" class="form-control bg-light" readonly
+                   value="{{ prefill.amount if prefill else '' }}">
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.discount","折扣金額 (NT$)") }}</label>
+            <input type="number" name="discount" id="discountInput" class="form-control"
+                   value="{{ prefill.discount if prefill else 0 }}" min="0" step="100"
+                   oninput="applyDiscount()">
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("label.amount","金額 (NT$)") }}</label>
             <input type="number" name="amount" id="amountInput"
-                   class="form-control"
+                   class="form-control fw-semibold" style="color:#db2877"
                    value="{{ prefill.amount if prefill else 1000 }}"
-                   min="0" step="100">
-            
+                   min="0" step="100" oninput="updateTotal()">
+            <div class="form-text" style="font-size:.72rem">{{ trans.get("booking.amount_auto_hint","自動計算，可手動調整") }}</div>
           </div>
         </div>
 
@@ -225,6 +246,10 @@ const rateTypeSel= document.getElementById('rateTypeSel');
 const amountInput= document.getElementById('amountInput');
 const badge      = document.getElementById('availBadge');
 const submitBtn  = document.getElementById('submitBtn');
+const daysInput     = document.getElementById('daysInput');
+const discountInput = document.getElementById('discountInput');
+const grossDisplay  = document.getElementById('grossDisplay');
+let _gross = 0;   // computed subtotal before discount
 
 // ── Auto-fill checkout from checkin + plan ────────────────────────────────
 function autoCheckout() {
@@ -286,23 +311,95 @@ function autoRateTypeFromDate(dateStr) {
 // _userEditedRate = false → auto-detect from date is allowed
 let _userEditedRate = false;
 
-// Called ONLY when ciInput date changes → auto-detect rate + amount (unless user already edited)
-function autoAmount() {
-  if (!_userEditedRate) {
-    const ciVal      = ciInput ? ciInput.value : '';
-    const detectedRt = autoRateTypeFromDate(ciVal);
-    if (detectedRt) rateTypeSel.value = detectedRt;
-  }
-  _updateAmount();
+// Rate for one period, holiday-aware by its own date
+function _rateForDateStr(ds, plan) {
+  const rt = autoRateTypeFromDate(ds) || '非假日';
+  return (BASE_RATES[rt] && BASE_RATES[rt][plan]) ? BASE_RATES[rt][plan] : 0;
 }
 
-// Called when plan changes: update amount only, never touch rate type
-function _updateAmount() {
-  const rt = rateTypeSel.value;
-  const pl = planSel.value;
-  if (BASE_RATES[rt] && BASE_RATES[rt][pl]) {
-    amountInput.value = BASE_RATES[rt][pl];
+// Sum the per-period rate across `days`; each period is judged holiday/weekday
+// by its OWN date (matches the system billing method).
+function computeGross() {
+  const ci = ciInput ? ciInput.value : '';
+  if (!ci) return 0;
+  const plan = planSel.value;
+  const perHours = plan === '12hrs' ? 12 : 24;
+  const days = Math.max(1, parseInt((daysInput && daysInput.value) || '1', 10) || 1);
+  const base = new Date(ci.trim().replace(' ', 'T'));
+  if (isNaN(base.getTime())) return 0;
+  const pad = n => String(n).padStart(2, '0');
+  let gross = 0;
+  for (let i = 0; i < days; i++) {
+    const d = new Date(base.getTime());
+    d.setHours(d.getHours() + i * perHours);
+    const ds = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    if (days === 1 && _userEditedRate) {
+      // single-day: honour a manual rate-type override
+      const rt = rateTypeSel.value;
+      gross += (BASE_RATES[rt] && BASE_RATES[rt][plan]) ? BASE_RATES[rt][plan] : 0;
+    } else {
+      gross += _rateForDateStr(ds, plan);
+    }
   }
+  return gross;
+}
+
+// Check-out = check-in + days × plan length
+function autoCheckoutDays() {
+  const ci = ciInput ? ciInput.value : '';
+  if (!ci) return;
+  const dt = new Date(ci.trim().replace(' ', 'T'));
+  if (isNaN(dt.getTime())) return;
+  const perHours = planSel.value === '12hrs' ? 12 : 24;
+  const days = Math.max(1, parseInt((daysInput && daysInput.value) || '1', 10) || 1);
+  dt.setHours(dt.getHours() + perHours * days);
+  const pad = n => String(n).padStart(2, '0');
+  const coVal = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+  coInput.value = coVal;
+  if (coInput._flatpickr) coInput._flatpickr.setDate(coVal, false);
+}
+
+function updateNightsHint() {
+  const hint = document.getElementById('nightsHint');
+  if (!hint) return;
+  const days = Math.max(1, parseInt((daysInput && daysInput.value) || '1', 10) || 1);
+  const unit = planSel.value === '12hrs' ? '× 12hr' : '晚';
+  hint.textContent = days > 1 ? (days + ' ' + unit) : '';
+}
+
+// amount = gross − discount (editable afterwards)
+function applyDiscount() {
+  const disc = Math.max(0, parseFloat((discountInput && discountInput.value) || '0') || 0);
+  const final = Math.max(0, Math.round(_gross - disc));
+  if (amountInput) amountInput.value = final;
+  updateTotal();
+}
+
+// Master recompute: rate-type display + checkout + gross + discounted amount
+function recalc() {
+  if (!_userEditedRate) {
+    const detected = autoRateTypeFromDate(ciInput ? ciInput.value : '');
+    if (detected) rateTypeSel.value = detected;
+  }
+  autoCheckoutDays();
+  _gross = computeGross();
+  if (grossDisplay) grossDisplay.value = _gross ? _gross.toLocaleString() : '';
+  applyDiscount();
+  updateNightsHint();
+}
+
+function onDaysChange() {
+  recalc();
+  onDateChange();   // re-validate availability with the new checkout
+}
+
+// Backward-compat aliases (older code referenced these names)
+function autoAmount()   { recalc(); }
+function autoCheckout() { autoCheckoutDays(); }
+function _updateAmount() {
+  _gross = computeGross();
+  if (grossDisplay) grossDisplay.value = _gross ? _gross.toLocaleString() : '';
+  applyDiscount();
 }
 
 // ── Date validation (client-side, instant) ────────────────────────────────
@@ -350,7 +447,6 @@ function validateDates() {
 let checkTimer = null;
 
 function onDateChange() {
-  autoAmount();
   const result = validateDates();
   if (!result.valid) {
     setBadge('', '');
@@ -453,22 +549,24 @@ function enableSubmit(ok) {
 //       which would overwrite their manual rate choice before they can confirm it.
 function _ciHandler() {
   _userEditedRate = false;  // new date selected → reset manual override, re-auto-detect
-  autoCheckout();
-  autoAmount();
+  recalc();                 // sets rate-type, checkout (from days), gross, amount
   onDateChange();
 }
 ciInput.addEventListener('change', _ciHandler);
 ciInput.addEventListener('input',  _ciHandler);
 coInput.addEventListener('change', onDateChange);
 coInput.addEventListener('input',  onDateChange);
-planSel.addEventListener('change', () => { autoCheckout(); _updateAmount(); });
+planSel.addEventListener('change', () => { recalc(); });
+if (daysInput)     daysInput.addEventListener('input', onDaysChange);
+if (discountInput) discountInput.addEventListener('input', applyDiscount);
 rateTypeSel.addEventListener('change', function() {
-  _userEditedRate = true;   // user manually chose rate type → lock it
-  _updateAmount();
+  _userEditedRate = true;   // user manually chose rate type → lock it (single-day only)
+  recalc();
 });
 roomSel.addEventListener('change', triggerCheck);
 
-// Trigger check on load if dates are prefilled
+// Initial compute (populate gross/amount/checkout from any prefill or defaults)
+recalc();
 if (ciInput.value && coInput.value) { onDateChange(); }
 else { enableSubmit(true); }  // allow submit if no dates yet (server validates)
 </script>

@@ -633,5 +633,9 @@
   "monthly.msg_created": "✅ Monthly rental created",
   "monthly.msg_ended": "✅ Monthly rental ended",
   "payment.method": "Payment Method",
-  "checkout.received": "Received"
+  "checkout.received": "Received",
+  "booking.days": "Days",
+  "booking.subtotal": "Subtotal (NT$)",
+  "booking.discount": "Discount (NT$)",
+  "booking.amount_auto_hint": "Auto-calculated, editable"
 }

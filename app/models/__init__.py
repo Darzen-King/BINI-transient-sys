@@ -35,7 +35,8 @@ class Booking(Base):
     checkin   = Column(String, nullable=False)
     checkout  = Column(String, nullable=False)
     plan      = Column(String, nullable=False, default="24hrs")
-    amount    = Column(Float,  nullable=False, default=0)
+    amount    = Column(Float,  nullable=False, default=0)   # final amount (after discount)
+    discount  = Column(Float,  nullable=False, default=0)   # multi-day discount applied
     rate_type = Column(String, nullable=True)
     status      = Column(String, nullable=False, default="已預約")
     property_id = Column(String, nullable=True, index=True)   # FK → properties.id

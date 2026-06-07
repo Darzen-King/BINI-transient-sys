@@ -162,6 +162,8 @@ async def booking_create(
     checkout:  str   = Form(...),
     plan:      str   = Form("24hrs"),
     amount:    float = Form(0),
+    discount:  float = Form(0),
+    days:      int   = Form(1),
     rate_type: str   = Form("非假日"),
     db: Session = Depends(get_db),
 ):
@@ -173,6 +175,20 @@ async def booking_create(
 
     ci = _norm_dt(checkin)
     co = _norm_dt(checkout)
+
+    # Multi-day booking: derive checkout from check-in + days × plan length,
+    # so the stored period always matches the chosen number of days.
+    try:
+        from datetime import datetime as _dt, timedelta as _td
+        plan_hours = 12 if plan == "12hrs" else 24
+        days_i = max(1, int(days or 1))
+        if ci:
+            ci_dt = _dt.strptime(ci, "%Y-%m-%d %H:%M")
+            co = (ci_dt + _td(hours=plan_hours * days_i)).strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        pass  # fall back to the submitted checkout
+
+    discount = max(0.0, float(discount or 0))
 
     import json as _json2
     from app.services.fee_engine import get_holiday_dates_from_db as _ghd2
@@ -232,7 +248,7 @@ async def booking_create(
     bsvc.create_booking(db, {
         "room": room, "guest": guest, "phone": phone,
         "checkin": ci, "checkout": co,
-        "plan": plan, "amount": amount, "rate_type": rate_type,
+        "plan": plan, "amount": amount, "discount": discount, "rate_type": rate_type,
     })
     _audit.log_booking_create(db, 'new', room, guest)
     _auto_backup(db, trigger="booking")

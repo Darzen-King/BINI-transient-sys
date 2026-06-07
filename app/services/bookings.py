@@ -117,6 +117,7 @@ def create_booking(db: Session, data: dict) -> Booking:
         checkout  = data["checkout"],
         plan      = data.get("plan", "24hrs"),
         amount    = float(data.get("amount", 0)),
+        discount  = float(data.get("discount", 0)),
         rate_type = data.get("rate_type", "非假日"),
         status    = data.get("status", "已預約"),
     )

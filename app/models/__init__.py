@@ -49,7 +49,8 @@ class ActiveStay(Base):
     room          = Column(String, nullable=False, unique=True, index=True)
     guest         = Column(String, nullable=False)
     plan          = Column(String, nullable=True)
-    base_rent     = Column(Float, nullable=False, default=0)
+    base_rent     = Column(Float, nullable=False, default=0)   # final room charge (after discount)
+    discount      = Column(Float, nullable=False, default=0)   # multi-day discount applied at check-in
     extension_fee = Column(Float, nullable=False, default=0)
     extra_fee     = Column(Float, nullable=False, default=0)
     total_due     = Column(Float, nullable=False, default=0)

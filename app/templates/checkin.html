@@ -84,20 +84,22 @@
           </div>
         </div>
 
-        <div class="mb-3">
-          <label class="form-label fw-semibold">{{ trans.get("booking.plan","Plan") }}</label>
-          <select name="plan" id="planSelect" class="form-select"
-                  onchange="autoCheckout()">
-            {% for p in plans %}
-            <option value="{{ p }}" {% if prefill and prefill.plan == p %}selected{% endif %}>{{ p }}</option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label fw-semibold">{{ trans.get("checkin.base_rent","Base Rent") }} (NT$)</label>
-          <input type="number" name="base_rent" id="baseRentInput" class="form-control"
-                 value="{{ prefill.amount if prefill else 1000 }}" min="0" step="100">
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.plan","Plan") }}</label>
+            <select name="plan" id="planSelect" class="form-select"
+                    onchange="recalcCheckin()">
+              {% for p in plans %}
+              <option value="{{ p }}" {% if prefill and prefill.plan == p %}selected{% endif %}>{{ p }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.days","天數") }}</label>
+            <input type="number" name="days" id="daysInput" class="form-control"
+                   value="1" min="1" max="90" step="1" oninput="recalcCheckin()">
+            <div class="form-text" id="nightsHint" style="font-size:.74rem"></div>
+          </div>
         </div>
 
         <div class="row">
@@ -107,16 +109,40 @@
                    class="form-control" step="60"
                    value="{{ prefill.checkin | replace(' ','T') if prefill else now_dt }}"
                    min="{{ now_dt }}"
-                   oninput="checkConflict()">
+                   oninput="recalcCheckin()">
             <div class="form-text">{{ trans.get("checkin.checkin_time_default","預設為現在時間，可調整但不可設為過去時間") }}</div>
           </div>
           <div class="col-md-6 mb-3">
             <label class="form-label fw-semibold">{{ trans.get("room.checkout","Check-out Time") }}</label>
-            <input type="datetime-local" data-dtype="datetime-local" name="checkout_time" id="coInput"
-                   class="form-control" step="60"
-                   value="{{ prefill.checkout | replace(' ','T') if prefill else '' }}"
-                   oninput="checkConflict()">
-            <div class="form-text">{{ trans.get("checkin.checkout_time","Auto-calculated from plan") }}</div>
+            <input type="text" name="checkout_time" id="coInput"
+                   class="form-control bg-light" readonly tabindex="-1"
+                   style="cursor:not-allowed;color:#6b7280"
+                   value="{{ prefill.checkout if prefill else '' }}" aria-readonly="true">
+            <div class="form-text" style="font-size:.74rem;color:#9ca3af">
+              🔒 {{ trans.get("booking.checkout_auto_hint","系統自動帶出（入住時間 + 天數 × 方案）") }}
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.subtotal","原價小計 (NT$)") }}</label>
+            <input type="text" id="grossDisplay" class="form-control bg-light" readonly value="">
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.discount","折扣金額 (NT$)") }}</label>
+            <input type="number" name="discount" id="discountInput" class="form-control"
+                   value="{{ prefill.discount if prefill else 0 }}" min="0" step="100"
+                   oninput="applyDiscountCheckin()">
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("checkin.base_rent","Base Rent") }} (NT$)</label>
+            <input type="number" name="base_rent" id="baseRentInput"
+                   class="form-control fw-semibold" style="color:#db2777"
+                   value="{{ prefill.amount if prefill else 1000 }}" min="0" step="100"
+                   oninput="onBaseRentManual()">
+            <input type="hidden" name="amount_auto" id="amountAuto" value="1">
+            <div class="form-text" style="font-size:.72rem">{{ trans.get("booking.amount_auto_hint","自動計算，可手動調整") }}</div>
           </div>
         </div>
 
@@ -196,20 +222,76 @@
 {# Pass holiday date list to JS for rate calculation #}
 <script id="holidayDatesData" type="application/json">{{ holiday_dates_json | safe }}</script>
 <script>
-function autoCheckout() {
-  const ci = document.getElementById('ciInput').value;
+// ── Multi-day check-in: days field + engine billing + readonly checkout ──────
+let _ciGross = 0;
+function _ciEl(id){ return document.getElementById(id); }
+function _ciDays(){ return Math.max(1, parseInt((_ciEl('daysInput')||{}).value || '1', 10) || 1); }
+function _ciPlanHours(){ return (_ciEl('planSelect').value === '12hrs') ? 12 : 24; }
+
+// Check-out = check-in + days × plan length (readonly text field, space format)
+function autoCheckoutDaysCheckin() {
+  const ci = _ciEl('ciInput').value;
   if (!ci) return;
-  const plan = document.getElementById('planSelect').value;
-  const dt = new Date(ci);
-  dt.setHours(dt.getHours() + (plan === '12hrs' ? 12 : 24));
+  const dt = new Date(ci.trim().replace(' ', 'T'));
+  if (isNaN(dt.getTime())) return;
+  dt.setHours(dt.getHours() + _ciPlanHours() * _ciDays());
   const pad = n => String(n).padStart(2,'0');
-  // Use space separator for flatpickr (not T)
   const coStr = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
-  document.getElementById('coInput').value = coStr;
-  // Also update flatpickr instance if present
-  const coFp = document.getElementById('coInput')._flatpickr;
-  if (coFp) coFp.setDate(coStr, false);
+  _ciEl('coInput').value = coStr;
 }
+
+function updateNightsHintCheckin() {
+  const hint = _ciEl('nightsHint'); if (!hint) return;
+  const d = _ciDays();
+  const unit = _ciEl('planSelect').value === '12hrs' ? '× 12hr' : '晚';
+  hint.textContent = d > 1 ? (d + ' ' + unit) : '';
+}
+
+// base_rent = gross − discount, unless the user manually overrode it
+function applyDiscountCheckin() {
+  const disc = Math.max(0, parseFloat((_ciEl('discountInput')||{}).value || '0') || 0);
+  const auto = _ciEl('amountAuto');
+  if (auto && auto.value === '1') {
+    const final = Math.max(0, Math.round(_ciGross - disc));
+    _ciEl('baseRentInput').value = final;
+  }
+}
+
+// Authoritative gross via the billing engine (handles 12hr × N block caps)
+let _ciQuoteTimer = null;
+function fetchQuoteCheckin() {
+  const ci = _ciEl('ciInput').value;
+  if (!ci) { _ciGross = 0; if (_ciEl('grossDisplay')) _ciEl('grossDisplay').value=''; applyDiscountCheckin(); return; }
+  const plan = _ciEl('planSelect').value, days = _ciDays();
+  const ciNorm = ci.trim().replace(' ', 'T');
+  clearTimeout(_ciQuoteTimer);
+  _ciQuoteTimer = setTimeout(() => {
+    fetch(`/api/booking-quote?checkin=${encodeURIComponent(ciNorm)}&plan=${encodeURIComponent(plan)}&days=${days}`)
+      .then(r => r.json()).then(d => {
+        if (d && d.ok) {
+          _ciGross = d.gross;
+          if (_ciEl('grossDisplay')) _ciEl('grossDisplay').value = _ciGross ? _ciGross.toLocaleString() : '';
+          applyDiscountCheckin();
+        }
+      }).catch(() => {});
+  }, 250);
+}
+
+function onBaseRentManual() {
+  const auto = _ciEl('amountAuto'); if (auto) auto.value = '0';
+}
+
+// Master recompute on date / plan / days change
+function recalcCheckin() {
+  const auto = _ciEl('amountAuto'); if (auto) auto.value = '1';  // structural change re-enables auto
+  autoCheckoutDaysCheckin();
+  updateNightsHintCheckin();
+  fetchQuoteCheckin();   // async → gross + base_rent
+  checkConflict();
+}
+
+// Backward-compat alias
+function autoCheckout() { autoCheckoutDaysCheckin(); }
 function onRoomChange() {
   const sel   = document.getElementById('roomSelect');
   const opt   = sel.options[sel.selectedIndex];
@@ -221,6 +303,26 @@ function onRoomChange() {
   }
   checkConflict();
 }
+// Derive days from a booking window + apply its (already-agreed) price as-is.
+function _ciApplyBookingWindow(ciStr, coStr, amount) {
+  try {
+    const ci = new Date((ciStr||'').replace(' ','T'));
+    const co = new Date((coStr||'').replace(' ','T'));
+    if (!isNaN(ci.getTime()) && !isNaN(co.getTime())) {
+      const d = Math.max(1, Math.round(((co - ci)/3600000) / _ciPlanHours()));
+      if (_ciEl('daysInput')) _ciEl('daysInput').value = d;
+    }
+  } catch(e) {}
+  updateNightsHintCheckin();
+  // Booking already carries the agreed price → use it as-is (manual mode)
+  const auto = _ciEl('amountAuto'); if (auto) auto.value = '0';
+  if (amount && _ciEl('baseRentInput')) _ciEl('baseRentInput').value = amount;
+  if (_ciEl('grossDisplay')) {
+    const a = parseFloat(amount||'0')||0;
+    _ciEl('grossDisplay').value = a ? a.toLocaleString() : '';
+  }
+}
+
 function prefillFromBooking(sel) {
   const o = sel.options[sel.selectedIndex];
   if (!o.value) return;
@@ -229,9 +331,9 @@ function prefillFromBooking(sel) {
   if (document.getElementById('phoneInput'))
     document.getElementById('phoneInput').value  = o.dataset.phone  || '';
   document.getElementById('planSelect').value    = o.dataset.plan   || '24hrs';
-  document.getElementById('baseRentInput').value = o.dataset.amount || '1000';
   document.getElementById('ciInput').value       = (o.dataset.checkin  || '').replace(' ','T');
-  document.getElementById('coInput').value       = (o.dataset.checkout || '').replace(' ','T');
+  document.getElementById('coInput').value       = (o.dataset.checkout || '').replace('T',' ');
+  _ciApplyBookingWindow(o.dataset.checkin, o.dataset.checkout, o.dataset.amount);
   onRoomChange();
 }
 function quickFill(id, room, guest, plan, amount, ci, co, phone) {
@@ -241,16 +343,15 @@ function quickFill(id, room, guest, plan, amount, ci, co, phone) {
   if (document.getElementById('phoneInput'))
     document.getElementById('phoneInput').value   = phone || '';
   document.getElementById('planSelect').value     = plan;
-  document.getElementById('baseRentInput').value  = amount;
   document.getElementById('ciInput').value        = ci;
-  document.getElementById('coInput').value        = co;
+  document.getElementById('coInput').value        = (co || '').replace('T',' ');
+  _ciApplyBookingWindow(ci, co, amount);
   onRoomChange();
 }
-// ciInput change handled by updateBaseRent listener above
-document.getElementById('planSelect').addEventListener('change', function() {
-  autoCheckout();
-  updateBaseRent();
-});
+document.getElementById('planSelect').addEventListener('change', recalcCheckin);
+document.getElementById('daysInput')?.addEventListener('input', recalcCheckin);
+document.getElementById('discountInput')?.addEventListener('input', applyDiscountCheckin);
+document.getElementById('baseRentInput')?.addEventListener('input', onBaseRentManual);
 
 // ── Auto-update base rent when plan changes ───────────────────────────────
 const RATES_TABLE = {
@@ -283,13 +384,8 @@ function getRateTypeFromDate(dateStr) {
   return "weekday";
 }
 
-function updateBaseRent() {
-  const ciVal  = document.getElementById('ciInput').value;
-  const plan   = document.getElementById('planSelect').value;
-  const rt     = getRateTypeFromDate(ciVal);
-  const amount = RATES_TABLE[rt]?.[plan] ?? (plan === '12hrs' ? 800 : 1000);
-  document.getElementById('baseRentInput').value = amount;
-}
+// Base rent now comes from the billing engine (multi-day, 12hr-block correct)
+function updateBaseRent() { fetchQuoteCheckin(); }
 
 // Also update when checkin time changes
 // ── Enforce no-past-time on Check-in input ──────────────────────────────
@@ -315,11 +411,9 @@ document.addEventListener("DOMContentLoaded", function() {
     }, 500);
 });
 
-// Fire on change + input + blur for reliable datetime-local detection in Chrome
-function _ciCheckinHandler() { autoCheckout(); updateBaseRent(); }
-document.getElementById('ciInput').addEventListener('change', _ciCheckinHandler);
-document.getElementById('ciInput').addEventListener('input',  _ciCheckinHandler);
-document.getElementById('ciInput').addEventListener('blur',   _ciCheckinHandler);
+// Check-in date changes → recompute checkout + engine price (no 'blur' handler,
+// which would otherwise reset a manual base-rent override on focus loss).
+document.getElementById('ciInput').addEventListener('change', recalcCheckin);
 {% if prefill %}
 quickFill(
   '{{ prefill.id }}',
@@ -331,6 +425,9 @@ quickFill(
   '{{ prefill.checkout | replace(" ","T") }}',
   '{{ prefill.phone or "" }}'
 );
+{% else %}
+// Fresh walk-in: initialise checkout + engine-priced base rent
+recalcCheckin();
 {% endif %}
 
 // ── Live conflict check for checkin ────────────────────────────────────

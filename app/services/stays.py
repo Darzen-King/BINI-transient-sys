@@ -127,6 +127,7 @@ def checkin_guest(
     booking_id: str | None = None,
     checkin_time: str | None = None,
     checkout_time: str | None = None,
+    discount: float = 0,
 ) -> tuple[ActiveStay | None, str | None]:
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
@@ -161,6 +162,7 @@ def checkin_guest(
         guest                  = guest,
         plan                   = plan,
         base_rent              = base_rent,
+        discount               = max(0.0, float(discount or 0)),
         extension_fee          = 0.0,
         extra_fee              = 0.0,
         total_due              = base_rent,
@@ -392,6 +394,7 @@ def transfer_room(
         guest                  = old_stay.guest,
         plan                   = old_stay.plan,
         base_rent              = old_stay.base_rent,
+        discount               = getattr(old_stay, "discount", 0) or 0,
         extension_fee          = old_stay.extension_fee,
         extra_fee              = old_stay.extra_fee,
         total_due              = old_stay.total_due,

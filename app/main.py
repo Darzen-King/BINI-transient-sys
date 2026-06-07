@@ -22,9 +22,9 @@ from app.routers import hub, rooms, bookings, checkin, stays, reports, backup, l
 from app.routers import phase4, costs as costs_router
 
 # ── App init ───────────────────────────────────────────────────────────────
-APP_VERSION = "v3.7.3"
+APP_VERSION = "v3.7.4"
 
-app = FastAPI(title="BINI Blooms PMS", version="3.7.3")
+app = FastAPI(title="BINI Blooms PMS", version="3.7.4")
 
 # ── Auth middleware ────────────────────────────────────────────────────────
 from fastapi import Request as _Req
@@ -250,6 +250,8 @@ def _migrate_property_id_columns():
             ("users",        "allowed_pages",          "TEXT"),
             # BUG-A FIX: track original planned checkout for cumulative block fee
             ("active_stays", "original_checkout_time", "TEXT"),
+            # Multi-day check-in discount
+            ("active_stays", "discount",               "REAL NOT NULL DEFAULT 0"),
         ]
         for table, col, defn in required:
             try:

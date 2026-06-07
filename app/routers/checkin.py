@@ -108,6 +108,9 @@ async def checkin_submit(
     phone:          str   = Form(""),
     plan:           str   = Form("24hrs"),
     base_rent:      float = Form(0),
+    discount:       float = Form(0),
+    days:           int   = Form(1),
+    amount_auto:    str   = Form("1"),
     booking_id:     str   = Form(""),
     checkin_time:   str   = Form(""),
     checkout_time:  str   = Form(""),
@@ -117,6 +120,24 @@ async def checkin_submit(
 ):
     ci = _norm_dt(checkin_time)
     co = _norm_dt(checkout_time)
+
+    # Multi-day check-in: derive checkout from check-in + days × plan length,
+    # and compute the room charge with the SAME block-ceiling engine used for
+    # bookings/extension (so 12hr × N caps correctly at the 24hr rate).
+    discount = max(0.0, float(discount or 0))
+    try:
+        from datetime import datetime as _dt, timedelta as _td
+        plan_hours = 12 if plan == "12hrs" else 24
+        days_i = max(1, int(days or 1))
+        if ci:
+            ci_dt = _dt.strptime(ci, "%Y-%m-%d %H:%M")
+            co = (ci_dt + _td(hours=plan_hours * days_i)).strftime("%Y-%m-%d %H:%M")
+            if str(amount_auto) == "1":
+                from app.services.fee_engine import calc_extension_fee as _calc
+                _gross, _ = _calc(plan_hours * days_i, ci_dt)
+                base_rent = max(0.0, float(_gross) - discount)
+    except Exception:
+        pass  # fall back to submitted checkout / base_rent
 
     # Date validation
     if ci and co:
@@ -154,6 +175,7 @@ async def checkin_submit(
         booking_id   = booking_id or None,
         checkin_time = ci or None,
         checkout_time= co or None,
+        discount     = discount,
     )
 
     if error_key:

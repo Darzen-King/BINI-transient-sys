@@ -10,7 +10,7 @@ set "PYTHONIOENCODING=utf-8"
 
 echo.
 echo ================================================
-echo  BINI Blooms Transient SYS v3.6.2
+echo  BINI Blooms Transient SYS v3.7.0
 echo ================================================
 echo.
 

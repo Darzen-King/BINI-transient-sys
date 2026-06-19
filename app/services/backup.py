@@ -387,18 +387,26 @@ def _import_data(db: Session, payload: dict):
     _restore(Booking, payload.get("bookings", []))
 
     # Integer autoincrement models — pop id (pop_id=True)
-    _restore(ActiveStay,    payload.get("active_stays", []),    pop_id=True)
-    _restore(StayLog,       payload.get("stay_logs", []),       pop_id=True)
-    _restore(ReportSummary, payload.get("report_summary", []),  pop_id=True)
+    if "active_stays" in payload:
+        _restore(ActiveStay, payload["active_stays"], pop_id=True)
+    if "stay_logs" in payload:
+        _restore(StayLog, payload["stay_logs"], pop_id=True)
+    if "report_summary" in payload:
+        _restore(ReportSummary, payload["report_summary"], pop_id=True)
 
     # Financial — Integer PKs
-    _restore(Payment,        payload.get("payments", []),         pop_id=True)
-    _restore(CashierSession, payload.get("cashier_sessions", []), pop_id=True)
+    # Guard: only restore if key exists in payload, preserving existing data
+    # when restoring from a backup made before these models existed.
+    if "payments" in payload:
+        _restore(Payment, payload["payments"], pop_id=True)
+    if "cashier_sessions" in payload:
+        _restore(CashierSession, payload["cashier_sessions"], pop_id=True)
 
     # Cost entries — Integer PK
     try:
         from app.models import CostEntry
-        _restore(CostEntry, payload.get("cost_entries", []), pop_id=True)
+        if "cost_entries" in payload:
+            _restore(CostEntry, payload["cost_entries"], pop_id=True)
     except Exception:
         pass
 
@@ -419,7 +427,8 @@ def _import_data(db: Session, payload: dict):
     _restore(Property, payload.get("properties", []))  # Property.id is STRING PK — keep it!
 
     # Integer PK
-    _restore(MaintenanceSchedule, payload.get("maintenance_schedules", []), pop_id=True)
+    if "maintenance_schedules" in payload:
+        _restore(MaintenanceSchedule, payload["maintenance_schedules"], pop_id=True)
 
     # Audit logs (optional — large, but preserve history)
     activity_data = payload.get("activity_logs", [])

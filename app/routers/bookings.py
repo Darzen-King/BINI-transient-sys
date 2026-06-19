@@ -186,18 +186,20 @@ async def booking_new_form(
 
 @router.post("/bookings/new")
 async def booking_create(
-    request:   Request,
-    room:      str   = Form(...),
-    guest:     str   = Form(...),
-    phone:     str   = Form(""),
-    checkin:   str   = Form(...),
-    checkout:  str   = Form(...),
-    plan:        str   = Form("24hrs"),
-    amount:      float = Form(0),
-    discount:    float = Form(0),
-    days:        int   = Form(1),
-    amount_auto: str   = Form("1"),   # "1" = use engine-computed amount; "0" = manual override
-    rate_type:   str   = Form("非假日"),
+    request:         Request,
+    room:            str   = Form(...),
+    guest:           str   = Form(...),
+    phone:           str   = Form(""),
+    checkin:         str   = Form(...),
+    checkout:        str   = Form(...),
+    plan:              str   = Form("24hrs"),
+    amount:            float = Form(0),
+    discount:          float = Form(0),
+    days:              int   = Form(1),
+    amount_auto:       str   = Form("1"),   # "1" = use engine-computed amount; "0" = manual override
+    rate_type:         str   = Form("非假日"),
+    deposit_amount:    float = Form(0),
+    deposit_type:      str   = Form("cash"),
     db: Session = Depends(get_db),
 ):
     lang  = get_lang(request)
@@ -299,6 +301,13 @@ async def booking_create(
         "plan": plan, "amount": amount, "discount": discount, "rate_type": rate_type,
     })
     _audit.log_booking_create(db, 'new', room, guest)
+    # Record deposit if provided
+    deposit_amount_val = float(deposit_amount or 0)
+    if deposit_amount_val > 0:
+        from app.services.payments import create_payment as _cp
+        cu = getattr(request.state, "current_user", None)
+        _cp(db, None, room, guest, deposit_type, deposit_amount_val,
+            is_deposit=True, created_by=cu.username if cu else "admin")
     _auto_backup(db, trigger="booking")
     return RedirectResponse("/bookings?msg=created", status_code=303)
 
@@ -404,10 +413,12 @@ async def booking_edit_submit(
 
 @router.post("/bookings/multi")
 async def booking_multi_submit(
-    request:    Request,
-    guest:      str = Form(...),
-    phone:      str = Form(""),
-    slots_json: str = Form(...),   # JSON array of slot objects
+    request:         Request,
+    guest:           str = Form(...),
+    phone:           str = Form(""),
+    slots_json:      str = Form(...),   # JSON array of slot objects
+    deposit_amount:  float = Form(0),
+    deposit_type:    str   = Form("cash"),
     db: Session = Depends(get_db),
 ):
     from app.services.auth import get_current_user, require_role
@@ -426,6 +437,13 @@ async def booking_multi_submit(
     for bk in created:
         _audit.log_booking_create(db, "multi", bk.room, guest)
     if created:
+        # Record deposit if provided
+        deposit_amount_val = float(deposit_amount or 0)
+        if deposit_amount_val > 0:
+            from app.services.payments import create_payment as _cp
+            cu = getattr(request.state, "current_user", None)
+            _cp(db, None, created[0].room, guest, deposit_type, deposit_amount_val,
+                is_deposit=True, created_by=cu.username if cu else "admin")
         _auto_backup(db, trigger="booking")
 
     if conflicts and not created:
@@ -443,28 +461,16 @@ async def booking_multi_submit(
 async def booking_soon(request: Request, db: Session = Depends(get_db)):
     """
     Returns bookings with checkin within the next 15 minutes (not yet checked in).
-    Also auto-cancels bookings that are 30+ minutes past checkin with no show.
     """
     from fastapi.responses import JSONResponse
     from datetime import datetime, timedelta
 
-    now      = datetime.now()
-    warn_dt  = now + timedelta(minutes=15)
-    now_s    = now.strftime("%Y-%m-%d %H:%M")
-    warn_s   = warn_dt.strftime("%Y-%m-%d %H:%M")
-    cancel_s = (now - timedelta(minutes=30)).strftime("%Y-%m-%d %H:%M")
+    now   = datetime.now()
+    warn_dt = now + timedelta(minutes=15)
+    now_s  = now.strftime("%Y-%m-%d %H:%M")
+    warn_s = warn_dt.strftime("%Y-%m-%d %H:%M")
 
     from app.models import Booking as _Bk
-
-    # Auto-cancel bookings 30+ min overdue (no-show)
-    overdue = db.query(_Bk).filter(
-        _Bk.status == "已預約",
-        _Bk.checkin <= cancel_s,
-    ).all()
-    for bk in overdue:
-        bk.status = "No-show"
-    if overdue:
-        db.commit()
 
     # Bookings with checkin in next 15 minutes
     soon = db.query(_Bk).filter(
@@ -485,7 +491,7 @@ async def booking_soon(request: Request, db: Session = Depends(get_db)):
             "mins_left": mins_left,
         })
 
-    return JSONResponse({"soon": result, "auto_cancelled": len(overdue)})
+    return JSONResponse({"soon": result})
 
 
 @router.post("/api/booking-cancel-noshow/{booking_id}")

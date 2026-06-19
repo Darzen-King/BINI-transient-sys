@@ -140,6 +140,31 @@
           </div>
         </div>
 
+        <!-- Deposit (optional) -->
+        <div class="rounded-2 p-3 mb-3" style="background:#f0fdf4;border:1px solid #86efac">
+          <div class="fw-semibold mb-2" style="font-size:.85rem;color:#166534">
+            💰 {{ trans.get("payment.deposit_section","押金收取（選填）") }}
+          </div>
+          <div class="row g-2">
+            <div class="col-7">
+              <input type="number" name="deposit_amount" id="depositAmount"
+                     class="form-control form-control-sm" min="0" step="100"
+                     placeholder="{{ trans.get('payment.deposit_amount','押金金額 NT$') }}">
+            </div>
+            <div class="col-5">
+              <select name="deposit_type" class="form-select form-select-sm">
+                <option value="cash">{{ trans.get("payment.type.cash","現金") }}</option>
+                <option value="transfer">{{ trans.get("payment.type.transfer","匯款") }}</option>
+                <option value="card">{{ trans.get("payment.type.card","刷卡") }}</option>
+                <option value="other">{{ trans.get("payment.type.other","其他") }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-text mt-1" style="font-size:.75rem;color:#166534">
+            {{ trans.get("payment.deposit_hint","若有收取押金，將自動記錄至付款記錄") }}
+          </div>
+        </div>
+
         <!-- ── Multi-slot list: Slot cards appear ABOVE the action buttons ── -->
         <div id="slotList" class="mt-3"></div>
 
@@ -954,9 +979,12 @@ if (_singleForm) {
       return;
     }
 
+    const depositAmt = document.getElementById("depositAmount")?.value || "0";
+    const depositTyp = document.querySelector("[name=deposit_type]")?.value || "cash";
     const f = document.createElement("form");
     f.method = "post"; f.action = "/bookings/multi";
-    [["guest",guest],["phone",phone],["slots_json",JSON.stringify(slots)]].forEach(([k,v])=>{
+    [["guest",guest],["phone",phone],["slots_json",JSON.stringify(slots)],
+     ["deposit_amount",depositAmt],["deposit_type",depositTyp]].forEach(([k,v])=>{
       const inp = document.createElement("input");
       inp.type="hidden"; inp.name=k; inp.value=v; f.appendChild(inp);
     });

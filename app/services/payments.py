@@ -57,6 +57,13 @@ def create_payment(
     db.commit()
     db.refresh(p)
 
+    # Auto-backup after payment creation so data is never missing from cloud
+    try:
+        from app.services.backup import auto_backup
+        auto_backup(db, trigger="payment")
+    except Exception:
+        pass  # Backup failure must never break payment creation
+
     # Audit log — written at service layer so it fires regardless of caller
     try:
         from app.services.audit import log_action

@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul 2>&1
 cd /d "%~dp0"
-title BINI Blooms Transient SYS
+title BINI Blooms Transient SYS v3.8.0
 
 REM Force Python into UTF-8 mode so emoji/Chinese in startup logs never crash
 REM on the legacy console codepage (cp950).
@@ -10,7 +10,7 @@ set "PYTHONIOENCODING=utf-8"
 
 echo.
 echo ================================================
-echo  BINI Blooms Transient SYS v3.7.4
+echo  BINI Blooms Transient SYS v3.8.0
 echo ================================================
 echo.
 

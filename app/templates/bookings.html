@@ -7,10 +7,10 @@
 {% set sort_by  = sort_by  if sort_by  is defined else "checkin" %}
 {% set sort_dir = sort_dir if sort_dir is defined else "asc" %}
 
-{# Auto-cancel policy reminder #}
+{# Booking reminder — late arrival is allowed (no auto-cancel) #}
 <div class="alert alert-info d-flex align-items-center gap-2 py-2 px-3 mb-3" style="font-size:.82rem;border-left:4px solid #0ea5e9">
   <span>ℹ️</span>
-  <span>{{ trans.get("booking.auto_cancel_notice","預約到達入住時間後 <strong>30 分鐘</strong>如未辦理入住，系統將自動取消並標記為 No-show。請提醒預約旅客準時入住。") | safe }}</span>
+  <span>{{ trans.get("booking.no_auto_cancel_notice","預約保留至入住當日，無自動取消機制。若已預付訂金，即使超過入住時間仍保留預約。請提醒旅客如有異動請提前告知。") | safe }}</span>
 </div>
 {% macro sort_link(field, label) %}
   {% set dir = "desc" if (sort_by == field and sort_dir == "asc") else "asc" %}
@@ -112,20 +112,20 @@
 
 {% block scripts %}
 <script>
-// Show auto-cancel reminder after new booking created
+// Show booking-created confirmation toast
 (function() {
   const params = new URLSearchParams(window.location.search);
   const msg = params.get("msg") || "";
   if (!msg.startsWith("created")) return;
 
   const toast = document.createElement("div");
-  toast.style.cssText = "position:fixed;bottom:24px;right:24px;z-index:9999;max-width:380px;background:#fff;border:1px solid #e5e7eb;border-left:4px solid #f59e0b;border-radius:10px;padding:16px 18px;box-shadow:0 4px 20px rgba(0,0,0,.12);font-size:.85rem";
+  toast.style.cssText = "position:fixed;bottom:24px;right:24px;z-index:9999;max-width:380px;background:#fff;border:1px solid #e5e7eb;border-left:4px solid #22c55e;border-radius:10px;padding:16px 18px;box-shadow:0 4px 20px rgba(0,0,0,.12);font-size:.85rem";
   toast.innerHTML = `
-    <div style="font-weight:700;margin-bottom:6px;color:#92400e">
-      ⚠️ {{ trans.get("booking.created_reminder_title","預約自動取消提醒") }}
+    <div style="font-weight:700;margin-bottom:6px;color:#166534">
+      ✅ {{ trans.get("booking.created_confirm_title","預約建立成功") }}
     </div>
     <div style="color:#374151;line-height:1.5">
-      {{ trans.get("booking.created_reminder_body","預約已建立。請提醒旅客：若於入住時間起 <strong>30 分鐘</strong>內未辦理入住，系統將自動取消並標記為 No-show。") | safe }}
+      {{ trans.get("booking.created_confirm_body","預約已建立。訂金已記錄，預約將保留至入住當日。") | safe }}
     </div>
     <button onclick="this.closest('div[style]').remove()"
             style="position:absolute;top:8px;right:10px;background:none;border:none;font-size:1.1rem;cursor:pointer;color:#9ca3af">✕</button>

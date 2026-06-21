@@ -295,18 +295,20 @@ async def booking_create(
              "checkout": maint_conflict.end_time,
              "status": "維修排程"})
 
-    bsvc.create_booking(db, {
+    _bk = bsvc.create_booking(db, {
         "room": room, "guest": guest, "phone": phone,
         "checkin": ci, "checkout": co,
         "plan": plan, "amount": amount, "discount": discount, "rate_type": rate_type,
     })
     _audit.log_booking_create(db, 'new', room, guest)
-    # Record deposit if provided
+    # Record deposit if provided. Pass booking_id so the deposit is linked to
+    # the booking and shows up in the room overview after check-in
+    # (get_paid_for_stay / get_deposit_paid match on ActiveStay.booking_id).
     deposit_amount_val = float(deposit_amount or 0)
     if deposit_amount_val > 0:
         from app.services.payments import create_payment as _cp
         cu = getattr(request.state, "current_user", None)
-        _cp(db, None, room, guest, deposit_type, deposit_amount_val,
+        _cp(db, _bk.id, room, guest, deposit_type, deposit_amount_val,
             is_deposit=True, created_by=cu.username if cu else "admin")
     _auto_backup(db, trigger="booking")
     return RedirectResponse("/bookings?msg=created", status_code=303)
@@ -437,12 +439,14 @@ async def booking_multi_submit(
     for bk in created:
         _audit.log_booking_create(db, "multi", bk.room, guest)
     if created:
-        # Record deposit if provided
+        # Record deposit if provided. Link to the first booking so the deposit
+        # surfaces in the room overview once that slot is checked in
+        # (get_paid_for_stay / get_deposit_paid match on ActiveStay.booking_id).
         deposit_amount_val = float(deposit_amount or 0)
         if deposit_amount_val > 0:
             from app.services.payments import create_payment as _cp
             cu = getattr(request.state, "current_user", None)
-            _cp(db, None, created[0].room, guest, deposit_type, deposit_amount_val,
+            _cp(db, created[0].id, created[0].room, guest, deposit_type, deposit_amount_val,
                 is_deposit=True, created_by=cu.username if cu else "admin")
         _auto_backup(db, trigger="booking")
 

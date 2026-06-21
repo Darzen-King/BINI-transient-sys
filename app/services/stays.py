@@ -129,6 +129,9 @@ def checkin_guest(
     checkout_time: str | None = None,
     discount: float = 0,
 ) -> tuple[ActiveStay | None, str | None]:
+    # Store booking_id on the stay so payment queries (get_paid_for_stay /
+    # get_deposit_paid) can include pre-check-in deposits collected at booking.
+    _booking_ref = booking_id
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
         return None, "error.room_not_found"
@@ -170,6 +173,7 @@ def checkin_guest(
         checkout_time          = checkout_time,
         original_checkout_time = checkout_time,   # BUG-A FIX: freeze original planned CO
         hourly_rate            = hourly_rate,
+        booking_id             = _booking_ref or None,
     )
     db.add(stay)
 
@@ -267,6 +271,34 @@ def checkout_guest(
         final_total   = 0.0
         auto_ext_fee  = 0.0
         stay.total_due = 0.0
+        # Auto-refund any deposit collected for this stay.
+        # Match the SAME scope as get_deposit_paid: payments from check-in
+        # onward OR linked via booking_id (pre-check-in deposits from booking),
+        # otherwise a booking deposit counted as "paid" would never be refunded.
+        try:
+            from app.models import Payment
+            from sqlalchemy import or_
+            q = db.query(Payment).filter(
+                Payment.room_id    == room_id,
+                Payment.is_deposit == 1,
+                Payment.is_refund  == 0,
+            )
+            conditions = []
+            if stay.checkin_time:
+                conditions.append(Payment.created_at >= stay.checkin_time[:16])
+            if stay.booking_id:
+                conditions.append(Payment.booking_id == stay.booking_id)
+            if conditions:
+                q = q.filter(or_(*conditions))
+            deposits = q.all()
+            for dep in deposits:
+                from app.services.payments import create_payment
+                create_payment(db, None, room_id, stay.guest,
+                               dep.payment_type, dep.amount,
+                               is_refund=True, note="免費取消退回押金",
+                               created_by="system")
+        except Exception:
+            pass  # Refund failure must never block the checkout
     else:
         # Normal: check if guest stayed past planned checkout + buffer
         auto_ext_fee    = 0.0
@@ -475,47 +507,49 @@ def checkout_buffer_status(stay: ActiveStay) -> dict:
 def get_deposit_paid(db: Session, room_id: str) -> float:
     """
     Return total deposit amount paid for the CURRENT active stay only.
-    Filters by checkin_time of the active stay to avoid accumulating
-    deposits from previous stays.
+    Includes deposits linked via booking_id (pre-check-in deposits from booking).
     """
     from app.models import Payment, ActiveStay
     stay = db.query(ActiveStay).filter(ActiveStay.room == room_id).first()
     if not stay or not stay.checkin_time:
         return 0.0
 
-    # Only count deposits recorded AFTER (or at) the current check-in time
-    result = (
-        db.query(Payment)
-        .filter(
-            Payment.room_id    == room_id,
-            Payment.is_deposit == 1,
-            Payment.created_at >= stay.checkin_time[:16],  # YYYY-MM-DD HH:MM
-        )
-        .all()
+    q = db.query(Payment).filter(
+        Payment.room_id    == room_id,
+        Payment.is_deposit == 1,
+        Payment.is_refund  == 0,
     )
-    return sum(p.amount for p in result if not p.is_refund)
+    # Include payments from check-in onward OR linked to the originating booking
+    from sqlalchemy import or_
+    conditions = [Payment.created_at >= stay.checkin_time[:16]]
+    if stay.booking_id:
+        conditions.append(Payment.booking_id == stay.booking_id)
+    q = q.filter(or_(*conditions))
+
+    return sum(p.amount for p in q.all())
 
 
 def get_paid_for_stay(db: Session, room_id: str) -> float:
     """
     Net amount RECEIVED for the CURRENT active stay — counts ALL payments
     (deposits + regular collections) minus refunds, scoped to payments recorded
-    at/after the current check-in time. Used for the room overview / checkout
-    "balance due" so that a payment added in 付款管理 (even if not flagged as a
-    deposit) reduces the outstanding balance.
+    at/after the current check-in time OR linked via booking_id (pre-check-in
+    deposits from booking). Used for the room overview / checkout "balance due"
+    so that a payment added in 付款管理 reduces the outstanding balance.
     """
     from app.models import Payment, ActiveStay
+    from sqlalchemy import or_
     stay = db.query(ActiveStay).filter(ActiveStay.room == room_id).first()
     if not stay or not stay.checkin_time:
         return 0.0
-    rows = (
-        db.query(Payment)
-        .filter(
-            Payment.room_id    == room_id,
-            Payment.created_at >= stay.checkin_time[:16],
-        )
-        .all()
-    )
+
+    q = db.query(Payment).filter(Payment.room_id == room_id)
+    conditions = [Payment.created_at >= stay.checkin_time[:16]]
+    if stay.booking_id:
+        conditions.append(Payment.booking_id == stay.booking_id)
+    q = q.filter(or_(*conditions))
+
+    rows = q.all()
     received = sum(p.amount for p in rows if not p.is_refund)
     refunded = sum(p.amount for p in rows if p.is_refund)
     return max(0.0, received - refunded)

@@ -570,6 +570,7 @@
   "booking.created_confirm_body": "Booking created. Deposit recorded. The reservation will be held until the arrival date.",
   "checkout.deposit_paid": "Deposit Paid",
   "checkout.balance_due": "Balance Due",
+  "checkout.deposit_refunded": "Deposit auto-refunded",
   "checkout.balance_settled": "Settled",
   "checkout.balance_reminder_title": "Collect Balance",
   "checkout.balance_reminder_notice": "Please collect the remaining balance before checkout",

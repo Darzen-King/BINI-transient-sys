@@ -142,6 +142,12 @@
             {{ free_cancel_st.mins_since }} {{ trans.get("checkout.mins_unit","min ago") }}
             &nbsp;·&nbsp;{{ trans.get("checkout.total_due","Total") }}: <strong>NT$ 0</strong>
           </div>
+          {% if deposit_paid and deposit_paid > 0 %}
+          <div class="col-12 mt-1 rounded-1 px-2 py-1"
+               style="font-size:.76rem;background:#fef2f2;color:#dc2626">
+            🔙 {{ trans.get("checkout.deposit_refunded","押金已自動退還") }}: NT$ {{ "%.0f"|format(deposit_paid) }}
+          </div>
+          {% endif %}
           {% endif %}
 
           {# Buffer note — only show if not free cancel #}

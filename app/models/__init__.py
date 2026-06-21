@@ -58,6 +58,10 @@ class ActiveStay(Base):
     checkin_time  = Column(String, nullable=True)
     checkout_time = Column(String, nullable=True)
     hourly_rate   = Column(Float, nullable=False, default=200)
+    # Booking reference: links this stay to the originating booking so payment
+    # queries (get_paid_for_stay / get_deposit_paid) can include pre-check-in
+    # deposits collected during booking creation.
+    booking_id             = Column(String, nullable=True, index=True)
     # BUG-A FIX: original planned checkout (set at check-in, never changed).
     # Used as the fixed start_dt for block-ceiling calculation so multiple
     # incremental /extend calls correctly accumulate instead of each resetting

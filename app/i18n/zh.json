@@ -570,6 +570,7 @@
   "booking.created_confirm_body": "預約已建立。訂金已記錄，預約將保留至入住當日。",
   "checkout.deposit_paid": "已收押金",
   "checkout.balance_due": "餘額應收",
+  "checkout.deposit_refunded": "押金已自動退還",
   "checkout.balance_settled": "已結清",
   "checkout.balance_reminder_title": "請收取餘額",
   "checkout.balance_reminder_notice": "退房前請確認已向房客收取以下費用",

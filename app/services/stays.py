@@ -174,6 +174,7 @@ def checkin_guest(
         original_checkout_time = checkout_time,   # BUG-A FIX: freeze original planned CO
         hourly_rate            = hourly_rate,
         booking_id             = _booking_ref or None,
+        created_at             = _fmt(_now()),     # real processing time (payment floor)
     )
     db.add(stay)
 
@@ -285,7 +286,7 @@ def checkout_guest(
             )
             conditions = []
             if stay.checkin_time:
-                conditions.append(Payment.created_at >= stay.checkin_time[:16])
+                conditions.append(Payment.created_at >= _stay_payment_floor(stay))
             if stay.booking_id:
                 conditions.append(Payment.booking_id == stay.booking_id)
             if conditions:
@@ -504,6 +505,17 @@ def checkout_buffer_status(stay: ActiveStay) -> dict:
     }
 
 
+def _stay_payment_floor(stay) -> str:
+    """
+    Lower bound (YYYY-MM-DD HH:MM) for payments belonging to THIS stay.
+    Uses the stay's real processing timestamp (created_at) rather than the
+    editable checkin_time, so a deposit collected at check-in is counted even
+    when staff back/forward-date the check-in time. Falls back to checkin_time
+    for rows created before created_at existed.
+    """
+    return (stay.created_at or stay.checkin_time or "")[:16]
+
+
 def get_deposit_paid(db: Session, room_id: str) -> float:
     """
     Return total deposit amount paid for the CURRENT active stay only.
@@ -519,9 +531,9 @@ def get_deposit_paid(db: Session, room_id: str) -> float:
         Payment.is_deposit == 1,
         Payment.is_refund  == 0,
     )
-    # Include payments from check-in onward OR linked to the originating booking
+    # Include payments from this stay's creation onward OR linked to its booking
     from sqlalchemy import or_
-    conditions = [Payment.created_at >= stay.checkin_time[:16]]
+    conditions = [Payment.created_at >= _stay_payment_floor(stay)]
     if stay.booking_id:
         conditions.append(Payment.booking_id == stay.booking_id)
     q = q.filter(or_(*conditions))
@@ -544,7 +556,7 @@ def get_paid_for_stay(db: Session, room_id: str) -> float:
         return 0.0
 
     q = db.query(Payment).filter(Payment.room_id == room_id)
-    conditions = [Payment.created_at >= stay.checkin_time[:16]]
+    conditions = [Payment.created_at >= _stay_payment_floor(stay)]
     if stay.booking_id:
         conditions.append(Payment.booking_id == stay.booking_id)
     q = q.filter(or_(*conditions))

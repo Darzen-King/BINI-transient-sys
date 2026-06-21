@@ -22,9 +22,9 @@ from app.routers import hub, rooms, bookings, checkin, stays, reports, backup, l
 from app.routers import phase4, costs as costs_router
 
 # ── App init ───────────────────────────────────────────────────────────────
-APP_VERSION = "v3.8.1"
+APP_VERSION = "v3.8.2"
 
-app = FastAPI(title="BINI Blooms PMS", version="3.8.1")
+app = FastAPI(title="BINI Blooms PMS", version="3.8.2")
 
 # ── Auth middleware ────────────────────────────────────────────────────────
 from fastapi import Request as _Req
@@ -254,6 +254,8 @@ def _migrate_property_id_columns():
             ("active_stays", "discount",               "REAL NOT NULL DEFAULT 0"),
             # Link stay to originating booking for deposit queries
             ("active_stays", "booking_id",             "TEXT"),
+            # Real processing timestamp (payment-scoping floor, ≠ checkin_time)
+            ("active_stays", "created_at",             "TEXT"),
         ]
         for table, col, defn in required:
             try:

@@ -62,6 +62,11 @@ class ActiveStay(Base):
     # queries (get_paid_for_stay / get_deposit_paid) can include pre-check-in
     # deposits collected during booking creation.
     booking_id             = Column(String, nullable=True, index=True)
+    # Real processing timestamp written when this stay is created at check-in.
+    # Distinct from checkin_time (which staff may back/forward-date). Used as the
+    # lower bound for "payments belonging to this stay" so a deposit collected at
+    # check-in is counted even when checkin_time is set in the future.
+    created_at             = Column(String, nullable=True)
     # BUG-A FIX: original planned checkout (set at check-in, never changed).
     # Used as the fixed start_dt for block-ceiling calculation so multiple
     # incremental /extend calls correctly accumulate instead of each resetting

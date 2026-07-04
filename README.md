@@ -1,13 +1,13 @@
-# BINI Blooms PMS v3.8.3
+# BINI Blooms PMS v3.9.0
 > 房務管理系統 | Property Management System
-> FastAPI + Jinja2 + SQLite | Python 3.12
+> FastAPI + Jinja2 + SQLite | Python 3.12 | 桌面單一視窗
 
 ---
 
 ## 安裝說明
 
 ### 需求
-- Windows 10 / 11
+- Windows 10 / 11（內建 **Microsoft Edge WebView2** 執行環境，Win10/11 幾乎都有）
 - Python **3.12**（不支援 3.13/3.14）— 安裝時勾選 "Add Python to PATH"
 - 網路連線（安裝時下載套件）
 
@@ -15,9 +15,18 @@
 1. 解壓縮 zip 到任意位置
 2. **雙擊** `install.bat`（若失敗請右鍵「以系統管理員身分執行」）
 3. 選擇安裝路徑（C槽 / D槽 / 自訂）
-4. 等待安裝完成
-5. **雙擊** `start.bat` 啟動系統
-6. 瀏覽器自動開啟 **http://127.0.0.1:8000**
+4. 等待安裝完成（會自動在桌面建立 **BINI Blooms PMS** 圖示）
+5. **雙擊桌面的「BINI Blooms PMS」圖示** 啟動系統（或執行 `start.bat`）
+
+---
+
+## 桌面視窗模式（v3.9.0 新增）
+
+- 系統以**專屬視窗 + 專屬圖示**開啟，不再需要瀏覽器。
+- **一次只能開一個視窗**：若已在執行，再次點圖示會把既有視窗叫到最前面，**不會開出第二個**。
+  - 解決先前「找不到視窗又開一個 → 兩個視窗 → 備份錯亂 / 輸入沒存到」的問題。
+- 關閉視窗即完整結束（伺服器與背景備份一併停止）。
+- 埠優先用 8000，被占用時自動改用空閒埠。
 
 ---
 
@@ -92,8 +101,9 @@
 | install.bat 閃退 | 右鍵「以系統管理員身分執行」|
 | pydantic-core 錯誤 | 確認 Python 版本是 **3.12** |
 | 忘記 admin 密碼 | `python tools\reset_admin.py` |
-| 清除所有資料 | 停止伺服器，刪除 `bini_blooms.db`，重啟 |
-| 瀏覽器未自動開啟 | 手動輸入 http://127.0.0.1:8000 |
+| 清除所有資料 | 關閉視窗，刪除 `bini_blooms.db`，重新開啟 |
+| 視窗開不起來 / 白畫面 | 確認系統有 **Edge WebView2**；詳見同資料夾 `desktop.log` |
+| 點圖示沒反應 | 多半是已在執行 → 既有視窗已被叫到最前面（一次只開一個）|
 
 ---
 
@@ -109,7 +119,7 @@
 ## 版本
 
 ```
-v3.8.3 | FastAPI 0.111.0 | SQLite 3 | Python 3.12
+v3.9.0 | FastAPI 0.111.0 | SQLite 3 | Python 3.12 | pywebview 6.2.1
 ```
 
 

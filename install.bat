@@ -1,12 +1,12 @@
 @echo off
 chcp 65001 >nul 2>&1
-title BINI Blooms Transient SYS v3.8.3 - Install
+title BINI Blooms Transient SYS v3.9.0 - Install
 set "PYTHONUTF8=1"
 set "PYTHONIOENCODING=utf-8"
 
 echo.
 echo ================================================
-echo  BINI Blooms Transient SYS v3.8.3 - Install
+echo  BINI Blooms Transient SYS v3.9.0 - Install
 echo  (System Python, no venv required)
 echo ================================================
 echo.
@@ -109,6 +109,8 @@ if exist "%SOURCE%\requirements.txt" copy /Y "%SOURCE%\requirements.txt" "%TARGE
 if exist "%SOURCE%\README.md"        copy /Y "%SOURCE%\README.md"         "%TARGET%\README.md"
 if exist "%SOURCE%\CHANGELOG.md"     copy /Y "%SOURCE%\CHANGELOG.md"      "%TARGET%\CHANGELOG.md"
 if exist "%SOURCE%\start.bat"        copy /Y "%SOURCE%\start.bat"         "%TARGET%\start.bat"
+if exist "%SOURCE%\desktop.py"       copy /Y "%SOURCE%\desktop.py"        "%TARGET%\desktop.py"
+if exist "%SOURCE%\icon.ico"         copy /Y "%SOURCE%\icon.ico"          "%TARGET%\icon.ico"
 echo [OK] Files copied.
 
 :after_copy
@@ -139,15 +141,22 @@ if errorlevel 1 (
 )
 echo [OK] uvicorn ready.
 
+REM ?-?- Step 8: Create desktop shortcut with the BINI icon ?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-?-
+echo [..] Creating desktop shortcut...
+set "LNK=%USERPROFILE%\Desktop\BINI Blooms PMS.lnk"
+powershell -NoProfile -Command "$w=New-Object -ComObject WScript.Shell; $s=$w.CreateShortcut('%LNK%'); $s.TargetPath='%TARGET%\start.bat'; $s.WorkingDirectory='%TARGET%'; $s.IconLocation='%TARGET%\icon.ico'; $s.WindowStyle=7; $s.Description='BINI Blooms PMS'; $s.Save()" >nul 2>&1
+if exist "%LNK%" ( echo [OK] Desktop shortcut created: BINI Blooms PMS ) else ( echo [WARN] Could not create desktop shortcut - launch start.bat manually. )
+
 echo.
 echo ================================================
 echo  Installation complete!
 echo.
 echo  Location : %TARGET%
 echo.
-echo  To start: double-click start.bat in that folder
+echo  To start: double-click the "BINI Blooms PMS" icon on the desktop
+echo            (or start.bat in the install folder)
 echo.
-echo  Browser : http://127.0.0.1:8000
+echo  The app opens in its OWN window - only one window at a time.
 echo  Login   : admin / admin1234
 echo ================================================
 echo.

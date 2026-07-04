@@ -5,3 +5,6 @@ python-multipart==0.0.9
 sqlalchemy==2.0.30
 pydantic==2.7.1
 aiofiles==23.2.1
+# Desktop 單一實例視窗（v3.9.0）— Windows 用 WebView2，需 pythonnet
+pywebview==6.2.1
+pythonnet==3.1.0

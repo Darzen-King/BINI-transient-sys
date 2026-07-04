@@ -335,10 +335,10 @@ async def gantt_page(request: Request, db: Session = Depends(get_db)):
     lang  = get_lang(request)
     trans = get_translations(lang)
 
-    # 7-day window: today 00:00 → today+8 00:00
+    # 2-week window: today 00:00 → today+14 00:00
     now   = datetime.now()
     start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    end   = start + timedelta(days=8)
+    end   = start + timedelta(days=14)
     start_s = start.strftime("%Y-%m-%d %H:%M")
     end_s   = end.strftime("%Y-%m-%d %H:%M")
 

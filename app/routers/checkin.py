@@ -166,6 +166,29 @@ async def checkin_submit(
             status_code=303
         )
 
+    # Booking conflict check: block a check-in that overlaps an existing booking
+    # in this room (excluding the guest's own originating booking). Previously
+    # check-in skipped this entirely, so a stay could overlap a later booking.
+    from datetime import datetime as _dtc, timedelta as _tdc
+    eff_ci = ci or _dtc.now().strftime("%Y-%m-%d %H:%M")
+    if co:
+        eff_co = co
+    else:
+        _ph = 12 if plan == "12hrs" else 24
+        _di = max(1, int(days or 1))
+        eff_co = (_dtc.strptime(eff_ci, "%Y-%m-%d %H:%M")
+                  + _tdc(hours=_ph * _di)).strftime("%Y-%m-%d %H:%M")
+    bk_conflict = bsvc.get_conflict_detail(
+        db, room, eff_ci, eff_co,
+        exclude_id=(booking_id or None),
+        include_stays=False,   # bookings only; stay-overwrite handled by checkin_guest
+    )
+    if bk_conflict:
+        from urllib.parse import quote
+        return RedirectResponse(
+            f"/checkin?room={room}&error=error.conflict", status_code=303
+        )
+
     stay, error_key = ssvc.checkin_guest(
         db,
         room_id      = room,

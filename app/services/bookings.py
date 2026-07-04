@@ -3,7 +3,9 @@ services/bookings.py — Booking CRUD, conflict detection, date validation.
 
 Phase-2 additions:
   - validate_booking_dates(): checkin < checkout, checkin not in past
-  - check_conflict(): unchanged logic, used by both new-booking and checkin
+  - get_conflict_detail(): overlap check against BOTH active bookings and
+    current check-ins (ActiveStay); enforced by new-booking, booking-edit and
+    check-in so conflicts are caught in either direction.
 """
 import uuid
 from datetime import datetime
@@ -58,11 +60,20 @@ def get_conflict_detail(
     checkin: str,
     checkout: str,
     exclude_id: str | None = None,
+    include_stays: bool = True,
 ) -> dict | None:
     """
-    Returns the first conflicting booking as a dict, or None if no conflict.
+    Returns the first conflicting reservation as a dict, or None if no conflict.
+    Checks the requested window against BOTH:
+      • active bookings (status not in CANCELLED_STATUSES), and
+      • current check-ins (ActiveStay) when include_stays=True.
+    A booking becomes "已入住" (in CANCELLED_STATUSES) once its guest checks in,
+    so it is represented by an ActiveStay from then on — checking stays is what
+    lets us catch a new booking that overlaps a guest already checked in, and a
+    check-in that overlaps an existing booking (in either direction).
     Dict keys: id, guest, checkin, checkout, status
     """
+    # Overlap against active bookings
     bookings = (
         db.query(Booking)
         .filter(
@@ -82,6 +93,26 @@ def get_conflict_detail(
                 "checkout": b.checkout,
                 "status":   b.status,
             }
+
+    # Overlap against current check-ins (ActiveStay)
+    if include_stays:
+        from app.models import ActiveStay
+        stays = (
+            db.query(ActiveStay)
+            .filter(ActiveStay.room == room_id)
+            .all()
+        )
+        for s in stays:
+            if not s.checkin_time or not s.checkout_time:
+                continue
+            if s.checkin_time < checkout and s.checkout_time > checkin:
+                return {
+                    "id":       f"STAY-{s.id}",
+                    "guest":    s.guest,
+                    "checkin":  s.checkin_time,
+                    "checkout": s.checkout_time,
+                    "status":   "使用中",
+                }
     return None
 
 

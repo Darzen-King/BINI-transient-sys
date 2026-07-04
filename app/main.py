@@ -22,9 +22,9 @@ from app.routers import hub, rooms, bookings, checkin, stays, reports, backup, l
 from app.routers import phase4, costs as costs_router
 
 # ── App init ───────────────────────────────────────────────────────────────
-APP_VERSION = "v3.8.2"
+APP_VERSION = "v3.8.3"
 
-app = FastAPI(title="BINI Blooms PMS", version="3.8.2")
+app = FastAPI(title="BINI Blooms PMS", version="3.8.3")
 
 # ── Auth middleware ────────────────────────────────────────────────────────
 from fastapi import Request as _Req

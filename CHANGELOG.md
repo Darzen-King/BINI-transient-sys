@@ -18,6 +18,8 @@
 - `start.bat`：改為以 `pythonw` 無主控台啟動 `desktop.py`；相依偵測納入 `pywebview`。
 - `requirements.txt`：新增 `pywebview==6.2.1`、`pythonnet==3.1.0`（Windows 用 WebView2 後端）。
 - 版本統一 v3.9.0（app / installer / 啟動器 / README / FastAPI metadata）。
+- 圖示採用**官方 BINI logo 房屋圖**（自 `Transient icon.png` 去背裁切產生多尺寸 `icon.ico`）。
+- 修正：`desktop.py` 強制 stdout/stderr 為 UTF-8——避免非 UTF-8 主控台（cp950）下，啟動訊息的 emoji 造成伺服器啟動失敗。
 
 > 註：本版仍需目標電腦安裝 Python 3.12(同前)；日後若要「免裝 Python 的單一 .exe」再以 PyInstaller 打包即可。
 

@@ -27,18 +27,29 @@ PREFERRED_PORT = 8000
 
 sys.path.insert(0, APP_DIR)
 
-# 由 pythonw.exe 啟動時沒有主控台，sys.stdout/stderr 會是 None，這會讓
-# app 啟動時的 print() 以及 uvicorn 的串流日誌設定崩潰。先把它們導向檔案。
-if sys.stdout is None or sys.stderr is None:
+# 讓 stdout/stderr 永遠可以安全輸出 emoji/中文，不論怎麼被啟動：
+# - pythonw 啟動：stdout/stderr 是 None → 導向 UTF-8 檔案。
+# - 一般主控台/管線啟動但編碼是 cp950：app 啟動訊息的 emoji print() 會
+#   UnicodeEncodeError 使伺服器啟動失敗 → reconfigure 成 UTF-8 + replace。
+def _make_streams_safe():
     try:
-        _null = open(os.path.join(APP_DIR, "desktop_out.log"), "a",
-                     encoding="utf-8", errors="replace")
-        if sys.stdout is None:
-            sys.stdout = _null
-        if sys.stderr is None:
-            sys.stderr = _null
+        _null = None
+        for name in ("stdout", "stderr"):
+            stream = getattr(sys, name)
+            if stream is None:
+                if _null is None:
+                    _null = open(os.path.join(APP_DIR, "desktop_out.log"), "a",
+                                 encoding="utf-8", errors="replace")
+                setattr(sys, name, _null)
+            else:
+                try:
+                    stream.reconfigure(encoding="utf-8", errors="replace")
+                except Exception:
+                    pass  # 不支援 reconfigure 的串流就保持原樣
     except Exception:
         pass
+
+_make_streams_safe()
 
 
 def _setup_logging():

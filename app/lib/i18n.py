@@ -1,6 +1,7 @@
 """
 lib/i18n.py — Language detection, translation loading, and t() helper.
-Cookie: bini_lang  (values: "zh" | "en", default: "zh")
+Cookie: bini_lang  (values: "zh" | "en", default: "en" — staff are non-Chinese
+speakers; Chinese is opt-in via the language toggle).
 """
 import json
 from pathlib import Path
@@ -11,8 +12,8 @@ _cache: dict[str, dict] = {}
 
 
 def get_lang(request: Request) -> str:
-    lang = request.cookies.get("bini_lang", "zh")
-    return lang if lang in ("zh", "en") else "zh"
+    lang = request.cookies.get("bini_lang", "en")
+    return lang if lang in ("zh", "en") else "en"
 
 
 def get_translations(lang: str) -> dict:

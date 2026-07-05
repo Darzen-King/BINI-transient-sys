@@ -19,6 +19,20 @@
 <div class="container">
   <div class="login-card card border-0 p-5">
 
+    <!-- Language switcher (staff default is EN; Chinese is opt-in) -->
+    <div class="d-flex justify-content-end gap-1 mb-2" style="margin-top:-1.5rem;margin-right:-1.5rem">
+      <form method="post" action="/set-lang">
+        <input type="hidden" name="lang" value="en">
+        <button type="submit" class="btn btn-sm {% if lang=='en' %}btn-bb{% else %}btn-outline-secondary{% endif %}"
+                style="font-size:.72rem;padding:.15rem .55rem">EN</button>
+      </form>
+      <form method="post" action="/set-lang">
+        <input type="hidden" name="lang" value="zh">
+        <button type="submit" class="btn btn-sm {% if lang=='zh' %}btn-bb{% else %}btn-outline-secondary{% endif %}"
+                style="font-size:.72rem;padding:.15rem .55rem">中文</button>
+      </form>
+    </div>
+
     <!-- Brand -->
     <div class="text-center mb-4">
       <img src="/static/bini_blooms_logo.jpg" alt="BINI Blooms"

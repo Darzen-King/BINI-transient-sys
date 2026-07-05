@@ -1,4 +1,4 @@
-# BINI Blooms PMS v3.9.0
+# BINI Blooms PMS v3.9.1
 > 房務管理系統 | Property Management System
 > FastAPI + Jinja2 + SQLite | Python 3.12 | 桌面單一視窗
 
@@ -27,6 +27,13 @@
   - 解決先前「找不到視窗又開一個 → 兩個視窗 → 備份錯亂 / 輸入沒存到」的問題。
 - 關閉視窗即完整結束（伺服器與背景備份一併停止）。
 - 埠優先用 8000，被占用時自動改用空閒埠。
+
+---
+
+## 語言（v3.9.1）
+
+- 系統**預設英文**（含登入頁），適合外籍操作人員。
+- 登入頁右上角與主介面右上角都有 **EN / 中文** 切換按鈕，選擇會記住一年。
 
 ---
 
@@ -119,7 +126,7 @@
 ## 版本
 
 ```
-v3.9.0 | FastAPI 0.111.0 | SQLite 3 | Python 3.12 | pywebview 6.2.1
+v3.9.1 | FastAPI 0.111.0 | SQLite 3 | Python 3.12 | pywebview 6.2.1
 ```
 
 

@@ -151,6 +151,22 @@ async def room_management(request: Request, db: Session = Depends(get_db)):
         # Attach active monthly rental info (for 月租套房 rooms)
         from app.services import monthly as _msvc
         r.monthly = _msvc.get_active_monthly_by_room(db, r.id)
+
+        # Live next-booking (display-only — the field is system-managed, same
+        # computation as the room overview so staff always see current data)
+        from app.models import Booking
+        from app.services.bookings import CANCELLED_STATUSES
+        _nb = (
+            db.query(Booking)
+            .filter(
+                Booking.room   == r.id,
+                Booking.status.notin_(CANCELLED_STATUSES),
+                Booking.checkin > now_str2,
+            )
+            .order_by(Booking.checkin)
+            .first()
+        )
+        r.next_booking = _nb.checkin if _nb else None
     from datetime import date as _date
     msg  = request.query_params.get("msg", "")
     err  = request.query_params.get("err", "")
@@ -260,6 +276,34 @@ async def monthly_checkout(
     )
     _auto_backup(db, trigger="monthly")
     return RedirectResponse("/room-management?msg=monthly_ended", status_code=303)
+
+
+@router.post("/room-management/monthly/renew")
+async def monthly_renew(
+    request:      Request,
+    room_id:      str = Form(...),
+    payment_type: str = Form("cash"),
+    db: Session = Depends(get_db),
+):
+    from urllib.parse import quote
+    from app.services import monthly as msvc
+    cu = getattr(request.state, "current_user", None)
+    rental, err = msvc.renew_monthly_rental(
+        db, room_id, payment_type=payment_type,
+        created_by=cu.username if cu else "admin",
+    )
+    if err:
+        return RedirectResponse(f"/room-management?err={quote(err)}", status_code=303)
+    _audit.log_action(
+        db, "monthly_renew", target_id=room_id, target_type="room",
+        new_value={"tenant": rental.tenant_name,
+                   "start_date": rental.start_date, "end_date": rental.end_date,
+                   "rent": rental.rent},
+        description=f"月租續租: {room_id} {rental.tenant_name} {rental.start_date} ~ {rental.end_date} 租金NT${rental.rent:.0f}",
+        user_id=cu.username if cu else "admin",
+    )
+    _auto_backup(db, trigger="monthly")
+    return RedirectResponse("/room-management?msg=monthly_renewed", status_code=303)
 
 
 # ── Transfer room API ─────────────────────────────────────────────────────

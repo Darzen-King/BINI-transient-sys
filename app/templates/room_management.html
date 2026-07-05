@@ -22,6 +22,10 @@
 <div class="flash-bar alert alert-success">
   {{ trans.get("monthly.msg_ended","✅ 月租已退房") }}
 </div>
+{% elif msg == "monthly_renewed" %}
+<div class="flash-bar alert alert-success">
+  {{ trans.get("monthly.msg_renewed","✅ 已續租一個月") }}
+</div>
 {% endif %}
 {% if err %}
 <div class="flash-bar alert alert-danger">⚠ {{ err }}</div>
@@ -121,6 +125,12 @@
           {% endif %}
           {% endif %}
         </div>
+        {% if mr %}
+        <button type="button" class="btn btn-success btn-sm w-100 mb-2"
+                onclick="openMonthlyRenew('{{ room.id }}', '{{ mr.tenant_name }}', '{{ mr.end_date }}', {{ mr.rent|int }})">
+          🔁 {{ trans.get("monthly.renew_btn","續租一個月") }}
+        </button>
+        {% endif %}
         <button type="button" class="btn btn-dark btn-sm w-100"
                 onclick="openMonthlyCheckout('{{ room.id }}', '{{ mr.tenant_name if mr else '' }}', {{ mr.deposit|int if mr else 0 }})">
           🚪 {{ trans.get("monthly.checkout_btn","辦理退房（退租）") }}
@@ -159,12 +169,18 @@
                    value="{{ room.note or '' }}">
           </div>
 
+          {# Next booking is SYSTEM-MANAGED (computed from live bookings) —
+             display-only so staff cannot overwrite it by hand. #}
           <div class="mb-2">
             <label class="form-label fw-semibold" style="font-size:.8rem">
               {{ trans.get("room.next_booking","Next Booking") }}
+              <span class="text-muted fw-normal" style="font-size:.72rem">
+                🔒 {{ trans.get("room_mgmt.next_booking_auto","系統自動帶出") }}
+              </span>
             </label>
-            <input type="text" name="next_booking" class="form-control form-control-sm"
-                   value="{{ room.next_booking or '' }}" placeholder="YYYY-MM-DD HH:MM">
+            <div class="form-control form-control-sm bg-light text-muted" style="min-height:31px">
+              {{ room.next_booking or "—" }}
+            </div>
           </div>
 
           {% if room.status == "待清潔" %}
@@ -326,6 +342,53 @@
   </div>
 </div>
 
+<!-- ── Monthly Rental Renew Modal ── -->
+<div class="modal fade" id="monthlyRenewModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-3 border-success border-2">
+      <div class="modal-header bg-success text-white">
+        <h5 class="modal-title fw-bold">🔁 {{ trans.get("monthly.renew_title","月租續租") }}</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post" action="/room-management/monthly/renew">
+        <div class="modal-body">
+          <input type="hidden" name="room_id" id="mrRoomId">
+          <div class="rounded-2 p-2 mb-3" style="background:#f0fdf4;font-size:.85rem">
+            {{ trans.get("room.id","房間") }}: <strong id="mrRoomLabel"></strong>
+            <span class="ms-2 text-muted" id="mrTenant"></span>
+          </div>
+          <div class="mb-2" style="font-size:.88rem">
+            <div class="d-flex justify-content-between mb-1">
+              <span class="text-muted">{{ trans.get("monthly.renew_period_note","新租期") }}</span>
+              <strong id="mrPeriod">—</strong>
+            </div>
+            <div class="d-flex justify-content-between">
+              <span class="text-muted">{{ trans.get("monthly.renew_rent_note","將記錄租金") }}</span>
+              <strong class="text-success" id="mrRent">—</strong>
+            </div>
+          </div>
+          <div class="mb-1">
+            <label class="form-label fw-semibold" style="font-size:.82rem">{{ trans.get("payment.method","收款方式") }}</label>
+            <select name="payment_type" class="form-select form-select-sm">
+              <option value="cash">{{ trans.get("payment.type.cash","現金") }}</option>
+              <option value="transfer">{{ trans.get("payment.type.transfer","匯款") }}</option>
+              <option value="card">{{ trans.get("payment.type.card","刷卡") }}</option>
+              <option value="other">{{ trans.get("payment.type.other","其他") }}</option>
+            </select>
+          </div>
+          <div class="text-muted mt-2" style="font-size:.76rem">
+            {{ trans.get("monthly.renew_hint","押金結轉不重複收取；續租租金將記錄至付款記錄。") }}
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ trans.get("auth.cancel","取消") }}</button>
+          <button type="submit" class="btn btn-success btn-sm">🔁 {{ trans.get("monthly.renew_confirm","確認續租") }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- ── Transfer Room Modal ── -->
 <div class="modal fade" id="transferModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
@@ -449,6 +512,17 @@ function openMonthlyCheckout(roomId, tenant, deposit) {
 }
 function setRefund(v)    { document.getElementById('moRefund').value = v; }
 function setRefundFull() { document.getElementById('moRefund').value = _moDeposit; }
+
+// ── Monthly renew (續租): new period = current end → +1 month ─────────────
+const monthlyRenewModal = new bootstrap.Modal(document.getElementById('monthlyRenewModal'));
+function openMonthlyRenew(roomId, tenant, endDate, rent) {
+  document.getElementById('mrRoomId').value = roomId;
+  document.getElementById('mrRoomLabel').textContent = roomId;
+  document.getElementById('mrTenant').textContent = tenant;
+  document.getElementById('mrPeriod').textContent = endDate + ' ~ ' + _addOneMonth(endDate);
+  document.getElementById('mrRent').textContent = 'NT$ ' + (parseFloat(rent) || 0).toLocaleString();
+  monthlyRenewModal.show();
+}
 
 // ── Transfer Modal ────────────────────────────────────────────────────────
 const transferModal = new bootstrap.Modal(document.getElementById('transferModal'));

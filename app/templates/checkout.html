@@ -354,9 +354,20 @@ const DEPOSIT_PAID= {{ "%.0f"|format(deposit_paid) }};
 const TOTAL_PAID  = {{ "%.0f"|format(total_paid) }};
 const BALANCE_DUE = {{ "%.0f"|format(balance_due) }};
 
+// Free-cancel window: while it is still active AT CLICK TIME, nothing is
+// collectable (total is zeroed and any deposit is auto-refunded by the
+// backend), so the balance-reminder modal must not ask for money.
+const FREE_CANCEL_SECS = {{ (free_cancel_st.mins_remaining * 60) | round | int
+                            if (free_cancel_st and free_cancel_st.eligible) else 0 }};
+const _PAGE_T0 = Date.now();
+function isFreeCancelNow() {
+  return FREE_CANCEL_SECS > 0 && (Date.now() - _PAGE_T0) / 1000 < FREE_CANCEL_SECS;
+}
+
 // Step 1: overdue check → Step 2: balance collection reminder
 function checkOverdueAndConfirm() {
   if (!ROOM_ID) { _doBalanceModal(); return; }
+  if (isFreeCancelNow()) { _doBalanceModal(); return; }   // free cancel → no overdue possible
   fetch(`/api/overdue-check/${ROOM_ID}`)
     .then(r => r.json())
     .then(d => {
@@ -445,7 +456,8 @@ function applyCorrection() {
 }
 
 function _doBalanceModal() {
-  const bal = parseFloat(BALANCE_DUE) || 0;
+  // Inside the free-cancel window nothing is collectable — submit directly.
+  const bal = isFreeCancelNow() ? 0 : (parseFloat(BALANCE_DUE) || 0);
   if (bal <= 0) {
     document.querySelector("form[action='/checkout']").submit();
     return;

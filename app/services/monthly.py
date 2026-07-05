@@ -153,6 +153,80 @@ def create_monthly_rental(
     return rental, None
 
 
+# ── Renew (續租) ─────────────────────────────────────────────────────────────
+
+def renew_monthly_rental(
+    db: Session,
+    room_id: str,
+    payment_type: str | None = None,
+    created_by: str = "admin",
+) -> tuple[MonthlyRental | None, str | None]:
+    """
+    Renew an active monthly rental for one more month (續租).
+
+    Implemented as close-and-reopen: the current row is marked "renewed" and a
+    NEW row is created for the next period (start = old end, end = +1 month).
+    One row per month keeps history auditable AND lets monthly_rent_in_range()
+    (which keys revenue on start_date) count the renewal month's rent — a
+    single-row end_date extension would silently under-report revenue.
+
+    The deposit carries over to the new row WITHOUT a new deposit Payment
+    (it was collected once); the renewal month's rent IS recorded as a Payment.
+    Returns (new_rental, error_i18n_key|None).
+    """
+    rental = get_active_monthly_by_room(db, room_id)
+    if not rental:
+        return None, "error.monthly_not_found"
+
+    new_start = (rental.end_date or "")[:10]
+    try:
+        datetime.strptime(new_start, DATE_FMT)
+    except Exception:
+        return None, "error.monthly_invalid_date"
+    new_end = compute_end_date(new_start)
+
+    rental.status   = "renewed"
+    rental.ended_at = _now()
+
+    new_rental = MonthlyRental(
+        room_id      = room_id,
+        tenant_name  = rental.tenant_name,
+        tenant_phone = rental.tenant_phone,
+        start_date   = new_start,
+        end_date     = new_end,
+        deposit      = rental.deposit,          # carried over, not re-collected
+        rent         = rental.rent,
+        status       = "active",
+        payment_type = payment_type or rental.payment_type or "cash",
+        property_id  = rental.property_id,
+        note         = f"續租（前期 {rental.start_date} ~ {rental.end_date}）",
+        created_at   = _now(),
+        created_by   = created_by,
+    )
+    db.add(new_rental)
+
+    # Refresh the room display period
+    room = get_room(db, room_id)
+    if room:
+        room.checkout = new_end
+
+    db.commit()
+    db.refresh(new_rental)
+
+    # Ledger: record the renewal month's rent (deposit intentionally NOT re-recorded)
+    if new_rental.rent > 0:
+        try:
+            from app.services.payments import create_payment
+            create_payment(db, None, room_id, new_rental.tenant_name,
+                           new_rental.payment_type, new_rental.rent,
+                           is_deposit=False, note="月租續租租金",
+                           created_by=created_by)
+        except Exception:
+            pass
+
+    return new_rental, None
+
+
 # ── Checkout / end rental ────────────────────────────────────────────────────
 
 def end_monthly_rental(

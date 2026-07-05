@@ -144,17 +144,60 @@ function editDetectRate(dateStr) {
   return "非假日";
 }
 
+// ── Auto-derive checkout from check-in + plan (mirrors booking-create) ─────
+// The edit form has no "days" field, so the number of plan periods is taken
+// from the CURRENT booking and preserved: changing check-in/plan recalculates
+// checkout without silently shortening a multi-day booking. Manually editing
+// checkout updates the remembered period count instead.
+const _editCi = document.getElementById('editCiInput');
+const _editCo = document.getElementById('editCoInput');
+
+function _editPlanHours() {
+  return document.getElementById('editPlan').value === '12hrs' ? 12 : 24;
+}
+
+function _editFmtLocal(d) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+let _editPeriods = 1;
+(function initPeriods() {
+  const ci = new Date(_editCi.value), co = new Date(_editCo.value);
+  if (!isNaN(ci) && !isNaN(co) && co > ci) {
+    _editPeriods = Math.max(1, Math.round((co - ci) / (_editPlanHours() * 3600e3)));
+  }
+})();
+
+function editDeriveCo() {
+  const ci = new Date(_editCi.value);
+  if (isNaN(ci)) return;
+  const co = new Date(ci.getTime() + _editPeriods * _editPlanHours() * 3600e3);
+  _editCo.value = _editFmtLocal(co);
+}
+
 function editCiHandler() {
-  const v = document.getElementById('editCiInput').value;
+  const v = _editCi.value;
   if (!_editUserRate) {
     const rt = editDetectRate(v);
     if (rt) document.getElementById('editRateType').value = rt;
   }
+  editDeriveCo();
   editUpdateAmount();
 }
 
-document.getElementById('editCiInput').addEventListener('change', editCiHandler);
-document.getElementById('editCiInput').addEventListener('input',  editCiHandler);
-document.getElementById('editPlan').addEventListener('change', editUpdateAmount);
+_editCi.addEventListener('change', editCiHandler);
+_editCi.addEventListener('input',  editCiHandler);
+document.getElementById('editPlan').addEventListener('change', () => {
+  editDeriveCo();
+  editUpdateAmount();
+});
+// Manual checkout edits re-derive the remembered period count
+_editCo.addEventListener('change', () => {
+  const ci = new Date(_editCi.value), co = new Date(_editCo.value);
+  if (!isNaN(ci) && !isNaN(co) && co > ci) {
+    _editPeriods = Math.max(1, Math.round((co - ci) / (_editPlanHours() * 3600e3)));
+  }
+});
 </script>
 {% endblock %}

@@ -180,8 +180,10 @@ def compute_report(
     # Adding deposit payments on top double-counts for same-period checkin+checkout.
     # range_revenue = staylog + monthly rent; active-stay deposits surface via live_revenue.
     staylog_revenue = sum(sl.total_charged for sl in stay_logs_range)
-    # Monthly suite rent (月租套房) — counted by start_date within range.
+    # Monthly suite rent (月租套房) — recognized by COLLECTION date (created_at),
+    # not start_date, so rent counts when it is actually taken (setup / renewal).
     from app.services.monthly import monthly_rent_in_range as _mrr
+    from app.services.monthly import recognition_date as _rec_date
     monthly_revenue = _mrr(db, date_from_str, date_to_str)
     range_revenue   = staylog_revenue + monthly_revenue
 
@@ -195,8 +197,8 @@ def compute_report(
     from app.models import MonthlyRental as _MR0
     monthly_count_range = sum(
         1 for mr in db.query(_MR0).all()
-        if (mr.start_date or "")[:10]
-        and date_from_str <= (mr.start_date or "")[:10] <= date_to_str
+        if _rec_date(mr)
+        and date_from_str <= _rec_date(mr) <= date_to_str
         and (not property_id or getattr(mr, "property_id", None) == property_id)
     )
     total_orders    = len(active_bookings) + len(stay_logs_range) + monthly_count_range
@@ -256,11 +258,11 @@ def compute_report(
         if sl.plan:
             d["plans"][sl.plan] = d["plans"].get(sl.plan, 0) + 1
 
-    # Monthly suite rentals starting in range — add rent to per-room revenue.
+    # Monthly suite rent — add to per-room revenue by COLLECTION date (created_at).
     from app.models import MonthlyRental as _MR
     for mr in db.query(_MR).all():
-        sd = (mr.start_date or "")[:10]
-        if not (sd and date_from_str <= sd <= date_to_str):
+        rd = _rec_date(mr)
+        if not (rd and date_from_str <= rd <= date_to_str):
             continue
         if property_id and getattr(mr, "property_id", None) != property_id:
             continue

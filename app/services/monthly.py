@@ -285,25 +285,42 @@ def end_monthly_rental(
 
 # ── Reports integration ──────────────────────────────────────────────────────
 
+def recognition_date(r) -> str:
+    """
+    Revenue-recognition date (YYYY-MM-DD) for a monthly rental = the date the
+    rent was actually COLLECTED, not the period's start_date.
+
+    create_monthly_rental / renew_monthly_rental both record the rent Payment
+    and the rental row in the same moment, so the row's `created_at` IS the
+    collection date. Recognizing by this (instead of start_date) means rent is
+    counted when it is taken — at initial setup or at renewal — matching the
+    cash view and never surfacing before the money comes in.
+
+    Falls back to start_date for legacy rows created before created_at existed.
+    """
+    return (getattr(r, "created_at", None) or r.start_date or "")[:10]
+
+
 def monthly_rent_in_range(db: Session, date_from: str, date_to: str) -> float:
     """
-    Sum of rent for monthly rentals whose start_date falls within [date_from, date_to]
-    (inclusive). date_from/date_to are 'YYYY-MM-DD'. Used by reports/P&L.
+    Sum of monthly rent RECOGNIZED within [date_from, date_to] (inclusive),
+    by collection date (see recognition_date). date_* are 'YYYY-MM-DD'.
+    Used by reports/P&L.
     """
     df = date_from[:10]
     dt = date_to[:10]
     total = 0.0
     for r in db.query(MonthlyRental).all():
-        sd = (r.start_date or "")[:10]
-        if sd and df <= sd <= dt:
+        rd = recognition_date(r)
+        if rd and df <= rd <= dt:
             total += float(r.rent or 0)
     return total
 
 
 def monthly_rent_for_month(db: Session, year_month: str) -> float:
-    """Sum of rent for monthly rentals starting in the given 'YYYY-MM'."""
+    """Sum of monthly rent recognized in the given 'YYYY-MM' (by collection date)."""
     total = 0.0
     for r in db.query(MonthlyRental).all():
-        if (r.start_date or "")[:7] == year_month:
+        if recognition_date(r)[:7] == year_month:
             total += float(r.rent or 0)
     return total

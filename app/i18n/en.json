@@ -647,5 +647,16 @@
   "booking.subtotal": "Subtotal (NT$)",
   "booking.discount": "Discount (NT$)",
   "booking.amount_auto_hint": "Auto-calculated, editable",
-  "booking.checkout_auto_hint": "Auto-filled (check-in + days × plan)"
+  "booking.checkout_auto_hint": "Auto-filled (check-in + days × plan)",
+  "update.section": "System Update",
+  "update.current": "Current version",
+  "update.check_btn": "Check for Updates",
+  "update.run_btn": "Update Now (backs up first)",
+  "update.checking": "Checking…",
+  "update.up_to_date": "You are on the latest version",
+  "update.available": "New version available",
+  "update.confirm": "The app will back up to the cloud first, then download, install and restart automatically. Proceed with the update?",
+  "update.running": "Updating — please do not close the window…",
+  "update.restart": "Restarting… please reopen the window shortly.",
+  "update.failed": "Update failed"
 }

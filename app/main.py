@@ -22,9 +22,17 @@ from app.routers import hub, rooms, bookings, checkin, stays, reports, backup, l
 from app.routers import phase4, costs as costs_router
 
 # ── App init ───────────────────────────────────────────────────────────────
-APP_VERSION = "v3.9.3"
+def _read_version() -> str:
+    """Single source of truth for the app version — the VERSION file at the
+    project root. Also read by the in-app updater to compare against GitHub."""
+    try:
+        return (Path(__file__).parent.parent / "VERSION").read_text(encoding="utf-8").strip() or "0.0.0"
+    except Exception:
+        return "0.0.0"
 
-app = FastAPI(title="BINI Blooms PMS", version="3.9.3")
+APP_VERSION = "v" + _read_version()
+
+app = FastAPI(title="BINI Blooms PMS", version=_read_version())
 
 # ── Auth middleware ────────────────────────────────────────────────────────
 from fastapi import Request as _Req

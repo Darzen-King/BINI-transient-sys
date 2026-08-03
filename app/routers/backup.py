@@ -29,6 +29,7 @@ async def backup_page(request: Request, db: Session = Depends(get_db)):
     if not require_role(_cu, "manager", "admin"):
         return RedirectResponse("/login?err=auth.forbidden", status_code=303)
 
+    is_admin = require_role(_cu, "admin")
     state = bksvc.get_state(db)
     logs  = bksvc.get_backup_logs(db)
     creds = bksvc.load_credentials(state) if state else {}
@@ -47,6 +48,7 @@ async def backup_page(request: Request, db: Session = Depends(get_db)):
         "current_type":   current_type,
         "msg":            msg,
         "err":            err,
+        "is_admin":       is_admin,
         "title":          trans.get("backup.title", "雲端備份"),
         "trans":          trans,
         "lang":           lang,
@@ -109,6 +111,69 @@ async def restore_backup(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse("/backup?msg=restored", status_code=303)
     from urllib.parse import quote
     return RedirectResponse(f"/backup?err={quote(result['message'])}", status_code=303)
+
+
+# ── In-app self-update (from GitHub) ────────────────────────────────────────
+@router.get("/api/update/check")
+def update_check(request: Request, db: Session = Depends(get_db)):
+    from app.services.auth import get_current_user, require_role
+    _cu = get_current_user(request, db)
+    if not require_role(_cu, "admin"):
+        return JSONResponse({"error": "auth.forbidden"}, status_code=403)
+    from app.services import updater as upd
+    return JSONResponse(upd.check_update())
+
+
+@router.post("/api/update/run")
+def update_run(request: Request, db: Session = Depends(get_db)):
+    """Backup to cloud (mandatory) → download → stage → launch updater → exit.
+    Sync def so the ~MB download runs in a threadpool, not on the event loop."""
+    from app.services.auth import get_current_user, require_role
+    _cu = get_current_user(request, db)
+    if not require_role(_cu, "admin"):
+        return JSONResponse({"ok": False, "stage": "auth", "message": "auth.forbidden"}, status_code=403)
+
+    from app.services import updater as upd
+
+    # 1) There must actually be a newer version.
+    chk = upd.check_update()
+    if chk.get("error"):
+        return JSONResponse({"ok": False, "stage": "check", "message": chk["error"]})
+    if not chk["update_available"]:
+        return JSONResponse({"ok": False, "stage": "check", "message": "已是最新版本，無需更新"})
+
+    # 2) MANDATORY cloud backup BEFORE any code is touched — abort if it fails.
+    bk = bksvc.sync_backup(db)
+    state = bksvc.get_state(db)
+    _audit.log_backup_sync(db, state.provider if state else "?", bk["success"])
+    if not bk["success"]:
+        return JSONResponse({"ok": False, "stage": "backup",
+                             "message": f"雲端備份失敗，已中止更新（未動到程式）：{bk['message']}"})
+
+    # 3) Download the new build and stage it in TEMP.
+    try:
+        staging = upd.download_and_stage()
+    except Exception as ex:  # noqa: BLE001
+        return JSONResponse({"ok": False, "stage": "download", "message": f"下載更新失敗：{ex}"})
+
+    # 4) Launch the external updater, log it, then exit so files unlock.
+    try:
+        upd.launch_updater(staging)
+    except Exception as ex:  # noqa: BLE001
+        return JSONResponse({"ok": False, "stage": "apply", "message": f"啟動更新程序失敗：{ex}"})
+
+    try:
+        _audit.log_action(db, "app_update", target_id="system", target_type="system",
+                          new_value={"from": chk["current"], "to": chk["latest"]},
+                          description=f"程式更新 {chk['current']} → {chk['latest']}",
+                          user_id=(_cu.username if _cu else "admin"))
+    except Exception:
+        pass
+
+    import threading, os as _os
+    threading.Timer(1.5, lambda: _os._exit(0)).start()
+    return JSONResponse({"ok": True, "to": chk["latest"],
+                         "message": "已完成雲端備份，更新下載完成，程式即將自動重啟…"})
 
 
 @router.get("/api/backup-logs-error")

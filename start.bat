@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul 2>&1
 cd /d "%~dp0"
-title BINI Blooms Transient SYS v3.9.3
+title BINI Blooms Transient SYS v3.9.4
 
 REM Force Python into UTF-8 mode so emoji/Chinese never crash the legacy codepage.
 set "PYTHONUTF8=1"
@@ -9,7 +9,7 @@ set "PYTHONIOENCODING=utf-8"
 
 echo.
 echo ================================================
-echo  BINI Blooms Transient SYS v3.9.3
+echo  BINI Blooms Transient SYS v3.9.4
 echo  (desktop window - single instance)
 echo ================================================
 echo.

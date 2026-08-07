@@ -35,3 +35,20 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Tooling artifacts (claude-flow / ruflo / agent runtime — NOT part of the app)
+.claude-flow/
+.claude/proven-config.json
+.claude/.proven-config-version
+.hive-mind/
+.swarm/
+.ruflo/
+agentdb.rvf
+agentdb.rvf.lock
+*.rvf
+*.rvf.lock
+
+# Desktop app runtime artefacts
+desktop.log
+desktop_out.log
+BINI_Blooms_Data/

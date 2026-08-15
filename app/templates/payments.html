@@ -156,13 +156,36 @@
       <form method="post" action="/payments/add">
       <div class="modal-body">
         <div class="row g-3">
+          {% if active_stays %}
+          <div class="col-12">
+            <label class="form-label fw-semibold" style="font-size:.84rem">
+              {{ trans.get("payment.select_guest","Select checked-in guest") }}
+            </label>
+            <select id="paySelectStay" class="form-select form-select-sm">
+              <option value="">— {{ trans.get("payment.manual_input","Manual input") }} —</option>
+              {% for s in active_stays %}
+              <option value="{{ s.room }}"
+                      data-guest="{{ s.guest }}"
+                      data-room="{{ s.room }}"
+                      data-booking="{{ s.booking_id or '' }}">
+                {{ s.room }} · {{ s.guest }}
+              </option>
+              {% endfor %}
+            </select>
+            <div class="form-text" style="font-size:.74rem">
+              {{ trans.get("payment.select_guest_hint","Pick a guest to auto-fill, or leave as Manual input to type freely.") }}
+            </div>
+          </div>
+          {% endif %}
+          <!-- Hidden booking link, filled when a guest is selected from the dropdown -->
+          <input type="hidden" name="booking_id" id="payBookingId" value="">
           <div class="col-6">
             <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("booking.guest","Guest") }}</label>
-            <input type="text" name="guest" class="form-control form-control-sm">
+            <input type="text" name="guest" id="payGuest" class="form-control form-control-sm">
           </div>
           <div class="col-6">
             <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("room.id","Room") }}</label>
-            <input type="text" name="room_id" class="form-control form-control-sm" placeholder="201">
+            <input type="text" name="room_id" id="payRoomId" class="form-control form-control-sm" placeholder="201">
           </div>
           <div class="col-6">
             <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("payment.type","Type") }}</label>
@@ -202,5 +225,28 @@
     </div>
   </div>
 </div>
+
+<script>
+// Add-Payment modal: selecting a checked-in guest auto-fills guest / room / booking_id.
+// Choosing "Manual input" (empty value) clears the booking link but leaves the text
+// fields untouched so staff can still type freely for exceptional cases.
+(function () {
+  var sel = document.getElementById("paySelectStay");
+  if (!sel) return;  // dropdown only rendered when there are active stays
+  sel.addEventListener("change", function () {
+    var opt = sel.options[sel.selectedIndex];
+    var booking = document.getElementById("payBookingId");
+    if (!opt || !opt.value) {
+      if (booking) booking.value = "";
+      return;
+    }
+    var guest = document.getElementById("payGuest");
+    var room  = document.getElementById("payRoomId");
+    if (guest)   guest.value   = opt.getAttribute("data-guest")   || "";
+    if (room)    room.value    = opt.getAttribute("data-room")    || "";
+    if (booking) booking.value = opt.getAttribute("data-booking") || "";
+  });
+})();
+</script>
 
 {% endblock %}

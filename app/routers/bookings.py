@@ -146,6 +146,7 @@ async def booking_quote(
 async def cancel_booking(booking_id: str, db: Session = Depends(get_db)):
     b = bsvc.cancel_booking(db, booking_id)
     _audit.log_booking_cancel(db, booking_id, b.guest if b else '')
+    _auto_backup(db, trigger="booking")
     return RedirectResponse("/bookings?msg=cancelled", status_code=303)
 
 

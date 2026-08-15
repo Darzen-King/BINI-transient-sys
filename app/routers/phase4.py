@@ -56,10 +56,16 @@ async def payments_page(
                                      date_from=date_from, date_to=date_to)
     summary   = pay_svc.daily_summary(db, today)
 
+    # Currently checked-in guests → used to populate the "select guest" dropdown
+    # in the Add-Payment modal (manual entry stays available as a fallback).
+    from app.services.stays import get_all_active_stays
+    active_stays = get_all_active_stays(db)
+
     return templates.TemplateResponse("payments.html", {
         "request":    request,
         "payments":   payments,
         "summary":    summary,
+        "active_stays": active_stays,
         "date_from":  date_from,
         "date_to":    date_to,
         "room_id":    room_id or "",
@@ -120,6 +126,8 @@ async def delete_payment(
             target_id=str(payment_id), target_type="payment",
             description=f"Payment #{payment_id} deleted by admin",
             user_id=user.username if user else "admin")
+        from app.services.backup import auto_backup as _ab_pd
+        _ab_pd(db, trigger="payment")
 
     return RedirectResponse("/payments?msg=deleted", status_code=303)
 
@@ -139,6 +147,8 @@ async def close_cashier(
         description = f"Cashier closed: {session.session_date}",
         user_id     = user.username if user else "admin",
     )
+    from app.services.backup import auto_backup as _ab_cc
+    _ab_cc(db, trigger="cashier")
     return RedirectResponse("/payments?msg=session_closed", status_code=303)
 
 
@@ -319,6 +329,8 @@ async def maintenance_schedule_create(
         new_value={"room_id": room_id, "start": ms.start_time, "end": ms.end_time},
         description=f"Maintenance scheduled: {room_id} {ms.start_time}~{ms.end_time}",
         user_id=user.username if user else "admin")
+    from app.services.backup import auto_backup as _ab_msc
+    _ab_msc(db, trigger="maintenance")
     return RedirectResponse("/maintenance?msg=schedule_created", status_code=303)
 
 
@@ -336,6 +348,8 @@ async def maintenance_schedule_delete(
         target_id=str(schedule_id), target_type="maintenance_schedule",
         description=f"Maintenance schedule deleted: #{schedule_id}",
         user_id=user.username if user else "admin")
+    from app.services.backup import auto_backup as _ab_msdel
+    _ab_msdel(db, trigger="maintenance")
     return RedirectResponse("/maintenance?msg=schedule_deleted", status_code=303)
 
 
@@ -404,4 +418,6 @@ async def create_property(
                           target_type="property", new_value={"name": name},
                           description=f"Created property: {prop_id} {name}",
                           user_id=user.username if user else "admin")
+    from app.services.backup import auto_backup as _ab_pc
+    _ab_pc(db, trigger="property")
     return RedirectResponse("/properties?msg=created", status_code=303)

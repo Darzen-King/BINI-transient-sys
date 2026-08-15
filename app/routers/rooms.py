@@ -210,6 +210,7 @@ async def update_room(
             f"/room-management?err={quote(err)}", status_code=303
         )
     _audit.log_room_status(db, room_id, old_status, status, note or '')
+    _auto_backup(db, trigger="room")
     return RedirectResponse("/room-management?msg=updated", status_code=303)
 
 
@@ -358,6 +359,7 @@ async def do_transfer(
     if not err_key:
         stay_guest = new_stay.guest if new_stay else ''
         _audit.log_room_transfer(db, old_room_id, new_room_id, stay_guest)
+        _auto_backup(db, trigger="transfer")
     if err_key:
         return RedirectResponse(
             f"/room-management?err={quote(err_key)}", status_code=303

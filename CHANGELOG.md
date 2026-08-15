@@ -2,6 +2,35 @@
 
 ---
 
+## v3.9.5 `2026-08-15` — 全資料變動自動備份 / 付款可選在住房客
+
+### 新增：所有資料變動一律自動雲端備份（補齊先前未配線的端點）
+之前僅入住 / 退房 / 預約(新增·修改·多筆·no-show 取消) / 延住 / 付款新增 / 清潔 / 維修更新 / 月租(建立·退租·續租) 會自動備份。本版補齊以下**同樣會改動營運或金錢資料、卻未觸發備份**的操作：
+- **金錢相關**：成本 `costs` 的**新增 / 編輯 / 刪除**、付款**刪除**、**日結（關閉收銀）**。
+- **預約**：**取消預約**（`/bookings/{id}/cancel`，先前只有 no-show 取消有備份）。
+- **房間 / 住宿**：房態更新（`/room-management/update`）、**換房**（`/room-management/transfer`）。
+- **維修 / 物業**：維修排程**建立 / 刪除**、物業建立。
+- 備份沿用既有 `auto_backup()`：僅在已設定雲端且開啟自動備份時觸發，失敗絕不中斷主流程。
+
+### 新增：付款管理「新增付款」可直接選擇在住房客
+- 新增付款視窗頂端新增 **「選擇入住房客」下拉選單**，列出目前所有在住房客（房號 · 姓名）。
+- 選取後**自動帶入** 房客姓名、房號，並連結其 `booking_id`（利於押金 / 收款歸戶）。
+- 保留例外情境：下拉可選「手動輸入」，房客 / 房號欄位仍可自由編輯或手打。
+- 新增 i18n 鍵 `payment.select_guest` / `payment.select_guest_hint` / `payment.manual_input`（中英）。
+
+### 新增：使用者帳號管理 與 假日設定 也納入自動備份
+- **使用者帳號**：建立 / 啟用停用 / 改密碼 / 編輯 / 舊版更新資料 五個端點皆觸發備份（`User` 本就在備份範圍內，故還原有效）。
+- **假日設定**：新增 / 刪除 / 重新同步 皆觸發備份。
+- **重要**：`HolidayCache`（含手動新增假日）先前**未**納入備份匯出/匯入，本版一併補上——否則備份假日變動卻無法還原。匯入採「有 key 才還原」保護，舊備份不會洗掉現有假日；開機仍會自動重抓 API 假日。
+
+### 技術
+- 事件端點備份配線：`routers/costs.py`、`routers/bookings.py`、`routers/rooms.py`、`routers/phase4.py`、`routers/admin.py`、`routers/auth.py`。
+- `routers/phase4.py` `payments_page` 傳入 `active_stays`（`get_all_active_stays`）；`templates/payments.html` 加入下拉與自動帶入 JS。
+- `services/backup.py`：`_export_db` / `_import_data` 新增 `holiday_cache`（Integer PK，pop_id）。
+- 驗證：`compileall` 無語法錯誤；FastAPI app 匯入成功（83 routes）；`holiday_cache` 匯出/還原往復測試通過；zh/en JSON 解析通過。
+
+---
+
 ## v3.9.4 `2026-08-03` — 程式內一鍵更新（更新前自動雲端備份）
 
 ### 新增：系統更新按鈕（雲端備份頁，僅 admin）

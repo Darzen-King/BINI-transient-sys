@@ -13,6 +13,7 @@ from app.db import get_db
 from app.services import auth as auth_svc
 from app.services import costs as cost_svc
 from app.services import audit as audit_svc
+from app.services.backup import auto_backup as _auto_backup
 from app.lib.i18n import get_lang, get_translations
 
 router    = APIRouter()
@@ -138,6 +139,7 @@ async def create_cost(
         user_id     = user.username if user else "admin",
     )
 
+    _auto_backup(db, trigger="cost")  # money-related change → cloud backup
     ym = cost_date[:7]  # "YYYY-MM"
     return RedirectResponse(f"/costs?year_month={ym}&msg=created", status_code=303)
 
@@ -196,6 +198,7 @@ async def edit_cost(
             user_id        = user.username if user else "admin",
         )
 
+    _auto_backup(db, trigger="cost")  # money-related change → cloud backup
     ym = cost_date[:7]
     return RedirectResponse(f"/costs?year_month={ym}&msg=updated", status_code=303)
 
@@ -231,6 +234,7 @@ async def delete_cost(
         user_id        = user.username if user else "admin",
     )
 
+    _auto_backup(db, trigger="cost")  # money-related change → cloud backup
     return RedirectResponse(f"/costs?year_month={ym}&msg=deleted", status_code=303)
 
 

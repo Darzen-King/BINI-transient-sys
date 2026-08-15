@@ -150,6 +150,8 @@ async def add_holiday(
             updated_at  = _dt.now().strftime("%Y-%m-%d %H:%M"),
         ))
     db.commit()
+    from app.services.backup import auto_backup as _ab_ha
+    _ab_ha(db, trigger="holiday")
     year = date[:4]
     return RedirectResponse(f"/admin/holidays?year={year}&msg=added", status_code=303)
 
@@ -170,6 +172,8 @@ async def delete_holiday(
     if row:
         db.delete(row)
         db.commit()
+        from app.services.backup import auto_backup as _ab_hd
+        _ab_hd(db, trigger="holiday")
     return RedirectResponse(f"/admin/holidays?year={year}&msg=deleted", status_code=303)
 
 
@@ -197,4 +201,6 @@ async def resync_holidays(
 
     from app.services.holiday_sync import sync_holidays
     result = sync_holidays(db, years=[year])
+    from app.services.backup import auto_backup as _ab_hr
+    _ab_hr(db, trigger="holiday")
     return RedirectResponse(f"/admin/holidays?year={year}&msg=resynced", status_code=303)

@@ -114,6 +114,8 @@ async def create_user(
                new_value={"username": username, "role": role},
                description=f"Created user: {username} ({role})",
                user_id=user.username)
+    from app.services.backup import auto_backup as _ab_uc
+    _ab_uc(db, trigger="user")
     return RedirectResponse("/admin/users?msg=created", status_code=303)
 
 
@@ -135,6 +137,8 @@ async def toggle_user(
                    new_value={"is_active": target.is_active},
                    description=f"{'Activated' if target.is_active else 'Deactivated'} user: {target.username}",
                    user_id=actor.username)
+        from app.services.backup import auto_backup as _ab_ut
+        _ab_ut(db, trigger="user")
     return RedirectResponse("/admin/users?msg=updated", status_code=303)
 
 
@@ -149,6 +153,8 @@ async def change_password(
     if not auth_svc.require_role(actor, "admin"):
         return RedirectResponse("/login?err=auth.forbidden", status_code=303)
     auth_svc.change_password(db, user_id, new_password)
+    from app.services.backup import auto_backup as _ab_up
+    _ab_up(db, trigger="user")
     return RedirectResponse("/admin/users?msg=pw_changed", status_code=303)
 
 @router.post("/admin/users/{user_id}/edit")
@@ -205,6 +211,8 @@ async def edit_user(
                    description=f"User edited: {target.username} — {', '.join(changes)}",
                    user_id=actor.username if actor else "admin")
 
+    from app.services.backup import auto_backup as _ab_ue
+    _ab_ue(db, trigger="user")
     return RedirectResponse("/admin/users?msg=profile_updated", status_code=303)
 
 
@@ -223,4 +231,6 @@ async def update_profile_compat(
     auth_svc.update_user(db, user_id,
         display_name=display_name or None,
         new_password=new_password or None)
+    from app.services.backup import auto_backup as _ab_upc
+    _ab_upc(db, trigger="user")
     return RedirectResponse("/admin/users?msg=profile_updated", status_code=303)

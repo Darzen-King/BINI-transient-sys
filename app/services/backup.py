@@ -168,6 +168,12 @@ def _export_db(db: Session) -> bytes:
         monthly_data = [row_to_dict(m) for m in db.query(MonthlyRental).all()]
     except Exception:
         monthly_data = []
+    # Holiday cache (含手動新增假日) — manual entries are user data; back them up.
+    try:
+        from app.models import HolidayCache
+        holiday_data = [row_to_dict(h) for h in db.query(HolidayCache).all()]
+    except Exception:
+        holiday_data = []
 
     payload = {
         "exported_at":           _now_str(),
@@ -183,6 +189,7 @@ def _export_db(db: Session) -> bytes:
         "cashier_sessions":      [row_to_dict(cs)  for cs  in db.query(CashierSession).all()],
         "cost_entries":          cost_data,
         "monthly_rentals":       monthly_data,
+        "holiday_cache":         holiday_data,
         # Config & users
         "users":                 [row_to_dict(usr) for usr in db.query(User).all()],
         "properties":            [row_to_dict(prp) for prp in db.query(Property).all()],
@@ -416,6 +423,15 @@ def _import_data(db: Session, payload: dict):
         from app.models import MonthlyRental
         if "monthly_rentals" in payload:
             _restore(MonthlyRental, payload.get("monthly_rentals", []), pop_id=True)
+    except Exception:
+        pass
+
+    # Holiday cache — Integer PK (guard on key so an old backup never wipes
+    # current holidays; startup sync re-fetches API entries regardless)
+    try:
+        from app.models import HolidayCache
+        if "holiday_cache" in payload:
+            _restore(HolidayCache, payload.get("holiday_cache", []), pop_id=True)
     except Exception:
         pass
 

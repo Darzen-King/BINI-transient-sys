@@ -52,3 +52,6 @@ agentdb.rvf.lock
 desktop.log
 desktop_out.log
 BINI_Blooms_Data/
+
+# Per-install session signing key (never commit / distribute)
+session.key

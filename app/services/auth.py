@@ -13,12 +13,17 @@ import hashlib
 import hmac
 import secrets
 import json
+from pathlib import Path
 from datetime import datetime
 from sqlalchemy.orm import Session
 from app.models import User
 
 DT_FMT    = "%Y-%m-%d %H:%M:%S"
-SESSION_TTL_HOURS = 12
+# Sessions effectively never expire from idle time (1 year). This is a single-
+# machine, physically-secured front-desk app; staff explicitly want to stay
+# logged in "no matter how long it sits". See also the persistent _SECRET below,
+# which keeps sessions valid across app restarts / auto-updates.
+SESSION_TTL_HOURS = 24 * 365
 
 # ── Role definitions ──────────────────────────────────────────────────────
 
@@ -159,7 +164,32 @@ def verify_password(password: str, hash_hex: str, salt: str) -> bool:
 
 # ── Session token ─────────────────────────────────────────────────────────
 
-_SECRET = secrets.token_hex(32)    # rotates on restart (MVP — fine for now)
+def _load_or_create_secret() -> str:
+    """
+    HMAC signing key for session tokens, PERSISTED to session.key in the install
+    dir so it survives app restarts and auto-updates. Previously this was
+    generated fresh in memory on every start, which silently invalidated every
+    session whenever the server restarted — and the desktop app restarts on each
+    window close/open, so staff kept getting logged out. Persisting it fixes that.
+
+    The key file is git-ignored and excluded from cloud backups (per-install
+    secret). If it can't be read/written, we fall back to an ephemeral key
+    (old behaviour) rather than break login.
+    """
+    key_path = Path(__file__).resolve().parent.parent.parent / "session.key"
+    try:
+        if key_path.exists():
+            existing = key_path.read_text(encoding="utf-8").strip()
+            if existing:
+                return existing
+        new_key = secrets.token_hex(32)
+        key_path.write_text(new_key, encoding="utf-8")
+        return new_key
+    except Exception:
+        return secrets.token_hex(32)
+
+
+_SECRET = _load_or_create_secret()
 
 
 def make_session_token(user_id: int, role: str) -> str:

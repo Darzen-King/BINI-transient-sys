@@ -12,7 +12,11 @@ from app.db import get_db
 from app.services.backup import auto_backup as _auto_backup
 from app.services import audit as _audit
 from app.services import bookings as bsvc
-from app.services.bookings import get_conflict_detail, validate_booking_dates
+from app.services.bookings import (
+    get_conflict_detail,
+    get_next_booking_for_room,
+    validate_booking_dates,
+)
 from app.services.rooms import get_all_rooms, badge_color
 from app.lib.i18n import get_lang, get_translations
 
@@ -161,6 +165,11 @@ async def booking_new_form(
     rooms  = get_all_rooms(db)
     for r in rooms:
         r.badge_color = badge_color(r.status)
+        # Room.next_booking is a legacy cached display field. Recompute it
+        # from live bookings so expired/deleted reservations never remain in
+        # the room selector.
+        next_bk = get_next_booking_for_room(db, r.id)
+        r.next_booking = next_bk.checkin if next_bk else None
     # Auto-detect today's rate type for default selection
     import json as _json
     from app.services.fee_engine import get_rate_type as _grt, get_holiday_dates_from_db as _ghd

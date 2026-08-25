@@ -135,6 +135,30 @@ def get_active_bookings(db: Session) -> list[Booking]:
     )
 
 
+def get_next_booking_for_room(
+    db: Session,
+    room_id: str,
+    now: datetime | None = None,
+) -> Booking | None:
+    """Return the next non-cancelled future booking for a room.
+
+    ``Room.next_booking`` is a legacy denormalized display field and can be
+    stale after an expired or externally removed booking.  UI code that needs
+    the current value should use this live query instead.
+    """
+    now_str = (now or datetime.now()).strftime(DT_FMT)
+    return (
+        db.query(Booking)
+        .filter(
+            Booking.room == room_id,
+            Booking.status.notin_(CANCELLED_STATUSES),
+            Booking.checkin > now_str,
+        )
+        .order_by(Booking.checkin)
+        .first()
+    )
+
+
 def create_booking(db: Session, data: dict) -> Booking:
     now = datetime.now()
     booking_id = f"RSV-{now.strftime('%y%m%d')}-{uuid.uuid4().hex[:4].upper()}"

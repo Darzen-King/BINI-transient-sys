@@ -136,7 +136,10 @@ ping 127.0.0.1 -n 5 >nul
 
 REM Copy new code over the install dir. NO /MIR (never delete user data);
 REM DB, logs and the local backup folder are explicitly excluded.
-robocopy "{staging}" "{install_dir}" /E /R:2 /W:1 /XF {xf} /XD {xd} >nul
+REM /IS is required because GitHub archive extraction can preserve the same
+REM timestamp and size for a file that changed (especially VERSION). Without
+REM it, robocopy may report success while silently keeping the old code.
+robocopy "{staging}" "{install_dir}" /E /IS /R:2 /W:1 /XF {xf} /XD {xd} >nul
 
 REM Reinstall requirements in case dependencies changed (best-effort).
 "{pyexe}" -m pip install -r "{install_dir}\\requirements.txt" --quiet >nul 2>&1

@@ -250,7 +250,10 @@
 
 // Deep-link from 房間總覽「付款」button: /payments?pay_room=201&pay_guest=Name
 // → auto-open the Add-Payment modal pre-filled with that room + guest.
-(function () {
+// MUST run on DOMContentLoaded: this <script> sits in the content block, which
+// base.html renders BEFORE it loads bootstrap.bundle.min.js — so bootstrap is
+// not defined yet at parse time. DOMContentLoaded fires after bootstrap loads.
+document.addEventListener("DOMContentLoaded", function () {
   var qs = new URLSearchParams(window.location.search);
   var payRoom = qs.get("pay_room");
   if (!payRoom) return;
@@ -275,8 +278,14 @@
     if (guest) guest.value = payGuest;
   }
   var modalEl = document.getElementById("addPaymentModal");
-  if (modalEl && window.bootstrap) new bootstrap.Modal(modalEl).show();
-})();
+  if (modalEl && window.bootstrap && window.bootstrap.Modal) {
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  } else {
+    // Fallback: trigger the declarative modal button if the API isn't ready.
+    var trigger = document.querySelector('[data-bs-target="#addPaymentModal"]');
+    if (trigger) trigger.click();
+  }
+});
 </script>
 
 {% endblock %}

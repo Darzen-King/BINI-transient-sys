@@ -247,6 +247,36 @@
     if (booking) booking.value = opt.getAttribute("data-booking") || "";
   });
 })();
+
+// Deep-link from 房間總覽「付款」button: /payments?pay_room=201&pay_guest=Name
+// → auto-open the Add-Payment modal pre-filled with that room + guest.
+(function () {
+  var qs = new URLSearchParams(window.location.search);
+  var payRoom = qs.get("pay_room");
+  if (!payRoom) return;
+  var payGuest = qs.get("pay_guest") || "";
+  var sel = document.getElementById("paySelectStay");
+  var matched = false;
+  if (sel) {
+    // Prefer selecting the matching checked-in guest → also links booking_id.
+    for (var i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value === payRoom) {
+        sel.selectedIndex = i;
+        sel.dispatchEvent(new Event("change"));
+        matched = true;
+        break;
+      }
+    }
+  }
+  if (!matched) {
+    var room = document.getElementById("payRoomId");
+    var guest = document.getElementById("payGuest");
+    if (room)  room.value  = payRoom;
+    if (guest) guest.value = payGuest;
+  }
+  var modalEl = document.getElementById("addPaymentModal");
+  if (modalEl && window.bootstrap) new bootstrap.Modal(modalEl).show();
+})();
 </script>
 
 {% endblock %}

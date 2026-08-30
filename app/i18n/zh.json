@@ -661,5 +661,6 @@
   "update.confirm": "更新前會先自動備份到雲端，接著下載安裝並自動重啟。確定要更新嗎？",
   "update.running": "更新中，請勿關閉視窗…",
   "update.restart": "程式重啟中…請稍候重新開啟視窗。",
-  "update.failed": "更新失敗"
+  "update.failed": "更新失敗",
+  "payment.pay": "付款"
 }

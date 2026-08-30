@@ -661,5 +661,6 @@
   "update.confirm": "The app will back up to the cloud first, then download, install and restart automatically. Proceed with the update?",
   "update.running": "Updating — please do not close the window…",
   "update.restart": "Restarting… please reopen the window shortly.",
-  "update.failed": "Update failed"
+  "update.failed": "Update failed",
+  "payment.pay": "Payment"
 }

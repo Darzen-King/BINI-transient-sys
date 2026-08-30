@@ -157,6 +157,10 @@
           <a href="/extend?room={{ room.id }}" class="btn btn-outline-warning btn-sm">
             {{ trans.get("nav.extend","延住") }}
           </a>
+          <a href="/payments?pay_room={{ room.id }}&pay_guest={{ room.current_guest | urlencode }}"
+             class="btn btn-outline-success btn-sm">
+            💵 {{ trans.get("payment.pay","付款") }}
+          </a>
           <a href="/checkout?room={{ room.id }}" class="btn btn-outline-secondary btn-sm">
             {{ trans.get("nav.checkout","退房") }}
           </a>

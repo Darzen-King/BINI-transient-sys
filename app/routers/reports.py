@@ -49,6 +49,16 @@ async def reports_page(
 
     pay_summary = pay_daily_summary(db, date_to)
 
+    # Cost & profit — ADMIN ONLY. Not computed/passed for non-admins so the
+    # figures never even reach the HTML for managers.
+    is_admin = require_role(_cu, "admin")
+    cost = None
+    net_profit = None
+    if is_admin:
+        from app.services.costs import cost_in_range
+        cost = cost_in_range(db, date_from, date_to, property_id or None)
+        net_profit = round(report["range_revenue"] - cost["total_cost"], 0)
+
     return templates.TemplateResponse("reports.html", {
         "request":   request,
         "report":    report,
@@ -59,6 +69,9 @@ async def reports_page(
         "pay_summary":  pay_summary,
         "properties":   all_properties,
         "property_id":  property_id,
+        "is_admin":     is_admin,
+        "cost":         cost,
+        "net_profit":   net_profit,
         "title":     trans.get("report.title", "Reports"),
         "trans":     trans,
         "lang":      lang,

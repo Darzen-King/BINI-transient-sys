@@ -142,6 +142,58 @@
   </div>
 </div>
 
+{% if is_admin and cost is not none %}
+<!-- ── Cost & profit (ADMIN ONLY) ── -->
+<div class="card rounded-3 border-0 shadow-sm mb-4 p-3" style="border-left:4px solid #16a34a !important">
+  <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+    <h5 class="fw-semibold mb-0" style="color:#166534">
+      📊 {{ trans.get("report.cost_section","成本與損益") }}
+      <span class="text-muted fw-normal" style="font-size:.72rem">{{ date_from }} ~ {{ date_to }} · {{ trans.get("report.admin_only","管理員限定") }}</span>
+    </h5>
+    <a href="/costs" class="btn btn-outline-success btn-sm">{{ trans.get("nav.costs","成本紀錄") }} →</a>
+  </div>
+  <div class="row g-2 text-center">
+    <div class="col-6 col-md-3">
+      <div class="rounded-2 p-2" style="background:#f0fdf4">
+        <div class="fw-bold" style="color:#db2777;font-size:1.15rem">NT$ {{ "{:,}".format(report.range_revenue|int) }}</div>
+        <div class="text-muted" style="font-size:.78rem">{{ trans.get("report.range_revenue","期間營收") }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="rounded-2 p-2" style="background:#fef2f2">
+        <div class="fw-bold text-danger" style="font-size:1.15rem">NT$ {{ "{:,}".format(cost.total_cost|int) }}</div>
+        <div class="text-muted" style="font-size:.78rem">{{ trans.get("report.period_cost","期間成本") }}（{{ cost.entry_count }} {{ trans.get("report.cost_entries","筆") }}）</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="rounded-2 p-2" style="background:{% if net_profit >= 0 %}#f0fdf4{% else %}#fef2f2{% endif %}">
+        <div class="fw-bold" style="font-size:1.15rem;color:{% if net_profit >= 0 %}#16a34a{% else %}#dc2626{% endif %}">
+          NT$ {{ "{:,}".format(net_profit|int) }}
+        </div>
+        <div class="text-muted" style="font-size:.78rem">{{ trans.get("report.net_profit","淨利") }}（{{ trans.get("report.net_profit_formula","營收 − 成本") }}）</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="rounded-2 p-2" style="background:#f9fafb">
+        <div class="fw-bold text-secondary" style="font-size:1.15rem">
+          {% if report.range_revenue > 0 %}{{ "%.1f"|format(cost.total_cost / report.range_revenue * 100) }}%{% else %}—{% endif %}
+        </div>
+        <div class="text-muted" style="font-size:.78rem">{{ trans.get("report.cost_ratio","成本率") }}（{{ trans.get("report.cost_ratio_formula","成本 / 營收") }}）</div>
+      </div>
+    </div>
+  </div>
+  {% if cost.by_category %}
+  <div class="mt-2 d-flex flex-wrap gap-2">
+    {% for cat, amt in cost.by_category | dictsort(by='value', reverse=True) %}
+    <span class="badge bg-light text-dark border" style="font-size:.76rem">
+      {{ trans.get("costs.cat." + cat, cat) }}：NT$ {{ "{:,.0f}".format(amt) }}
+    </span>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
 <!-- ── Charts Row ── -->
 <div class="row g-3 mb-4">
 

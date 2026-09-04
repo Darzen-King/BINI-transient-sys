@@ -203,6 +203,33 @@ def monthly_pnl(
     }
 
 
+def cost_in_range(
+    db:          Session,
+    date_from:   str,          # "YYYY-MM-DD"
+    date_to:     str,          # "YYYY-MM-DD"
+    property_id: str | None = None,
+) -> dict:
+    """Total cost + per-category breakdown for cost_entries within [from, to]
+    (inclusive). Used by the reports page (admin-only) alongside range_revenue."""
+    df, dt = date_from[:10], date_to[:10]
+    q = db.query(CostEntry).filter(
+        CostEntry.cost_date >= df,
+        CostEntry.cost_date <= dt,
+    )
+    if property_id:
+        q = q.filter(CostEntry.property_id == property_id)
+    rows = q.all()
+    total = sum(c.amount for c in rows)
+    by_category: dict[str, float] = {}
+    for c in rows:
+        by_category[c.category] = by_category.get(c.category, 0) + c.amount
+    return {
+        "total_cost":  round(total, 0),
+        "by_category": by_category,
+        "entry_count": len(rows),
+    }
+
+
 def available_months(db: Session, n: int = 12) -> list[str]:
     """Return last n months as ['YYYY-MM', ...] descending."""
     today = date.today()

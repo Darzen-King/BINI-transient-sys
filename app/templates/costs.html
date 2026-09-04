@@ -149,12 +149,9 @@
     </select>
     </div>
 
-    <div>
-      <a href="/costs" class="btn btn-outline-secondary btn-sm">{{ trans.get("action.reset","Reset") }}</a>
-    </div>
-
-    {# Keep hidden to preserve state #}
-    <input type="hidden" name="year_month" value="{{ cur_month }}">
+    {# Filters apply instantly on change (onchange submit) — no confirm button. #}
+    {# NOTE: no hidden year_month here — it duplicated the Month <select> above
+       and forced the current month into every submit, breaking the filter. #}
   </form>
 </div>
 

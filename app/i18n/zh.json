@@ -662,5 +662,13 @@
   "update.running": "更新中，請勿關閉視窗…",
   "update.restart": "程式重啟中…請稍候重新開啟視窗。",
   "update.failed": "更新失敗",
-  "payment.pay": "付款"
+  "payment.pay": "付款",
+  "report.cost_section": "成本與損益",
+  "report.admin_only": "管理員限定",
+  "report.period_cost": "期間成本",
+  "report.cost_entries": "筆",
+  "report.net_profit": "淨利",
+  "report.net_profit_formula": "營收 − 成本",
+  "report.cost_ratio": "成本率",
+  "report.cost_ratio_formula": "成本 / 營收"
 }

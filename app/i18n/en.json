@@ -662,5 +662,13 @@
   "update.running": "Updating — please do not close the window…",
   "update.restart": "Restarting… please reopen the window shortly.",
   "update.failed": "Update failed",
-  "payment.pay": "Payment"
+  "payment.pay": "Payment",
+  "report.cost_section": "Cost & Profit",
+  "report.admin_only": "admin only",
+  "report.period_cost": "Period Cost",
+  "report.cost_entries": "entries",
+  "report.net_profit": "Net Profit",
+  "report.net_profit_formula": "Revenue − Cost",
+  "report.cost_ratio": "Cost Ratio",
+  "report.cost_ratio_formula": "Cost / Revenue"
 }

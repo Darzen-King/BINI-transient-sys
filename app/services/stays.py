@@ -266,6 +266,8 @@ def checkout_guest(
     actual_co      = _now()
     mins_since_ci  = _minutes_since_checkin(stay.checkin_time)
     is_free        = mins_since_ci <= FREE_CANCEL_MINS
+    system_overdue  = 0.0   # engine-computed overdue fee (before override)
+    applied_overdue = 0.0   # overdue fee actually charged (after override)
 
     if is_free:
         # Free cancel — zero charge
@@ -325,10 +327,12 @@ def checkout_guest(
                 total_ext_fee = extension_fee_between(checkin_dt, base_hours, total_stay_hours)
                 # Incremental overdue = total extension minus already-charged extension
                 auto_ext_fee = max(0.0, total_ext_fee - stay.extension_fee)
+                system_overdue = auto_ext_fee   # engine value BEFORE any override
 
                 # Staff override: use their adjusted value (from correction modal)
                 if override_ext_fee is not None:
                     auto_ext_fee = float(override_ext_fee)
+                applied_overdue = auto_ext_fee   # value actually charged
 
         # BUG 1 FIX: use += so manual extension fees (from /extend) are preserved.
         # checkout_time was already updated when guest extended, so auto_ext_fee
@@ -360,6 +364,8 @@ def checkout_guest(
         "mins_since":     round(mins_since_ci, 1),
         "over_buffer":    over_buffer_mins > 0 if not is_free else False,
         "buffer_mins":    CHECKOUT_BUFFER_MINS,
+        "overdue_system":  round(system_overdue, 0),   # engine-computed overdue fee
+        "overdue_applied": round(applied_overdue, 0),  # overdue fee actually charged
     }
 
 

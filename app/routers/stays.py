@@ -162,6 +162,15 @@ async def checkout_submit(
     result = ssvc.checkout_guest(db, room, extra_fee, override_ext_fee=override)
     if result:
         _audit.log_checkout(db, room, stay_guest, result.get('total', 0), result.get('free_cancel', False))
+        # Overdue-fee accountability: if staff checked out for LESS overdue than
+        # the system computed (goodwill waiver, forgot-to-checkout, off-hours
+        # early departure, or a mistake), record who/when/how much for audit.
+        _sys_ovd = float(result.get('overdue_system', 0) or 0)
+        _app_ovd = float(result.get('overdue_applied', 0) or 0)
+        if _sys_ovd - _app_ovd > 1 and not result.get('free_cancel'):
+            _cu_w = getattr(request.state, "current_user", None)
+            _audit.log_overdue_waiver(db, room, stay_guest, _sys_ovd, _app_ovd,
+                                      user_id=_cu_w.username if _cu_w else "admin")
         # Record payment if provided and not a free cancel
         if payment_amount and payment_amount > 0 and not result.get('free_cancel'):
             from app.services.payments import create_payment

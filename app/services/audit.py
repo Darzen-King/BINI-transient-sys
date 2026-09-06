@@ -103,6 +103,27 @@ def log_extend(db, room_id: str, guest: str, hours: float, fee: float):
     )
 
 
+def log_overdue_waiver(db, room_id: str, guest: str,
+                       system_fee: float, applied_fee: float,
+                       user_id: str = "admin"):
+    """Audit trail when a staff member checks out an overdue stay for LESS than
+    the system-computed overdue fee (including setting it to 0). Makes goodwill
+    waivers vs. mistakes distinguishable after the fact."""
+    waived = max(0.0, float(system_fee) - float(applied_fee))
+    log_action(db,
+        action_type    = "overdue_waiver",
+        target_id      = room_id,
+        target_type    = "room",
+        original_value = {"system_overdue_fee": round(float(system_fee), 0)},
+        new_value      = {"applied_overdue_fee": round(float(applied_fee), 0),
+                          "waived": round(waived, 0)},
+        description    = (f"超時費減免: {guest} ← {room_id}  "
+                          f"系統應收 NT${system_fee:.0f} → 實收 NT${applied_fee:.0f} "
+                          f"(減免 NT${waived:.0f})"),
+        user_id        = user_id,
+    )
+
+
 def log_booking_create(db, booking_id: str, room: str, guest: str):
     log_action(db,
         action_type = "booking_create",
@@ -208,7 +229,7 @@ def get_logs(
 
 
 ALL_ACTION_TYPES = [
-    "checkin", "checkout", "checkout_free", "extend_stay",
+    "checkin", "checkout", "checkout_free", "extend_stay", "overdue_waiver",
     "booking_create", "booking_cancel",
     "room_status", "room_transfer",
     "backup_sync", "backup_restore",
@@ -220,6 +241,7 @@ ACTION_LABELS = {
     "checkout":       {"zh": "退房辦理", "en": "Check-out"},
     "checkout_free":  {"zh": "免費取消", "en": "Free Cancel"},
     "extend_stay":    {"zh": "延住處理", "en": "Extend Stay"},
+    "overdue_waiver": {"zh": "超時費減免", "en": "Overdue Waiver"},
     "booking_create": {"zh": "新增預約", "en": "New Booking"},
     "booking_cancel": {"zh": "取消預約", "en": "Cancel Booking"},
     "room_status":    {"zh": "房態更新", "en": "Room Status"},
@@ -234,6 +256,7 @@ ACTION_ICON = {
     "checkout":       "🚪",
     "checkout_free":  "🆓",
     "extend_stay":    "⏱",
+    "overdue_waiver": "🟡",
     "booking_create": "📋",
     "booking_cancel": "❌",
     "room_status":    "🔧",

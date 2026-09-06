@@ -115,17 +115,41 @@ const EDIT_RATES = {
   "假日":   { "12hrs": 1000, "24hrs": 1200 },
 };
 
-let _editUserRate = false;
+let _editUserRate  = false;
+let _editAmtManual = false;   // true once the user hand-edits the amount → stop auto-pricing
+const EDIT_DISCOUNT = {{ bk.discount | default(0) | int }};
 
+// Authoritative amount via the block-ceiling engine (/api/booking-quote), so a
+// MULTI-DAY booking is priced across ALL its days (each day judged holiday /
+// weekday), not a single period. Mirrors booking_create. Previously this used a
+// single-period rate table (EDIT_RATES[rt][pl]) that ignored the period count,
+// so extending a booking to N days still billed 1 period.
+let _editQuoteTimer = null;
 function editUpdateAmount() {
-  const rt  = document.getElementById('editRateType').value;
-  const pl  = document.getElementById('editPlan').value;
-  const amt = EDIT_RATES[rt]?.[pl];
-  if (amt) document.getElementById('editAmount').value = amt;
+  if (_editAmtManual) return;                       // respect a manual override
+  const ci = _editCi ? _editCi.value : '';
+  const pl = document.getElementById('editPlan').value;
+  if (!ci) return;
+  const days   = Math.max(1, _editPeriods || 1);
+  const ciNorm = ci.trim().replace(' ', 'T');
+  clearTimeout(_editQuoteTimer);
+  _editQuoteTimer = setTimeout(() => {
+    fetch(`/api/booking-quote?checkin=${encodeURIComponent(ciNorm)}&plan=${encodeURIComponent(pl)}&days=${days}`)
+      .then(r => r.json()).then(d => {
+        if (d && d.ok) {
+          const net = Math.max(0, Math.round(d.gross - EDIT_DISCOUNT));
+          document.getElementById('editAmount').value = net;
+        }
+      }).catch(() => { /* leave current value on failure */ });
+  }, 200);
 }
 
+// Manual amount edits switch off auto-pricing until the next structural change.
+document.getElementById('editAmount').addEventListener('input', () => { _editAmtManual = true; });
+
 document.getElementById('editRateType').addEventListener('change', () => {
-  _editUserRate = true;
+  _editUserRate  = true;
+  _editAmtManual = false;
   editUpdateAmount();
 });
 
@@ -182,6 +206,7 @@ function editCiHandler() {
     const rt = editDetectRate(v);
     if (rt) document.getElementById('editRateType').value = rt;
   }
+  _editAmtManual = false;   // structural change → re-enable auto pricing
   editDeriveCo();
   editUpdateAmount();
 }
@@ -189,15 +214,20 @@ function editCiHandler() {
 _editCi.addEventListener('change', editCiHandler);
 _editCi.addEventListener('input',  editCiHandler);
 document.getElementById('editPlan').addEventListener('change', () => {
+  _editAmtManual = false;   // structural change → re-enable auto pricing
   editDeriveCo();
   editUpdateAmount();
 });
-// Manual checkout edits re-derive the remembered period count
+// Manual checkout edits re-derive the remembered period count AND re-price the
+// booking for the new number of days (previously the amount was left stale, so
+// extending a 1-day booking to N days kept the 1-day price).
 _editCo.addEventListener('change', () => {
   const ci = new Date(_editCi.value), co = new Date(_editCo.value);
   if (!isNaN(ci) && !isNaN(co) && co > ci) {
     _editPeriods = Math.max(1, Math.round((co - ci) / (_editPlanHours() * 3600e3)));
   }
+  _editAmtManual = false;   // structural change → re-enable auto pricing
+  editUpdateAmount();
 });
 </script>
 {% endblock %}

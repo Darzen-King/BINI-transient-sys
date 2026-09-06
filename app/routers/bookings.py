@@ -352,9 +352,23 @@ async def booking_edit_page(
     from app.services.fee_engine import get_holiday_dates_from_db as _ghd
     holiday_dates_json = _json.dumps(sorted(_ghd(db)))
 
+    # Derive the current number of days from the booking's own period so the
+    # edit form can pre-fill the 天數 field (mirrors 新增預約). One "day" = one
+    # plan-length block (12h or 24h).
+    cur_days = 1
+    try:
+        from datetime import datetime as _dt
+        _ci = _dt.strptime(bk.checkin[:16],  "%Y-%m-%d %H:%M")
+        _co = _dt.strptime(bk.checkout[:16], "%Y-%m-%d %H:%M")
+        _per = 12 if bk.plan == "12hrs" else 24
+        cur_days = max(1, round((_co - _ci).total_seconds() / 3600.0 / _per))
+    except Exception:
+        cur_days = 1
+
     return templates.TemplateResponse("booking_edit.html", {
         "request":            request,
         "bk":                 bk,
+        "cur_days":           cur_days,
         "rooms":              rooms,
         "plans":              PLANS,
         "rate_types":         RATE_TYPES,
@@ -370,14 +384,17 @@ async def booking_edit_page(
 async def booking_edit_submit(
     request:    Request,
     booking_id: str,
-    room:       str   = Form(...),
-    guest:      str   = Form(...),
-    phone:      str   = Form(""),
-    checkin:    str   = Form(...),
-    checkout:   str   = Form(...),
-    plan:       str   = Form("24hrs"),
-    amount:     float = Form(0),
-    rate_type:  str   = Form("非假日"),
+    room:        str   = Form(...),
+    guest:       str   = Form(...),
+    phone:       str   = Form(""),
+    checkin:     str   = Form(...),
+    checkout:    str   = Form(...),
+    plan:        str   = Form("24hrs"),
+    amount:      float = Form(0),
+    discount:    float = Form(0),
+    days:        int   = Form(1),
+    amount_auto: str   = Form("1"),   # "1" = engine-computed amount; "0" = manual override
+    rate_type:   str   = Form("非假日"),
     db: Session = Depends(get_db),
 ):
     from app.services.auth import get_current_user, require_role
@@ -390,7 +407,26 @@ async def booking_edit_submit(
     ci = _norm_dt(checkin)
     co = _norm_dt(checkout)
 
-    bk, err = bsvc.edit_booking(db, booking_id, room, ci, co, guest, phone, plan, amount, rate_type)
+    # Mirror 新增預約: derive checkout from check-in + days × plan length, and
+    # (when not manually overridden) recompute the amount with the SAME
+    # block-ceiling engine, so a multi-day edit is always priced across every
+    # day and the discount is applied consistently.
+    discount = max(0.0, float(discount or 0))
+    try:
+        from datetime import datetime as _dt, timedelta as _td
+        plan_hours = 12 if plan == "12hrs" else 24
+        days_i = max(1, int(days or 1))
+        if ci:
+            ci_dt = _dt.strptime(ci, "%Y-%m-%d %H:%M")
+            co = (ci_dt + _td(hours=plan_hours * days_i)).strftime("%Y-%m-%d %H:%M")
+            if str(amount_auto) == "1":
+                from app.services.fee_engine import calc_extension_fee as _calc
+                _gross, _ = _calc(plan_hours * days_i, ci_dt)
+                amount = max(0.0, float(_gross) - discount)
+    except Exception:
+        pass  # fall back to submitted checkout / amount
+
+    bk, err = bsvc.edit_booking(db, booking_id, room, ci, co, guest, phone, plan, amount, rate_type, discount)
     if err:
         from app.services.rooms import get_all_rooms, badge_color
         orig = bsvc.get_booking(db, booking_id)
@@ -402,6 +438,7 @@ async def booking_edit_submit(
         return templates.TemplateResponse("booking_edit.html", {
             "request":            request,
             "bk":                 orig,
+            "cur_days":           max(1, int(days or 1)),
             "rooms":              rooms,
             "plans":              PLANS,
             "rate_types":         RATE_TYPES,

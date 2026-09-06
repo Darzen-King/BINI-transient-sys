@@ -310,6 +310,7 @@ def edit_booking(
     plan: str,
     amount: float,
     rate_type: str,
+    discount: float = 0.0,
 ) -> tuple[Booking | None, str | None]:
     """
     Update an existing booking.
@@ -348,6 +349,7 @@ def edit_booking(
     bk.plan      = plan
     bk.amount    = amount
     bk.rate_type = rate_type
+    bk.discount  = max(0.0, float(discount or 0))
     db.commit()
     db.refresh(bk)
     return bk, None

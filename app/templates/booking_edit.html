@@ -1,233 +1,404 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="d-flex align-items-center mb-4 gap-2">
-  <a href="/bookings" class="btn btn-outline-secondary btn-sm">← {{ trans.get("nav.bookings","Bookings") }}</a>
-  <h2 class="fw-bold mb-0">{{ trans.get("booking.edit_title","Edit Booking") }} — {{ bk.id }}</h2>
+<div class="d-flex align-items-center gap-3 mb-4">
+  <a href="/bookings" class="text-muted text-decoration-none">← {{ trans.get("nav.bookings","Bookings") }}</a>
+  <h2 class="fw-bold mb-0">{{ trans.get("booking.edit_title","修改預約") }} — {{ bk.id }}</h2>
 </div>
 
-{% if error_msg %}<div class="flash-bar alert alert-danger">⚠ {{ error_msg }}</div>{% endif %}
+<!-- Server-side error banner -->
+{% if error_msg %}
+<div class="flash-bar alert alert-danger">
+  <strong>{{ trans.get("label.conflict_warning","⚠ 衝突警告") }}</strong> {{ error_msg }}
+</div>
+{% endif %}
 
 <div class="row g-4">
+
+  <!-- ── LEFT: form ── -->
   <div class="col-lg-7">
-    <div class="card rounded-3 border-0 shadow-sm p-4">
-      <form method="post" action="/bookings/{{ bk.id }}/edit">
+    <div class="card rounded-3 shadow-sm border-0 p-4">
+      <form method="post" action="/bookings/{{ bk.id }}/edit" id="bookingForm" novalidate>
 
-        <div class="row g-3">
-          <div class="col-12">
-            <label class="form-label fw-semibold">{{ trans.get("label.room","Room") }}</label>
-            <select name="room" class="form-select" required>
-              {% for r in rooms %}
-              <option value="{{ r.id }}" {% if r.id == bk.room %}selected{% endif %}>
-                {{ r.id }} — {{ trans.get("status." + r.status, r.status) }}
-              </option>
-              {% endfor %}
-            </select>
-          </div>
+        <!-- Room -->
+        <div class="mb-3">
+          <label class="form-label fw-semibold">{{ trans.get("room.id","Room") }}</label>
+          <select name="room" id="roomSel" class="form-select" required onchange="triggerCheck()">
+            {% for r in rooms %}
+            <option value="{{ r.id }}" {% if r.id == bk.room %}selected{% endif %}>
+              {{ r.id }}
+              {% if r.current_guest %} · 🔴 {{ r.current_guest }}{% endif %}
+              {% if r.next_booking %} · {{ trans.get("label.next_booking_hint","Next") }}: {{ r.next_booking }}{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
 
-          <div class="col-md-6">
-            <label class="form-label fw-semibold">{{ trans.get("label.guest","Guest") }}</label>
-            <input type="text" name="guest" class="form-control" value="{{ bk.guest }}" required>
+        <!-- Guest + Phone -->
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.guest","Guest") }}</label>
+            <input type="text" name="guest" class="form-control" required value="{{ bk.guest }}">
           </div>
-          <div class="col-md-6">
-            <label class="form-label fw-semibold">{{ trans.get("label.phone","Phone") }}</label>
-            <input type="text" name="phone" class="form-control" value="{{ bk.phone or '' }}">
-          </div>
-
-          <div class="col-md-6">
-            <label class="form-label fw-semibold">{{ trans.get("label.checkin","Check-in") }}</label>
-            <input type="datetime-local" data-dtype="datetime-local" name="checkin" id="editCiInput" class="form-control"
-                   value="{{ bk.checkin | replace(' ','T') }}" required>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label fw-semibold">{{ trans.get("label.checkout","Check-out") }}</label>
-            <input type="datetime-local" data-dtype="datetime-local" name="checkout" id="editCoInput" class="form-control"
-                   value="{{ bk.checkout | replace(' ','T') }}" required>
-          </div>
-
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">{{ trans.get("label.plan","Plan") }}</label>
-            <select name="plan" id="editPlan" class="form-select" onchange="editUpdateAmount()">
-              {% for pl in plans %}
-              <option value="{{ pl }}" {% if pl == bk.plan %}selected{% endif %}>{{ pl }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">{{ trans.get("label.rate_type","Rate Type") }}</label>
-            <select name="rate_type" id="editRateType" class="form-select" onchange="editUpdateAmount()">
-              {% for rt in rate_types %}
-              <option value="{{ rt }}"
-                {%- if rt == ("假日" if bk.rate_type == "假日" else "非假日") %} selected{% endif %}>
-                {%- if rt == "非假日" %}{{ trans.get("label.rate_type_weekday","Weekday") }}
-                {%- else %}{{ trans.get("label.rate_type_holiday","Holiday") }}{% endif %}
-              </option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label fw-semibold">{{ trans.get("label.amount","Amount (NT$)") }}</label>
-            <input type="number" name="amount" id="editAmount" class="form-control"
-                   value="{{ bk.amount | int }}" required>
+          <div class="col-md-6 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.phone","Phone") }}</label>
+            <input type="text" name="phone" class="form-control" value="{{ bk.phone or '' }}"
+                   placeholder="0912-345-678">
           </div>
         </div>
 
-        <hr class="my-3">
-        <div class="d-flex gap-2">
-          <button type="submit" class="btn btn-bb px-4">
-            💾 {{ trans.get("auth.save_changes","Save Changes") }}
+        <!-- Check-in / Check-out -->
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.checkin","Check-in") }}</label>
+            <input type="datetime-local" data-dtype="datetime-local" name="checkin" id="ciInput"
+                   class="form-control" required step="60"
+                   value="{{ bk.checkin | replace(' ','T') }}" oninput="onDateChange()">
+            <div id="ciErr" class="form-text text-danger d-none"></div>
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.checkout","Check-out") }}</label>
+            <input type="text" name="checkout" id="coInput"
+                   class="form-control bg-light" required readonly tabindex="-1"
+                   style="cursor:not-allowed;color:#6b7280"
+                   value="{{ bk.checkout }}" aria-readonly="true">
+            <div class="form-text" style="font-size:.74rem;color:#9ca3af">
+              🔒 {{ trans.get("booking.checkout_auto_hint","系統自動帶出（入住時間 + 天數 × 方案）") }}
+            </div>
+            <div id="coErr" class="form-text text-danger d-none"></div>
+          </div>
+        </div>
+
+        <!-- Live availability badge -->
+        <div id="availBadge" class="rounded-2 px-3 py-2 mb-3 d-none"
+             style="font-size:.85rem;border:1px solid transparent"></div>
+
+        <!-- Plan + Days + Rate type -->
+        <div class="row">
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.plan","Plan") }}</label>
+            <select name="plan" id="planSel" class="form-select" onchange="recalc(); triggerCheck()">
+              {% for p in plans %}
+              <option value="{{ p }}" {% if bk.plan == p %}selected{% endif %}>{{ p }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.days","天數") }}</label>
+            <input type="number" name="days" id="daysInput" class="form-control"
+                   value="{{ cur_days | default(1) }}" min="1" max="90" step="1" oninput="onDaysChange()">
+            <div class="form-text" id="nightsHint" style="font-size:.74rem"></div>
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.rate_type","Rate Type") }}</label>
+            <select name="rate_type" class="form-select" id="rateTypeSel">
+              {% for rt in rate_types %}
+              <option value="{{ rt }}" {% if bk.rate_type == rt %}selected{% endif %}>
+                {%- if rt == "非假日" -%}{{ trans.get("label.rate_type_weekday","Weekday") }}
+                {%- elif rt == "假日" -%}{{ trans.get("label.rate_type_holiday","Weekend / Holiday") }}
+                {%- else -%}{{ rt }}{%- endif -%}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <!-- Subtotal + Discount + Final amount -->
+        <div class="row">
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.subtotal","原價小計 (NT$)") }}</label>
+            <input type="text" id="grossDisplay" class="form-control bg-light" readonly
+                   value="{{ (bk.amount | default(0) | int) + (bk.discount | default(0) | int) }}">
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("booking.discount","折扣金額 (NT$)") }}</label>
+            <input type="number" name="discount" id="discountInput" class="form-control"
+                   value="{{ bk.discount | default(0) | int }}" min="0" step="100"
+                   oninput="onDiscountChange()">
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-semibold">{{ trans.get("label.amount","金額 (NT$)") }}</label>
+            <input type="number" name="amount" id="amountInput"
+                   class="form-control fw-semibold" style="color:#db2877"
+                   value="{{ bk.amount | default(0) | int }}"
+                   min="0" step="100" oninput="onAmountManual()">
+            <input type="hidden" name="amount_auto" id="amountAuto" value="1">
+            <div class="form-text" style="font-size:.72rem">{{ trans.get("booking.amount_auto_hint","自動計算，可手動調整") }}</div>
+          </div>
+        </div>
+
+        <!-- Action buttons -->
+        <div class="d-flex gap-2 align-items-center mt-3 flex-wrap">
+          <button type="submit" id="submitBtn" class="btn btn-bb px-4">
+            💾 {{ trans.get("action.save_changes","儲存變更") }}
           </button>
           <a href="/bookings" class="btn btn-outline-secondary">
-            {{ trans.get("auth.cancel","Cancel") }}
+            {{ trans.get("action.cancel","Cancel") }}
           </a>
         </div>
+
       </form>
     </div>
   </div>
 
+  <!-- ── RIGHT: validation status panel ── -->
   <div class="col-lg-5">
-    <div class="card rounded-3 border-0 shadow-sm p-3">
-      <h6 class="fw-semibold mb-3">💡 {{ trans.get("booking.rate_guide","Rate Guide") }}</h6>
-      <table class="table table-sm table-bordered mb-0" style="font-size:.82rem">
-        <thead class="table-light">
-          <tr>
-            <th></th>
-            <th>{{ trans.get("label.rate_type_weekday","Weekday") }}</th>
-            <th>{{ trans.get("label.rate_type_holiday","Holiday") }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td>12hrs</td><td>NT$800</td><td>NT$1,000</td></tr>
-          <tr><td>24hrs</td><td>NT$1,000</td><td>NT$1,200</td></tr>
-        </tbody>
-      </table>
+    <div class="card rounded-3 border-0 shadow-sm p-3" id="validationPanel">
+      <h6 class="fw-semibold mb-3 text-muted">{{ trans.get("label.conflict","Conflict Check") }}</h6>
+
+      <div id="dateValidationArea" class="mb-3">
+        <div class="check-row" id="chkOrder">
+          <span class="check-icon">⬜</span>
+          <span class="check-label">{{ trans.get("validation.co_before_ci","Check-out after check-in") }}</span>
+        </div>
+        <div class="check-row" id="chkConflict">
+          <span class="check-icon">⬜</span>
+          <span class="check-label">{{ trans.get("validation.unavailable","No conflicting bookings") }}</span>
+        </div>
+      </div>
+
+      <div id="conflictDetail" class="rounded-2 p-2 d-none"
+           style="background:#fef2f2;border:1px solid #fecaca;font-size:.82rem">
+        <div class="fw-semibold text-danger mb-1">
+          {{ trans.get("validation.conflict_with","Conflicts with") }}:
+        </div>
+        <div id="conflictId"    class="text-muted"></div>
+        <div id="conflictGuest"></div>
+        <div id="conflictPeriod" class="text-muted"></div>
+      </div>
+
+      <div class="mt-3 pt-3 border-top">
+        <div class="fw-semibold mb-2" style="font-size:.82rem">💡 {{ trans.get("label.rate_type_weekday","Weekday") }} / {{ trans.get("label.rate_type_holiday","Holiday") }}</div>
+        <table class="table table-sm table-bordered mb-0" style="font-size:.78rem">
+          <thead class="table-light text-center">
+            <tr><th></th><th>{{ trans.get("label.rate_type_weekday","Mon–Thu") }}</th><th>{{ trans.get("label.rate_type_holiday","Fri–Sun") }}</th></tr>
+          </thead>
+          <tbody class="text-center">
+            <tr><td>12hrs</td><td>NT$800</td><td>NT$1,000</td></tr>
+            <tr><td>24hrs</td><td>NT$1,000</td><td>NT$1,200</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
-</div>
 
+</div>
 {% endblock %}
 
 {% block scripts %}
-<script id="editHolidayDates" type="application/json">{{ holiday_dates_json | safe }}</script>
+<script id="holidayDatesBk" type="application/json">{{ holiday_dates_json | default('[]') | safe }}</script>
 <script>
-const EDIT_RATES = {
-  "非假日": { "12hrs": 800,  "24hrs": 1000 },
-  "假日":   { "12hrs": 1000, "24hrs": 1200 },
+const T = {
+  checking:       "{{ trans.get('validation.checking','Checking...') }}",
+  available:      "{{ trans.get('validation.available','✅ Available') }}",
+  unavailable:    "{{ trans.get('validation.unavailable','⚠ Not available') }}",
+  conflictGuest:  "{{ trans.get('validation.conflict_guest','Guest') }}",
+  conflictPeriod: "{{ trans.get('validation.conflict_period','Period') }}",
+  coBeforeCi:     "{{ trans.get('validation.co_before_ci','⚠ Check-out before check-in') }}",
 };
 
-let _editUserRate  = false;
-let _editAmtManual = false;   // true once the user hand-edits the amount → stop auto-pricing
-const EDIT_DISCOUNT = {{ bk.discount | default(0) | int }};
+const EXCLUDE_ID = "{{ bk.id }}";
 
-// Authoritative amount via the block-ceiling engine (/api/booking-quote), so a
-// MULTI-DAY booking is priced across ALL its days (each day judged holiday /
-// weekday), not a single period. Mirrors booking_create. Previously this used a
-// single-period rate table (EDIT_RATES[rt][pl]) that ignored the period count,
-// so extending a booking to N days still billed 1 period.
-let _editQuoteTimer = null;
-function editUpdateAmount() {
-  if (_editAmtManual) return;                       // respect a manual override
-  const ci = _editCi ? _editCi.value : '';
-  const pl = document.getElementById('editPlan').value;
-  if (!ci) return;
-  const days   = Math.max(1, _editPeriods || 1);
-  const ciNorm = ci.trim().replace(' ', 'T');
-  clearTimeout(_editQuoteTimer);
-  _editQuoteTimer = setTimeout(() => {
-    fetch(`/api/booking-quote?checkin=${encodeURIComponent(ciNorm)}&plan=${encodeURIComponent(pl)}&days=${days}`)
-      .then(r => r.json()).then(d => {
-        if (d && d.ok) {
-          const net = Math.max(0, Math.round(d.gross - EDIT_DISCOUNT));
-          document.getElementById('editAmount').value = net;
-        }
-      }).catch(() => { /* leave current value on failure */ });
-  }, 200);
-}
+// ── DOM refs ──────────────────────────────────────────────────────────────
+const ciInput     = document.getElementById('ciInput');
+const coInput     = document.getElementById('coInput');
+const roomSel      = document.getElementById('roomSel');
+const planSel      = document.getElementById('planSel');
+const rateTypeSel  = document.getElementById('rateTypeSel');
+const amountInput  = document.getElementById('amountInput');
+const amountAuto   = document.getElementById('amountAuto');
+const badge        = document.getElementById('availBadge');
+const submitBtn    = document.getElementById('submitBtn');
+const daysInput     = document.getElementById('daysInput');
+const discountInput = document.getElementById('discountInput');
+const grossDisplay  = document.getElementById('grossDisplay');
+let _gross = 0;                 // computed subtotal before discount
+let _userEditedRate = false;
+let _editInitDone   = false;    // guard: preserve the SAVED amount on first load
 
-// Manual amount edits switch off auto-pricing until the next structural change.
-document.getElementById('editAmount').addEventListener('input', () => { _editAmtManual = true; });
-
-document.getElementById('editRateType').addEventListener('change', () => {
-  _editUserRate  = true;
-  _editAmtManual = false;
-  editUpdateAmount();
-});
-
-function editDetectRate(dateStr) {
+// ── Rate-type auto-detect (holiday rules) ─────────────────────────────────
+function autoRateTypeFromDate(dateStr) {
   if (!dateStr) return null;
-  const dp  = dateStr.slice(0,10);
-  const [yr,mo,dy] = dp.split('-').map(Number);
-  const d   = new Date(yr, mo-1, dy);
-  const wd  = d.getDay();
-  if (wd===0||wd===5||wd===6) return "假日";
-  const hols = JSON.parse(document.getElementById('editHolidayDates').textContent||'[]');
-  if (hols.includes(dp)) return "假日";
-  const nx = new Date(yr,mo-1,dy+1);
-  const ns = `${nx.getFullYear()}-${String(nx.getMonth()+1).padStart(2,'0')}-${String(nx.getDate()).padStart(2,'0')}`;
-  if (hols.includes(ns)) return "假日";
+  const datePart = dateStr.slice(0, 10);
+  const [yr, mo, dy] = datePart.split('-').map(Number);
+  const d  = new Date(yr, mo - 1, dy);
+  const wd = d.getDay();
+  if (wd === 0 || wd === 6 || wd === 5) return "假日";
+  const hwInput  = document.getElementById('holidayDatesBk');
+  const holidays = hwInput ? JSON.parse(hwInput.textContent || '[]') : [];
+  if (holidays.includes(datePart)) return "假日";
+  const nextD   = new Date(yr, mo - 1, dy + 1);
+  const nextStr = `${nextD.getFullYear()}-${String(nextD.getMonth()+1).padStart(2,'0')}-${String(nextD.getDate()).padStart(2,'0')}`;
+  if (holidays.includes(nextStr)) return "假日";
   return "非假日";
 }
 
-// ── Auto-derive checkout from check-in + plan (mirrors booking-create) ─────
-// The edit form has no "days" field, so the number of plan periods is taken
-// from the CURRENT booking and preserved: changing check-in/plan recalculates
-// checkout without silently shortening a multi-day booking. Manually editing
-// checkout updates the remembered period count instead.
-const _editCi = document.getElementById('editCiInput');
-const _editCo = document.getElementById('editCoInput');
-
-function _editPlanHours() {
-  return document.getElementById('editPlan').value === '12hrs' ? 12 : 24;
+// ── Authoritative gross via the billing engine (/api/booking-quote) ────────
+let _quoteTimer = null;
+function fetchQuote(applyToAmount) {
+  const ci = ciInput ? ciInput.value : '';
+  if (!ci) { _gross = 0; if (grossDisplay) grossDisplay.value = ''; return; }
+  const plan = planSel.value;
+  const days = Math.max(1, parseInt((daysInput && daysInput.value) || '1', 10) || 1);
+  const ciNorm = ci.trim().replace(' ', 'T');
+  clearTimeout(_quoteTimer);
+  _quoteTimer = setTimeout(() => {
+    fetch(`/api/booking-quote?checkin=${encodeURIComponent(ciNorm)}&plan=${encodeURIComponent(plan)}&days=${days}`)
+      .then(r => r.json()).then(d => {
+        if (d && d.ok) {
+          _gross = d.gross;
+          if (grossDisplay) grossDisplay.value = _gross ? _gross.toLocaleString() : '';
+          if (applyToAmount) applyDiscount();
+        }
+      }).catch(() => { /* leave current values on failure */ });
+  }, 220);
 }
 
-function _editFmtLocal(d) {
-  const p = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+// ── Check-out = check-in + days × plan length ──────────────────────────────
+function autoCheckout() {
+  const ci = ciInput ? ciInput.value : '';
+  if (!ci) return;
+  const dt = new Date(ci.trim().replace(' ', 'T'));
+  if (isNaN(dt.getTime())) return;
+  const perHours = planSel.value === '12hrs' ? 12 : 24;
+  const days = Math.max(1, parseInt((daysInput && daysInput.value) || '1', 10) || 1);
+  dt.setHours(dt.getHours() + perHours * days);
+  const pad = n => String(n).padStart(2, '0');
+  coInput.value = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
 }
 
-let _editPeriods = 1;
-(function initPeriods() {
-  const ci = new Date(_editCi.value), co = new Date(_editCo.value);
-  if (!isNaN(ci) && !isNaN(co) && co > ci) {
-    _editPeriods = Math.max(1, Math.round((co - ci) / (_editPlanHours() * 3600e3)));
+function updateNightsHint() {
+  const hint = document.getElementById('nightsHint');
+  if (!hint) return;
+  const days = Math.max(1, parseInt((daysInput && daysInput.value) || '1', 10) || 1);
+  const unit = planSel.value === '12hrs' ? '× 12hr' : '晚';
+  hint.textContent = days > 1 ? (days + ' ' + unit) : '';
+}
+
+// amount = gross − discount (only when auto pricing is on)
+function applyDiscount() {
+  const disc = Math.max(0, parseFloat((discountInput && discountInput.value) || '0') || 0);
+  if (amountAuto && amountAuto.value === '1') {
+    amountInput.value = Math.max(0, Math.round(_gross - disc));
   }
-})();
-
-function editDeriveCo() {
-  const ci = new Date(_editCi.value);
-  if (isNaN(ci)) return;
-  const co = new Date(ci.getTime() + _editPeriods * _editPlanHours() * 3600e3);
-  _editCo.value = _editFmtLocal(co);
 }
 
-function editCiHandler() {
-  const v = _editCi.value;
-  if (!_editUserRate) {
-    const rt = editDetectRate(v);
-    if (rt) document.getElementById('editRateType').value = rt;
+// Master recompute for a STRUCTURAL change (date / plan / days): re-enable auto
+// pricing, re-derive checkout, re-price via engine, apply discount.
+function recalc() {
+  if (!_userEditedRate) {
+    const detected = autoRateTypeFromDate(ciInput ? ciInput.value : '');
+    if (detected) rateTypeSel.value = detected;
   }
-  _editAmtManual = false;   // structural change → re-enable auto pricing
-  editDeriveCo();
-  editUpdateAmount();
+  if (amountAuto) amountAuto.value = '1';
+  autoCheckout();
+  updateNightsHint();
+  fetchQuote(true);   // async → sets gross + amount
 }
 
-_editCi.addEventListener('change', editCiHandler);
-_editCi.addEventListener('input',  editCiHandler);
-document.getElementById('editPlan').addEventListener('change', () => {
-  _editAmtManual = false;   // structural change → re-enable auto pricing
-  editDeriveCo();
-  editUpdateAmount();
-});
-// Manual checkout edits re-derive the remembered period count AND re-price the
-// booking for the new number of days (previously the amount was left stale, so
-// extending a 1-day booking to N days kept the 1-day price).
-_editCo.addEventListener('change', () => {
-  const ci = new Date(_editCi.value), co = new Date(_editCo.value);
-  if (!isNaN(ci) && !isNaN(co) && co > ci) {
-    _editPeriods = Math.max(1, Math.round((co - ci) / (_editPlanHours() * 3600e3)));
+function onDaysChange()     { recalc(); onDateChange(); }
+function onDiscountChange() { if (amountAuto) amountAuto.value = '1'; applyDiscount(); }
+function onAmountManual()   { if (amountAuto) amountAuto.value = '0'; }  // manual override
+
+// ── Date validation (edit: past check-in is ALLOWED) ──────────────────────
+function validateDates() {
+  const ci = ciInput.value, co = coInput.value;
+  document.getElementById('coErr').classList.add('d-none');
+  setCheckRow('chkOrder', 'pending');
+  if (!ci || !co) return { valid: false };
+  const ciDt = new Date(ci.trim().replace(' ','T'));
+  const coDt = new Date(co.trim().replace(' ','T'));
+  let coOk = true;
+  if (coDt <= ciDt) {
+    document.getElementById('coErr').textContent = T.coBeforeCi;
+    document.getElementById('coErr').classList.remove('d-none');
+    setCheckRow('chkOrder', 'fail'); coOk = false;
+  } else {
+    setCheckRow('chkOrder', 'ok');
   }
-  _editAmtManual = false;   // structural change → re-enable auto pricing
-  editUpdateAmount();
-});
+  return { valid: coOk, ci, co };
+}
+
+let checkTimer = null;
+function onDateChange() {
+  const result = validateDates();
+  if (!result.valid) {
+    setBadge('', ''); setCheckRow('chkConflict', 'pending'); hideConflictDetail(); enableSubmit(false); return;
+  }
+  triggerCheck();
+}
+function triggerCheck() { clearTimeout(checkTimer); checkTimer = setTimeout(doCheck, 400); }
+
+async function doCheck() {
+  const room = roomSel.value, ci = ciInput.value, co = coInput.value;
+  if (!room || !ci || !co) return;
+  if (!validateDates().valid) return;
+  setBadge(T.checking, 'checking'); setCheckRow('chkConflict', 'loading');
+  try {
+    const url = `/api/check-availability?room=${encodeURIComponent(room)}&checkin=${encodeURIComponent(ci)}&checkout=${encodeURIComponent(co)}&exclude=${encodeURIComponent(EXCLUDE_ID)}`;
+    const data = await (await fetch(url)).json();
+    // Past-date reason is not blocking for an existing booking being edited.
+    if (data.available || data.reason === 'validation.past_warning') {
+      setBadge(T.available, 'ok'); setCheckRow('chkConflict', 'ok'); hideConflictDetail(); enableSubmit(true);
+    } else {
+      setBadge(T.unavailable, 'fail'); setCheckRow('chkConflict', 'fail');
+      if (data.detail) showConflictDetail(data.detail);
+      enableSubmit(false);
+    }
+  } catch(e) { setBadge('', ''); enableSubmit(true); }
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────
+function setBadge(text, state) {
+  if (!text) { badge.classList.add('d-none'); return; }
+  badge.classList.remove('d-none');
+  const styles = {
+    ok:       { bg: '#f0fdf4', border: '#86efac', color: '#166534' },
+    fail:     { bg: '#fef2f2', border: '#fca5a5', color: '#991b1b' },
+    checking: { bg: '#eff6ff', border: '#93c5fd', color: '#1e40af' },
+  };
+  const s = styles[state] || styles.checking;
+  badge.style.background = s.bg; badge.style.borderColor = s.border; badge.style.color = s.color;
+  badge.textContent = text;
+}
+function setCheckRow(id, state) {
+  const row = document.getElementById(id); if (!row) return;
+  const icons = { ok: '✅', fail: '❌', loading: '⏳', pending: '⬜' };
+  row.querySelector('.check-icon').textContent = icons[state] || '⬜';
+}
+function showConflictDetail(d) {
+  document.getElementById('conflictId').textContent    = d.id || '';
+  document.getElementById('conflictGuest').textContent = T.conflictGuest + ': ' + (d.guest || '');
+  document.getElementById('conflictPeriod').textContent= T.conflictPeriod + ': ' + (d.checkin || '') + ' → ' + (d.checkout || '');
+  document.getElementById('conflictDetail').classList.remove('d-none');
+}
+function hideConflictDetail() { document.getElementById('conflictDetail').classList.add('d-none'); }
+function enableSubmit(ok) { submitBtn.disabled = !ok; submitBtn.style.opacity = ok ? '1' : '0.5'; }
+
+// ── Listeners ─────────────────────────────────────────────────────────────
+function _ciHandler() { _userEditedRate = false; recalc(); onDateChange(); }
+ciInput.addEventListener('change', _ciHandler);
+ciInput.addEventListener('input',  _ciHandler);
+planSel.addEventListener('change', () => { recalc(); });
+if (daysInput)     daysInput.addEventListener('input', onDaysChange);
+if (discountInput) discountInput.addEventListener('input', onDiscountChange);
+if (amountInput)   amountInput.addEventListener('input', onAmountManual);
+rateTypeSel.addEventListener('change', function() { _userEditedRate = true; recalc(); });
+roomSel.addEventListener('change', triggerCheck);
+
+// ── Init ──────────────────────────────────────────────────────────────────
+// Preserve the booking's SAVED amount/discount on load; only populate the gross
+// reference display. Any structural change (date / plan / days / discount)
+// re-prices via the engine, exactly like 新增預約.
+updateNightsHint();
+fetchQuote(false);                 // show gross only; do NOT overwrite saved amount
+_editInitDone = true;
+if (ciInput.value && coInput.value) { onDateChange(); } else { enableSubmit(true); }
 </script>
+
+<style>
+.check-row { display:flex; align-items:center; gap:.5rem; padding:.25rem 0; font-size:.84rem; }
+.check-icon { font-size:1rem; min-width:1.4rem; }
+.check-label { color:#374151; }
+</style>
 {% endblock %}

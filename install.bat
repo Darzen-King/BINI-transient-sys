@@ -1,12 +1,12 @@
 @echo off
 chcp 65001 >nul 2>&1
-title BINI Blooms Transient SYS v3.9.12 - Install
+title BINI Blooms Transient SYS v3.9.13 - Install
 set "PYTHONUTF8=1"
 set "PYTHONIOENCODING=utf-8"
 
 echo.
 echo ================================================
-echo  BINI Blooms Transient SYS v3.9.12 - Install
+echo  BINI Blooms Transient SYS v3.9.13 - Install
 echo  (System Python, no venv required)
 echo ================================================
 echo.

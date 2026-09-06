@@ -66,6 +66,7 @@
   "backup.logs": "Recent Logs",
   "action.confirm": "Confirm",
   "action.cancel": "Cancel",
+  "action.save_changes": "Save Changes",
   "action.save": "Save",
   "action.reset": "Reset",
   "action.checkin": "Check In",

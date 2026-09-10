@@ -63,4 +63,56 @@ describe('mobile-first PMS shell', () => {
 
     expect(screen.getByText(/2031 年 1 月 2 日/)).toBeInTheDocument();
   });
+
+  it('has no self-registration entry point', () => {
+    render(<App initialAuthenticated={false} />);
+
+    expect(screen.getByRole('heading', { name: '員工登入' })).toBeInTheDocument();
+    expect(screen.queryByText(/註冊|建立帳號/)).not.toBeInTheDocument();
+  });
+
+  it('removes desktop cloud-backup settings and exposes account settings only to admins', () => {
+    const { rerender } = render(<App session={{
+      uid: 'admin-1',
+      email: 'admin@example.com',
+      displayName: 'Administrator',
+      propertyId: 'property-main',
+      role: 'admin',
+      allowedPages: ['users'],
+    }} />);
+    fireEvent.click(screen.getByRole('button', { name: '更多' }));
+    expect(screen.queryByText('雲端備份')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /裝置與帳號/ })).toBeInTheDocument();
+
+    rerender(<App session={{
+      uid: 'front-1',
+      email: 'front@example.com',
+      displayName: 'Front Desk',
+      propertyId: 'property-main',
+      role: 'front_desk',
+      allowedPages: [],
+    }} />);
+    expect(screen.queryByRole('button', { name: /裝置與帳號/ })).not.toBeInTheDocument();
+  });
+
+  it('filters navigation and more actions using the configured page permissions', () => {
+    render(<App session={{
+      uid: 'housekeeping-1',
+      email: 'housekeeping@example.com',
+      displayName: 'Housekeeping',
+      propertyId: 'property-main',
+      role: 'housekeeping',
+      allowedPages: ['rooms', 'housekeeping'],
+    }} />);
+
+    const navigation = screen.getByRole('navigation', { name: '手機主導覽' });
+    expect(navigation).toHaveTextContent('今日');
+    expect(navigation).toHaveTextContent('房務');
+    expect(navigation).toHaveTextContent('更多');
+    expect(navigation).not.toHaveTextContent('預約');
+    expect(navigation).not.toHaveTextContent('款項');
+
+    fireEvent.click(screen.getByRole('button', { name: '更多' }));
+    expect(screen.queryByRole('button', { name: /成本紀錄|統計報表|裝置與帳號/ })).not.toBeInTheDocument();
+  });
 });

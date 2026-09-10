@@ -25,8 +25,14 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    function isActiveUser() {
+    function hasVerifiedMfa() {
       return isSignedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.firebase.sign_in_second_factor is string;
+    }
+
+    function isActiveUser() {
+      return hasVerifiedMfa()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
         && userDoc().data.active == true;
     }

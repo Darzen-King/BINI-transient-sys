@@ -9,11 +9,10 @@
     "node": "22"
   },
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && esbuild src/index.ts --bundle --platform=node --target=node22 --format=esm --sourcemap --outfile=dist/index.js --external:firebase-admin --external:firebase-admin/* --external:firebase-functions --external:firebase-functions/*",
     "clean": "rimraf dist tsconfig.tsbuildinfo"
   },
   "dependencies": {
-    "@bini/cloud-shared": "*",
     "firebase-admin": "^13.0.2",
     "firebase-functions": "^6.2.0",
     "zod": "^3.24.1"

@@ -9,6 +9,8 @@
 
 ## 已實作規則
 
+- Identity Platform 關閉一般使用者註冊與自助刪除；帳號只能由已完成 MFA 的館別 admin 透過 callable 建立。
+- 所有 PMS 資料存取要求 email 已驗證，且目前 ID token 含 TOTP second-factor claim。
 - 未登入者不能讀取物業資料，也不能建立 operation request。
 - 停權帳號不能讀取物業、歷史 request/result 或建立新操作。
 - 使用者只能讀自己的 profile、request 與 result。
@@ -16,13 +18,14 @@
 - 使用者與 admin 都不能直接寫 rooms、guests、bookings、stays、payments、demoNotes。
 - operation request 必須欄位完整、型別正確、operationId 符合 UUID 且等於文件 ID、uid 等於登入者，且不可修改或刪除。
 - operation result 必須保存 `uid`，讓 Rules 可以驗證擁有者；共享 schema 與處理器都有回歸測試。
+- 管理員可建立、啟停、修改角色／分頁及重設密碼；密碼只送 Firebase Auth，不寫 Firestore 或 audit log，管理員也不可停用或移除自己的 admin 身分。
 
 ## 上線前必要項目
 
-- 由專案擁有者建立並命名 DEV／PROD Firebase projects。
-- 啟用 Auth provider，建立首位 admin 的 server-side bootstrap 流程；不得由前端自行升權。
+- [完成] 專案擁有者建立並命名 DEV／PROD Firebase projects。
+- [完成] 首位 DEV admin 的一次性 server-side bootstrap；不得由前端自行升權。
 - 設定 App Check、預算警示、Functions/Firestore 日誌保留與告警。
-- 決定 MFA／登入恢復政策，完成離職停權演練。
+- 完成離職停權、遺失驗證器與帳號恢復演練。
 - 對每個正式 PMS operation 加 payload schema、角色矩陣、正反向 Emulator 測試。
 - 任何 `.env.local`、`.firebaserc`、service account 或 token 都不得提交 Git。
 

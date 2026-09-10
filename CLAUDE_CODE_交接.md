@@ -1,61 +1,78 @@
-# CLAUDE CODE 交接 — v3.9.14 + Firebase v4 foundation
+# CLAUDE CODE 交接 — v3.9.14 + Firebase v4 DEV
 
-## 2026-09-10 Firebase v4／手機介面交接（Unreleased、DEV Hosting 預覽已部署）
+## 2026-09-10 Firebase v4／封閉式員工 Auth／手機介面交接（Unreleased）
 
-### 本次範圍
+### 已完成範圍
 
-- 工作分支：`superpowers/firebase-cloud-v4-foundation`。
-- 新增 `cloud/`，不修改 v3 SQLite 資料模型或既有桌面營運流程；`VERSION` 維持 3.9.14。
-- Firebase 專案已由使用者建立並確認：DEV `bini-transient-dev`；PROD `bini-transient`（顯示名稱 `BINI-Transient`）。
-- DEV 已建立 Web App `BINI Transient DEV Web`；實際 Web SDK 設定與 alias 保存在 Git 忽略的 `cloud/.env.local`、`cloud/.firebaserc`，禁止提交。
-- DEV Hosting 預覽：`https://bini-transient-dev.web.app`。本次只部署 Hosting；未部署 Functions、Firestore Rules，未修改 PROD。
-- `cloud/scripts/assert-dev-project.mjs` 與測試提供 fail-closed 防呆；`npm run deploy:dev:hosting` 固定先 guard、再 build、最後以明確 ID 發布 DEV Hosting。repo 不提供 PROD deploy script。
+- 工作分支：`superpowers/firebase-cloud-v4-foundation`；`VERSION` 維持 3.9.14，未修改 v3 SQLite schema 或桌面營運流程。
+- Firebase：DEV `bini-transient-dev`；PROD `bini-transient`（顯示名稱 `BINI-Transient`）。只部署 DEV，PROD 未部署、未修改。
+- DEV Firestore `(default)`：`asia-east1`、Native mode、Standard edition、delete protection。
+- Identity Platform：email/password、email enumeration protection、關閉公開註冊／自助刪除、TOTP MFA 強制流程。
+- DEV Hosting、Firestore Rules/indexes、五個 Node.js 22 Functions 已部署；網址：`https://bini-transient-dev.web.app`。
+- 首位 admin `biniblooms250808@gmail.com` 已以 server-side bootstrap 建立，`emailVerified=true`、active、`property-main/admin`、17 個頁面權限、`mfaRequired=true`，並已寄出繁中一次性密碼設定信。
+- 實際 Web SDK 設定與 alias 保存在 Git 忽略的 `cloud/.env.local`、`cloud/.firebaserc`；禁止提交或輸出內容。
+
+### 單機版盤點與雲端取捨
+
+- 詳細證據：`docs/cloud/v3-current-state-inventory.md`。實際安裝版為 3.9.14；唯讀盤點 5 位啟用使用者、6 間房、97 筆預約、34 筆月租等資料。
+- 保留：角色、每人可見分頁、館別、假日／計價、房態、預約、入住／退房、付款、清潔、維修、報表與 audit。
+- 不移轉：本機 password hash/salt、session key、`backup_state`、`backup_logs`、`backup_config`、Dropbox/WebDAV/FTP/Google Drive 憑證。
+- 網路版以 Firestore 為即時權威資料源，UI 不提供單機版自動備份／同步／還原入口；Firebase 備援與匯出策略屬平台維運，不是營運頁面功能。
+- v3 的 `Room.next_booking` 與 `report_summary` 不作權威匯入；下一筆預約即時計算，報表由交易資料投影。
+- 現有 rooms/bookings/monthly rentals 的 `property_id` 為空，DEV 匯入時固定映射到 `property-main` 並納入 reconciliation。
 
 ### 架構與安全邊界
 
-- `packages/shared` 是 request/result contract 單一來源。
-- Web client 只能 create `operationRequests/{operationId}`；任何 authoritative collection 皆不能由 client/admin 前端直寫。
-- `processOperationRequest` 位於 `asia-east1`，以 transaction 寫 entity、result、audit；具 UUID idempotency 與 `baseVersion` conflict。
-- result schema 必須包含 requester `uid`，Firestore Rules 依此限制 owner read；停權使用者不可讀 request/result。
-- 目前只有 `demo.note.upsert`，不可誤認為預約／入住／款項已雲端化。
+- `packages/shared` 是 operation 與 staff contract 單一來源。
+- Web client 只能 create append-only `operationRequests/{operationId}`；authoritative collections 對 client/admin 前端一律不可直接寫。
+- `processOperationRequest` 位於 `asia-east1`，具 UUID idempotency、`baseVersion` conflict、transaction result 與 audit。
+- 所有 PMS access 要求：email verified、當次登入 token 含 TOTP second-factor、profile active、具 property role。
+- 帳號管理 callables：`adminListStaff`、`adminCreateStaff`、`adminUpdateStaff`、`adminSetStaffPassword`；server 端再次驗證 MFA + property admin。
+- 密碼只送 Firebase Auth，不寫 Firestore/audit；重設後 revoke refresh tokens。管理員不能停用自己或移除自己的 admin 身分。
+- 目前 PMS domain 只有 `demo.note.upsert` 驗證 handler；房態／預約／入住／退房／款項尚未雲端化，不可誤認為已可營運。
 
-### 手機 UI
+### 手機 UI 與登入
 
-- `packages/web/src/App.tsx`：今日、預約、房務、款項、更多；離線待同步 bottom sheet 與操作提示。
-- 首頁日期由裝置本地時間動態產生，不保留 prototype 的固定日期。
-- `packages/web/src/styles.css`：mobile-first、44px target、safe-area、2/3/4 欄房態卡與 >=1100px 桌面側欄。
-- 視覺 QA 已修正 320px min-width 造成的水平溢位，並加上房態語意色與作用中底部導覽指示。
-- UI 目前使用展示資料，沒有連接 Auth/Firestore/IndexedDB。
+- `AuthGate.tsx`：無註冊入口；email/password → email 驗證 → 首次 TOTP enrollment → 後續 MFA 登入 → profile/role 檢查。
+- `AccountManagement.tsx`：admin 專用手機卡片與 bottom sheet，可新增、啟停、選角色、勾分頁與重設密碼。
+- `App.tsx`：今日、預約、房務、款項、更多；「更多」沒有雲端備份；帳號功能只對 admin 顯示。
+- `styles.css`：mobile-first、44px target、safe-area、窄螢幕無水平溢位、>=1100px 才切桌面側欄。
+- Hosting 曾因 workspace Vite 未讀根目錄 `.env.local` 出現粉色空白頁；已在 `vite.config.ts` 設 `envDir: '../..'`，並新增 `guard:hosting-package`，缺少實際 DEV 設定會在部署前 fail closed。
+- 線上窄螢幕 QA：登入卡正常顯示；目前 JS asset 無 console error；頁面不存在註冊、Dropbox、WebDAV、FTP、Google Drive 文案。
 
-### 驗證結果
+### 驗證與部署結果
 
 ```text
-npm test             47/47 passed
-npm run test:deploy-guard  6/6 passed
-npm run test:rules   36/36 passed（Firestore Emulator, demo project）
-npm run typecheck    passed
-npm run lint         passed
-npm run build        passed
-窄螢幕 browser QA    scrollWidth == clientWidth，無水平溢位
-DEV Hosting          deploy complete；HTTP 200；瀏覽器可見 UI
+npm test                       59/59 passed
+npm run test:deploy-guard       6/6 passed
+npm run test:rules             38/38 passed（Firestore Emulator）
+npm run typecheck              passed
+npm run lint                   passed
+npm run build                  passed
+npm run guard:functions-package passed
+npm run guard:hosting-package   passed
+DEV Functions                  5/5 listed, asia-east1, nodejs22
+DEV Rules / indexes / Hosting  deploy complete
 ```
 
-`npm audit --omit=dev` 有 11 項 moderate、沒有 high/critical；Firebase 官方新版已存在，但本機安裝網路逾時，未用 `--force`。DEV 部署前另開 dependency-upgrade 任務並重跑 gates。
+Functions 會將 shared contract 用 esbuild 打入 self-contained bundle，部署 runtime dependencies 不含私有 `@bini/*` package。Firebase 部署曾提示舊 GCR build image 清理錯誤；唯讀檢查顯示 `asia.gcr.io/bini-transient-dev` repository 不存在，未發現可刪除的舊 GCR 映像。
 
 ### 下一張工作單
 
-1. 請使用者確認 Firestore location（建議 `asia-east1` 台灣；建立後不可變更），確認前不得建立 Firestore 或部署 Rules/Functions。
-2. 請使用者提供首位 app admin 登入信箱，並決定第一版是否啟用 MFA；不得把 Firebase CLI 登入帳號自行視為 app admin。
-3. 先做 v3 schema mapping 與 Bookings domain contract；不得直接從 UI 寫 Firestore。
-4. 補 Firebase Auth bootstrap、IndexedDB operation queue、衝突 UI。
-5. 只部署 DEV，使用測試電腦與匿名化資料完成筆數／金額／狀態 reconciliation。
+1. 管理員完成密碼設定後登入，首次綁定 TOTP；正式 pilot 前建立第二位 admin 並演練遺失驗證器恢復。
+2. 先做 v3 schema mapping 與 Bookings domain contract/handler；所有寫入仍須走 operation queue，不可由 UI 直寫 Firestore。
+3. 依序完成 rooms → bookings → stays/check-in/out → payments → housekeeping/maintenance，每個 domain 要有 role matrix、payload schema、idempotency/conflict tests。
+4. 加入 IndexedDB operation queue、離線／衝突 UI、App Check、預算警示、日誌與 Firestore 匯出／還原演練。
+5. 使用匿名化 v3 snapshot 匯入 DEV，核對筆數、狀態、金額、`property-main` 映射與多裝置衝突。
 6. 未通過 migration runbook 前，不得切換正式資料或推進 PROD。
 
 ### 安全注意
 
-- 本次 Firebase CLI 診斷輸出曾在本機工具記錄中顯示 CLI session credential；未寫入 repo 或文件。DEV 發布完成後，專案擁有者應重新驗證／輪替 Firebase CLI 登入 session。
+- Firebase CLI 診斷輸出曾在本機工具記錄顯示 CLI session credential；未寫入 repo 或文件。專案擁有者應重新驗證／輪替 Firebase CLI 登入 session。
+- `bootstrap:dev-admin` 硬性限制 DEV project 與指定首位 admin；重跑會再寄密碼設定信，非必要不要執行。
+- Open Design Cloud 已完成「精緻手機網頁核心流程」需求確認，但執行服務連續回傳連線失敗；未切換其他執行模式，現有 UI 仍以本機實作與真實瀏覽器 QA 為準。
 
-完整文件：`docs/cloud/v4-architecture.md`、`security-model.md`、`mobile-ui-spec.md`、`migration-runbook.md`。
+完整文件：`docs/cloud/v4-architecture.md`、`security-model.md`、`mobile-ui-spec.md`、`migration-runbook.md`、`v3-current-state-inventory.md`。
 
 ---
 

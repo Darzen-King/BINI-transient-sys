@@ -2,20 +2,20 @@
 
 ---
 
-## Unreleased — Firebase v4 雲端基礎與手機優先介面（DEV Hosting 預覽）
+## Unreleased — Firebase v4 封閉式員工登入、MFA 與手機優先介面（DEV）
 
-- 建立獨立 `cloud/` TypeScript monorepo：共享 operation contract、Cloud Functions processor、Firestore Rules 與 React/Vite PWA。
+- 建立獨立 `cloud/` TypeScript monorepo：共享 operation contract、Cloud Functions processor、Firestore Rules 與 React/Vite PWA；不改寫 v3 SQLite 或桌面版 3.9.14。
+- 完成單機版唯讀盤點與移轉決策：保留角色、分頁權限、館別、假日／計價及 PMS domain；不移轉本機 password hash、session key、`backup_state`／`backup_logs`／`backup_config` 或任何 Dropbox/WebDAV/FTP/Google Drive 憑證。
+- 網路版以 Firestore 作為即時權威資料源，手機「更多」與設定頁不提供單機版雲端備份、自動備份或還原入口；資料備援另採 Firebase 匯出／災難復原流程。
+- 完成封閉式員工 Auth：沒有公開註冊，管理員可新增、啟停、設定角色／17 個分頁權限與重設密碼；密碼只寫入 Firebase Auth，不進 Firestore 或 audit log。
+- 強制 email 驗證與 TOTP MFA；未完成 MFA、停權、跨館別與非 admin 的帳號管理請求均拒絕。首位 DEV admin `biniblooms250808@gmail.com` 已由 server-side bootstrap 建立並寄出一次性密碼設定信。
 - 所有權威資料維持 server-only write；客戶端只能建立 append-only operation request，處理器具 idempotency、版本衝突偵測與 audit log。
-- 修正 operation result 所有權契約：結果明確保存 requester `uid`，並禁止停權帳號讀取歷史 request/result。
-- 手機版採專用資訊架構：底部五分頁、快捷操作、房態卡、待同步中心與 bottom sheet；桌面寬度自動切換側欄，不共用舊版寬表格。
-- UI 設計強化：房態語意色、作用中導覽指示、44px 觸控目標、safe-area 與窄螢幕無水平溢位。
-- 首頁日期改由使用者裝置的本地日期即時產生，避免預覽顯示過期的硬編碼日期。
-- 確認 Firebase 專案：DEV `bini-transient-dev`、PROD `bini-transient`（顯示名稱 `BINI-Transient`）；已建立 DEV Web App `BINI Transient DEV Web`，本機實際設定由 Git 忽略且未提交憑證。
-- 新增 fail-closed DEV 部署防呆：只接受 `bini-transient-dev`；缺少／損壞 `.firebaserc`、DEV alias 指向 PROD 或未知專案時均中止，且 repo 不提供 PROD 部署指令。
-- DEV Hosting 手機優先 UI 預覽已發布至 `https://bini-transient-dev.web.app`；本次只部署 Hosting，未部署 Functions、Firestore Rules，也未修改 PROD。
-- 新增架構、資安、手機 UI、移轉 runbook 與 GitHub Actions 驗證工作流。
-- 驗證：47 項 Vitest、6 項 DEV 部署防呆與 36 項 Firestore Rules Emulator 測試通過；typecheck、lint、production build、DEV alias guard、線上 HTTP 200 與瀏覽器顯示均通過。
-- 限制：目前只有 `demo.note.upsert` 驗證 handler；預覽仍為展示資料，尚未連接 Firebase Auth、Firestore、正式 PMS domain 或離線 IndexedDB，不可視為可營運版本。
+- 手機版採專用資訊架構：底部五分頁、快捷操作、房態卡與 bottom sheet；使用 44px 觸控目標、safe-area、房態語意色及窄螢幕無水平溢位，桌面寬度才切換側欄。
+- DEV Firestore 已建立於 `asia-east1`；Rules、indexes、五個 Node.js 22 Functions 與 Hosting 已部署至 `bini-transient-dev`，PROD `bini-transient` 未部署、未修改。
+- 修正 Hosting 空白頁：workspace Vite 明確由 `cloud/.env.local` 讀取 DEV 設定；新增 bundle guard，缺設定、placeholder 或非 DEV project 時禁止部署。
+- DEV 預覽：`https://bini-transient-dev.web.app`。實際手機瀏覽器確認登入卡正常、無目前版本 console error，且頁面沒有註冊或外部備份入口。
+- 驗證：59 項 Vitest、6 項 DEV 部署防護與 38 項 Firestore Rules Emulator 測試通過；typecheck、lint、production build、Functions/Hosting package guard 均通過。
+- 限制：目前只有 `demo.note.upsert` PMS 驗證 handler；房態、預約、入住、退房、付款等營運畫面仍為展示資料，尚未接入正式 domain handlers、資料移轉或 IndexedDB，不可作為正式營運版。
 
 ---
 

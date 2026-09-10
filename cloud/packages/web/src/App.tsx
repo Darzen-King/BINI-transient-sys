@@ -1,20 +1,35 @@
 import { useState, type ReactNode } from 'react';
+import { ROLE_DEFAULT_PAGES, type CloudPageId } from '@bini/cloud-shared';
 
-type ViewId = 'today' | 'bookings' | 'housekeeping' | 'payments' | 'more';
+import { AccountManagement } from './accounts/AccountManagement.js';
+import type { AccountAdminGateway } from './accounts/account-admin.js';
+import type { StaffSession } from './auth/session.js';
+
+type ViewId = 'today' | 'bookings' | 'housekeeping' | 'payments' | 'more' | 'accounts';
 
 interface NavItem {
   id: ViewId;
   label: string;
   icon: string;
+  requiredPage?: CloudPageId;
 }
 
 const navigation: NavItem[] = [
-  { id: 'today', label: '今日', icon: '⌂' },
-  { id: 'bookings', label: '預約', icon: '▣' },
-  { id: 'housekeeping', label: '房務', icon: '✓' },
-  { id: 'payments', label: '款項', icon: '$' },
+  { id: 'today', label: '今日', icon: '⌂', requiredPage: 'rooms' },
+  { id: 'bookings', label: '預約', icon: '▣', requiredPage: 'bookings' },
+  { id: 'housekeeping', label: '房務', icon: '✓', requiredPage: 'housekeeping' },
+  { id: 'payments', label: '款項', icon: '$', requiredPage: 'payments' },
   { id: 'more', label: '更多', icon: '•••' },
 ];
+
+const previewSession: StaffSession = {
+  uid: 'preview-admin',
+  email: 'admin@example.com',
+  displayName: '管理員',
+  propertyId: 'property-main',
+  role: 'admin',
+  allowedPages: [...ROLE_DEFAULT_PAGES.admin],
+};
 
 const weekdayLabels = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
 
@@ -115,21 +130,42 @@ function PaymentsView({ onAction }: { onAction: (action: string) => void }) {
   );
 }
 
-function MoreView() {
+function MoreView({ isAdmin, allowedPages, onOpenAccounts }: {
+  isAdmin: boolean;
+  allowedPages: CloudPageId[];
+  onOpenAccounts: () => void;
+}) {
+  const items: Array<{ label: string; pages: CloudPageId[] }> = [
+    { label: '房間管理', pages: ['room_management'] },
+    { label: '維修管理', pages: ['maintenance'] },
+    { label: '成本紀錄', pages: ['costs'] },
+    { label: '統計報表', pages: ['reports'] },
+    { label: '審計軌跡', pages: ['audit'] },
+    { label: '館別與假日', pages: ['properties', 'holidays'] },
+  ];
+  const visibleItems = items.filter((item) => item.pages.some((page) => allowedPages.includes(page)));
   return (
     <ShellSection title="更多功能">
       <div className="more-grid">
-        {['房間管理', '維修管理', '成本紀錄', '統計報表', '雲端備份', '裝置與帳號'].map((item) => <button key={item}>{item}<span>›</span></button>)}
+        {visibleItems.map((item) => <button key={item.label}>{item.label}<span>›</span></button>)}
+        {isAdmin && allowedPages.includes('users') ? <button onClick={onOpenAccounts}>裝置與帳號<span>›</span></button> : null}
       </div>
     </ShellSection>
   );
 }
 
-function ActiveView({ view, onAction }: { view: ViewId; onAction: (action: string) => void }) {
+function ActiveView({ view, onAction, session, accountGateway, onOpenAccounts }: {
+  view: ViewId;
+  onAction: (action: string) => void;
+  session: StaffSession;
+  accountGateway: AccountAdminGateway | undefined;
+  onOpenAccounts: () => void;
+}) {
   if (view === 'bookings') return <BookingsView onAction={onAction} />;
   if (view === 'housekeeping') return <HousekeepingView />;
   if (view === 'payments') return <PaymentsView onAction={onAction} />;
-  if (view === 'more') return <MoreView />;
+  if (view === 'accounts') return <AccountManagement session={session} gateway={accountGateway} />;
+  if (view === 'more') return <MoreView isAdmin={session.role === 'admin'} allowedPages={session.allowedPages} onOpenAccounts={onOpenAccounts} />;
   return <TodayView onAction={onAction} />;
 }
 
@@ -148,26 +184,42 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
   );
 }
 
-export function App({ initialAuthenticated = true }: { initialAuthenticated?: boolean }) {
+export function App({
+  initialAuthenticated = true,
+  session = previewSession,
+  accountGateway,
+  onLogout,
+}: {
+  initialAuthenticated?: boolean;
+  session?: StaffSession;
+  accountGateway?: AccountAdminGateway;
+  onLogout?: () => void | Promise<void>;
+}) {
   const [authenticated, setAuthenticated] = useState(initialAuthenticated);
   const [view, setView] = useState<ViewId>('today');
   const [syncOpen, setSyncOpen] = useState(false);
   const [sheetAction, setSheetAction] = useState<string | null>(null);
+  const visibleNavigation = navigation.filter((item) => !item.requiredPage || session.allowedPages.includes(item.requiredPage));
 
   if (!authenticated) return <LoginScreen onLogin={() => setAuthenticated(true)} />;
+
+  const logout = () => {
+    if (onLogout) void onLogout();
+    else setAuthenticated(false);
+  };
 
   return (
     <div className="app-shell">
       <aside className="desktop-sidebar" aria-label="桌面主導覽">
         <div className="brand"><img src="/bini-mark.svg" alt="" /><span>BINI PMS<small>雲端版基礎介面</small></span></div>
-        {navigation.map((item) => <a className={view === item.id ? 'active' : ''} href={`#${item.id}`} key={item.id} onClick={(event) => { event.preventDefault(); setView(item.id); }}><span>{item.icon}</span>{item.label}</a>)}
-        <button className="logout" onClick={() => setAuthenticated(false)}>登出</button>
+        {visibleNavigation.map((item) => <a className={view === item.id ? 'active' : ''} href={`#${item.id}`} key={item.id} onClick={(event) => { event.preventDefault(); setView(item.id); }}><span>{item.icon}</span>{item.label}</a>)}
+        <button className="logout" onClick={logout}>登出</button>
       </aside>
 
       <div className="page-column">
         <header className="topbar">
-          <div><small>{formatLocalDate()}</small><h1>{view === 'today' ? '今日營運' : navigation.find((item) => item.id === view)?.label}</h1></div>
-          <button className="avatar" aria-label="帳號選單">管</button>
+          <div><small>{formatLocalDate()}</small><h1>{view === 'today' ? '今日營運' : view === 'accounts' ? '裝置與帳號' : navigation.find((item) => item.id === view)?.label}</h1></div>
+          <button className="avatar" aria-label="帳號選單">{session.displayName.slice(0, 1) || '管'}</button>
         </header>
 
         <button className="sync-banner" onClick={() => setSyncOpen(true)} aria-label="2 筆待同步，開啟待同步中心">
@@ -176,11 +228,17 @@ export function App({ initialAuthenticated = true }: { initialAuthenticated?: bo
           <span>查看 ›</span>
         </button>
 
-        <main className="page-content"><ActiveView view={view} onAction={setSheetAction} /></main>
+        <main className="page-content"><ActiveView
+          view={view}
+          onAction={setSheetAction}
+          session={session}
+          accountGateway={accountGateway}
+          onOpenAccounts={() => setView('accounts')}
+        /></main>
       </div>
 
       <nav className="mobile-nav" aria-label="手機主導覽">
-        {navigation.map((item) => (
+        {visibleNavigation.map((item) => (
           <button className={view === item.id ? 'active' : ''} key={item.id} aria-label={item.label} onClick={() => setView(item.id)}>
             <span>{item.icon}</span><small>{item.label}</small>
           </button>

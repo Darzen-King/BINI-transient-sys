@@ -22,13 +22,14 @@ Phase 2 domain implementation
 ├─ pricing parity tests against v3
 └─ offline queue and conflict UX
 
-Phase 3 DEV provision（進行中）
+Phase 3 DEV provision（基礎設施完成）
 ├─ [完成] 確認 DEV / PROD project 與建立 DEV Web App
 ├─ [完成] DEV Hosting 預覽與 fail-closed 部署防呆
-├─ [待確認] Firestore immutable location 與 budget alerts
-├─ [待辦] Auth / Firestore / Functions
-├─ bootstrap admin
-└─ deploy DEV through reviewed workflow
+├─ [完成] Firestore asia-east1 / Native / delete protection
+├─ [完成] Email/password、關閉註冊、TOTP MFA 設定
+├─ [完成] Auth / Firestore Rules / account Functions 部署
+├─ [完成] bootstrap admin + 密碼設定信
+└─ [完成] reviewed DEV deployment workflow
 
 Phase 4 pilot
 ├─ export sanitized v3 snapshot
@@ -51,18 +52,27 @@ Phase 5 production cutover
 - 狀態：房態、入住、退房、取消、no-show 對照一致。
 - 並行：兩裝置修改同一實體時，一筆成功、另一筆明確 conflict，不可靜默覆蓋。
 - 權限：跨物業、停權、未登入、前端直寫皆被 Emulator 拒絕。
+- 身分：未驗證 email、未以 MFA 登入、自助註冊、非 admin 帳號管理皆被拒絕。
 - 回復：在演練環境完成 Firebase 匯出／還原與 v3 read-only 回復流程。
 
 ## 尚需專案擁有者決定
 
-1. Firestore 建立地區（建議 `asia-east1` 台灣；建立後不可變更）。
-2. 首位 admin 的登入信箱，以及是否第一版就啟用 MFA。
-3. 預計試營運日期與可接受的正式切換停機窗口。
+1. 預計試營運日期與可接受的正式切換停機窗口。
+2. 遺失驗證器時由哪位第二管理員執行 MFA 恢復（正式試營運前至少要有兩名 admin）。
 
 ## 已確認 Firebase 資源（2026-09-10）
 
 - DEV project ID：`bini-transient-dev`；DEV Web App：`BINI Transient DEV Web`。
 - DEV Hosting 預覽站：`https://bini-transient-dev.web.app`。
 - PROD project ID：`bini-transient`；僅確認存在，未部署、未修改。
-- Firestore 尚未建立；不得在未確認地區前建立資料庫。
-- 本機部署命令只允許 Hosting 到明確 DEV project；不存在 PROD 部署 script。
+- Firestore `(default)` 已建立於 `asia-east1`，Native mode / Standard edition / delete protection。
+- Identity Platform 已啟用 email/password、email enumeration protection、TOTP MFA；一般使用者註冊與自助刪除均停用。
+- 首位 admin 信箱：`biniblooms250808@gmail.com`；只允許一次性 server-side bootstrap。
+- 本機部署命令只允許明確 DEV project；不存在 PROD 部署 script。
+
+## 單機版資料取捨
+
+- 詳細盤點見 `v3-current-state-inventory.md`。
+- 不移轉 `backup_state`、`backup_logs`、`backup_config`、Dropbox 等憑證、本機 password hash/salt/session key。
+- 不把 `Room.next_booking` 與 `report_summary` 當權威資料；前者由未來有效預約即時計算，後者由交易資料投影。
+- 現有 rooms、bookings、monthly rentals 的 `property_id` 為空，匯入 DEV 時統一映射到 `property-main`，並在 reconciliation 明確驗證。

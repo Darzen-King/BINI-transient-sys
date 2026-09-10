@@ -1,12 +1,15 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
-import { App } from './App.js';
+import { AuthGate } from './auth/AuthGate.js';
+import { createFirebaseClient } from './firebase-client.js';
 import './styles.css';
+
+const client = createFirebaseClient(import.meta.env);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <AuthGate client={client} />
   </React.StrictMode>,
 );
 

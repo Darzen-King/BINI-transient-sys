@@ -15,6 +15,14 @@ const rulesPath = fileURLToPath(new URL('../../../firestore.rules', import.meta.
 const PROPERTY = 'property-main';
 const OTHER_PROPERTY = 'property-second';
 const OP_ID = '8f1b0c9e-3a52-4a1d-9a4e-9d5c7b2f1a30';
+const MFA_CLAIMS = {
+  email_verified: true,
+  firebase: {
+    sign_in_provider: 'password',
+    sign_in_second_factor: 'totp',
+    second_factor_identifier: 'primary-authenticator',
+  },
+};
 
 let env: RulesTestEnvironment;
 
@@ -83,10 +91,18 @@ beforeEach(async () => {
   });
 });
 
-const asStaff = () => env.authenticatedContext('staff-main').firestore();
-const asOtherStaff = () => env.authenticatedContext('staff-other').firestore();
-const asDisabled = () => env.authenticatedContext('staff-disabled').firestore();
-const asAdmin = () => env.authenticatedContext('admin-main').firestore();
+const asStaff = () => env.authenticatedContext('staff-main', MFA_CLAIMS).firestore();
+const asOtherStaff = () => env.authenticatedContext('staff-other', MFA_CLAIMS).firestore();
+const asDisabled = () => env.authenticatedContext('staff-disabled', MFA_CLAIMS).firestore();
+const asAdmin = () => env.authenticatedContext('admin-main', MFA_CLAIMS).firestore();
+const asSingleFactorStaff = () => env.authenticatedContext('staff-main', {
+  email_verified: true,
+  firebase: { sign_in_provider: 'password' },
+}).firestore();
+const asUnverifiedMfaStaff = () => env.authenticatedContext('staff-main', {
+  ...MFA_CLAIMS,
+  email_verified: false,
+}).firestore();
 const asAnon = () => env.unauthenticatedContext().firestore();
 
 describe('unauthenticated access', () => {
@@ -114,6 +130,14 @@ describe('authorised reads', () => {
 
   it('a deactivated member cannot read them', async () => {
     await assertFails(getDoc(doc(asDisabled(), `properties/${PROPERTY}/bookings/b1`)));
+  });
+
+  it('a single-factor member cannot read PMS data', async () => {
+    await assertFails(getDoc(doc(asSingleFactorStaff(), `properties/${PROPERTY}/bookings/b1`)));
+  });
+
+  it('an MFA member with an unverified email cannot read PMS data', async () => {
+    await assertFails(getDoc(doc(asUnverifiedMfaStaff(), `properties/${PROPERTY}/bookings/b1`)));
   });
 
   it('a member reads their own user document', async () => {

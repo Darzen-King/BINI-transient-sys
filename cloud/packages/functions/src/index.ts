@@ -8,6 +8,13 @@ import { processOperation } from './processor/core.js';
 import { FirestoreProcessorStore } from './processor/firestore-store.js';
 import { createHandlerRegistry, demoHandlers } from './processor/handlers.js';
 
+export {
+  adminCreateStaff,
+  adminListStaff,
+  adminSetStaffPassword,
+  adminUpdateStaff,
+} from './admin/staff-admin.js';
+
 if (getApps().length === 0) initializeApp();
 
 const db = getFirestore();

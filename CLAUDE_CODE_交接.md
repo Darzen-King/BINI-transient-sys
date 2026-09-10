@@ -1,4 +1,63 @@
-# CLAUDE CODE 交接 — v3.9.8
+# CLAUDE CODE 交接 — v3.9.14 + Firebase v4 foundation
+
+## 2026-09-10 Firebase v4／手機介面交接（Unreleased、DEV Hosting 預覽已部署）
+
+### 本次範圍
+
+- 工作分支：`superpowers/firebase-cloud-v4-foundation`。
+- 新增 `cloud/`，不修改 v3 SQLite 資料模型或既有桌面營運流程；`VERSION` 維持 3.9.14。
+- Firebase 專案已由使用者建立並確認：DEV `bini-transient-dev`；PROD `bini-transient`（顯示名稱 `BINI-Transient`）。
+- DEV 已建立 Web App `BINI Transient DEV Web`；實際 Web SDK 設定與 alias 保存在 Git 忽略的 `cloud/.env.local`、`cloud/.firebaserc`，禁止提交。
+- DEV Hosting 預覽：`https://bini-transient-dev.web.app`。本次只部署 Hosting；未部署 Functions、Firestore Rules，未修改 PROD。
+- `cloud/scripts/assert-dev-project.mjs` 與測試提供 fail-closed 防呆；`npm run deploy:dev:hosting` 固定先 guard、再 build、最後以明確 ID 發布 DEV Hosting。repo 不提供 PROD deploy script。
+
+### 架構與安全邊界
+
+- `packages/shared` 是 request/result contract 單一來源。
+- Web client 只能 create `operationRequests/{operationId}`；任何 authoritative collection 皆不能由 client/admin 前端直寫。
+- `processOperationRequest` 位於 `asia-east1`，以 transaction 寫 entity、result、audit；具 UUID idempotency 與 `baseVersion` conflict。
+- result schema 必須包含 requester `uid`，Firestore Rules 依此限制 owner read；停權使用者不可讀 request/result。
+- 目前只有 `demo.note.upsert`，不可誤認為預約／入住／款項已雲端化。
+
+### 手機 UI
+
+- `packages/web/src/App.tsx`：今日、預約、房務、款項、更多；離線待同步 bottom sheet 與操作提示。
+- 首頁日期由裝置本地時間動態產生，不保留 prototype 的固定日期。
+- `packages/web/src/styles.css`：mobile-first、44px target、safe-area、2/3/4 欄房態卡與 >=1100px 桌面側欄。
+- 視覺 QA 已修正 320px min-width 造成的水平溢位，並加上房態語意色與作用中底部導覽指示。
+- UI 目前使用展示資料，沒有連接 Auth/Firestore/IndexedDB。
+
+### 驗證結果
+
+```text
+npm test             47/47 passed
+npm run test:deploy-guard  6/6 passed
+npm run test:rules   36/36 passed（Firestore Emulator, demo project）
+npm run typecheck    passed
+npm run lint         passed
+npm run build        passed
+窄螢幕 browser QA    scrollWidth == clientWidth，無水平溢位
+DEV Hosting          deploy complete；HTTP 200；瀏覽器可見 UI
+```
+
+`npm audit --omit=dev` 有 11 項 moderate、沒有 high/critical；Firebase 官方新版已存在，但本機安裝網路逾時，未用 `--force`。DEV 部署前另開 dependency-upgrade 任務並重跑 gates。
+
+### 下一張工作單
+
+1. 請使用者確認 Firestore location（建議 `asia-east1` 台灣；建立後不可變更），確認前不得建立 Firestore 或部署 Rules/Functions。
+2. 請使用者提供首位 app admin 登入信箱，並決定第一版是否啟用 MFA；不得把 Firebase CLI 登入帳號自行視為 app admin。
+3. 先做 v3 schema mapping 與 Bookings domain contract；不得直接從 UI 寫 Firestore。
+4. 補 Firebase Auth bootstrap、IndexedDB operation queue、衝突 UI。
+5. 只部署 DEV，使用測試電腦與匿名化資料完成筆數／金額／狀態 reconciliation。
+6. 未通過 migration runbook 前，不得切換正式資料或推進 PROD。
+
+### 安全注意
+
+- 本次 Firebase CLI 診斷輸出曾在本機工具記錄中顯示 CLI session credential；未寫入 repo 或文件。DEV 發布完成後，專案擁有者應重新驗證／輪替 Firebase CLI 登入 session。
+
+完整文件：`docs/cloud/v4-architecture.md`、`security-model.md`、`mobile-ui-spec.md`、`migration-runbook.md`。
+
+---
 
 日期：2026-08-25
 版本：v3.9.7 → **v3.9.8**

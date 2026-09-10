@@ -1,0 +1,198 @@
+rules_version = '2';
+
+// BINI PMS v4 — Firestore security rules.
+//
+// Model:
+//   * Default deny. Every collection below is opened deliberately.
+//   * Clients NEVER write authoritative data. They create an operationRequest;
+//     a Cloud Function running with Admin SDK credentials (which bypasses these
+//     rules) is the only writer of authoritative collections, results and audit logs.
+//   * Read access requires a signed-in, `active` user who holds a role on the property.
+//
+// The field lists below mirror packages/shared/src/contracts/operation.ts and are
+// checked against it by packages/shared/tests/rules-contract.test.ts.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── identity / membership ────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isActiveUser() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().data.active == true;
+    }
+
+    function hasProperty(propertyId) {
+      return isActiveUser()
+        && userDoc().data.roles.keys().hasAny([propertyId]);
+    }
+
+    function isAdminOf(propertyId) {
+      return hasProperty(propertyId)
+        && userDoc().data.roles[propertyId] == 'admin';
+    }
+
+    // ── operation contract mirror ────────────────────────────────────────────
+
+    // CLIENT_FIELDS — mirror of OPERATION_REQUEST_CLIENT_FIELDS. Exactly these keys
+    // may appear on a client-created operation request; no more, no fewer.
+    function clientFields() {
+      return [
+        'operationId',
+        'deviceId',
+        'uid',
+        'propertyId',
+        'operationType',
+        'entityId',
+        'baseVersion',
+        'payload',
+        'schemaVersion',
+        'clientCreatedAt'
+      ];
+    }
+
+    // SERVER_FIELDS — mirror of OPERATION_RESULT_SERVER_FIELDS. A client that sends
+    // any of these is trying to forge its own result; refuse the write.
+    function serverFields() {
+      return [
+        'status',
+        'appliedVersion',
+        'currentVersion',
+        'code',
+        'message',
+        'processedAt'
+      ];
+    }
+
+    function hasExactlyClientFields() {
+      return request.resource.data.keys().hasOnly(clientFields())
+        && request.resource.data.keys().hasAll(clientFields())
+        && !request.resource.data.keys().hasAny(serverFields());
+    }
+
+    function isBoundedString(value) {
+      return value is string && value.size() > 0 && value.size() <= 128;
+    }
+
+    function isUuid(value) {
+      return value is string
+        && value.matches(
+             '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+           );
+    }
+
+    function hasWellTypedFields(operationId) {
+      return request.resource.data.operationId == operationId
+        && isUuid(request.resource.data.operationId)
+        && isBoundedString(request.resource.data.deviceId)
+        && isBoundedString(request.resource.data.uid)
+        && isBoundedString(request.resource.data.propertyId)
+        && isBoundedString(request.resource.data.entityId)
+        && isBoundedString(request.resource.data.operationType)
+        && request.resource.data.operationType.matches('[a-z][a-z0-9]*([.][a-z][a-z0-9]*)+')
+        && request.resource.data.baseVersion is int
+        && request.resource.data.baseVersion >= 0
+        && request.resource.data.payload is map
+        && request.resource.data.schemaVersion in [1]
+        && request.resource.data.clientCreatedAt is string
+        && request.resource.data.clientCreatedAt.matches(
+             '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]{1,9})?(Z|[+-][0-9]{2}:[0-9]{2})'
+           );
+    }
+
+    function isOwnRequest() {
+      return request.resource.data.uid == request.auth.uid;
+    }
+
+    // ── client-writable intent queue ─────────────────────────────────────────
+
+    match /operationRequests/{operationId} {
+      // A client may read back only the requests it submitted itself.
+      allow get: if isActiveUser() && resource.data.uid == request.auth.uid;
+      allow list: if false;
+
+      allow create: if isActiveUser()
+        && isOwnRequest()
+        && hasProperty(request.resource.data.propertyId)
+        && hasExactlyClientFields()
+        && hasWellTypedFields(operationId);
+
+      // The queue is append-only: history must not be rewritten or erased.
+      allow update, delete: if false;
+    }
+
+    // Server-produced outcomes. Readable by the requester, writable by nobody.
+    match /operationResults/{operationId} {
+      allow get: if isActiveUser() && resource.data.uid == request.auth.uid;
+      allow list, write: if false;
+    }
+
+    // ── identity documents ───────────────────────────────────────────────────
+
+    match /users/{uid} {
+      // A user may read their own profile (including `active: false`, so the shell
+      // can explain why it is locked out). Roles and activation are server-managed.
+      allow get: if isSignedIn() && request.auth.uid == uid;
+      allow list, write: if false;
+    }
+
+    // ── authoritative data: read-only to clients ─────────────────────────────
+
+    match /properties/{propertyId} {
+      allow get, list: if hasProperty(propertyId);
+      allow write: if false;
+
+      match /rooms/{docId} {
+        allow read: if hasProperty(propertyId);
+        allow write: if false;
+      }
+
+      match /guests/{docId} {
+        allow read: if hasProperty(propertyId);
+        allow write: if false;
+      }
+
+      match /bookings/{docId} {
+        allow read: if hasProperty(propertyId);
+        allow write: if false;
+      }
+
+      match /stays/{docId} {
+        allow read: if hasProperty(propertyId);
+        allow write: if false;
+      }
+
+      match /payments/{docId} {
+        allow read: if hasProperty(propertyId);
+        allow write: if false;
+      }
+
+      // Demonstration entity for the operation contract. Not a PMS domain object.
+      match /demoNotes/{docId} {
+        allow read: if hasProperty(propertyId);
+        allow write: if false;
+      }
+
+      // Audit trail: admins of the property may read it; nobody may write it.
+      match /auditLogs/{docId} {
+        allow read: if isAdminOf(propertyId);
+        allow write: if false;
+      }
+    }
+
+    // ── everything else is closed ────────────────────────────────────────────
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -40,6 +40,8 @@ htmlcov/
 .claude-flow/
 .claude/proven-config.json
 .claude/.proven-config-version
+.claude/settings.local.json
+.claude/worktrees/
 .hive-mind/
 .swarm/
 .ruflo/
@@ -55,3 +57,15 @@ BINI_Blooms_Data/
 
 # Per-install session signing key (never commit / distribute)
 session.key
+
+# Firebase v4 cloud workspace
+cloud/node_modules/
+cloud/**/node_modules/
+cloud/packages/*/dist/
+cloud/packages/*/dist-types/
+cloud/packages/*/tsconfig.tsbuildinfo
+cloud/.firebase/
+cloud/.env.local
+cloud/.firebaserc
+cloud/firebase-debug.log
+cloud/firestore-debug.log

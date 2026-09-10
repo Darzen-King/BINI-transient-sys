@@ -1,0 +1,28 @@
+{
+  "name": "@bini/cloud-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Minimal PWA shell for BINI PMS v4 cloud (foundation only — no operational screens).",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "clean": "rimraf dist tsconfig.tsbuildinfo"
+  },
+  "dependencies": {
+    "@bini/cloud-shared": "*",
+    "firebase": "^11.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^25.0.1",
+    "vite": "^6.0.5"
+  }
+}

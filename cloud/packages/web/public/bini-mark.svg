@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="BINI">
+  <rect width="512" height="512" rx="112" fill="#fff7fb"/>
+  <path d="M256 94c42 0 76 34 76 76 0 17-6 33-15 45 51 7 91 50 91 103 0 57-46 103-103 103h-98c-57 0-103-46-103-103 0-53 40-96 91-103-9-12-15-28-15-45 0-42 34-76 76-76Z" fill="#e83e8c"/>
+  <circle cx="226" cy="176" r="13" fill="#fff"/>
+  <circle cx="286" cy="176" r="13" fill="#fff"/>
+  <path d="M214 287h84M214 331h84" stroke="#fff" stroke-width="24" stroke-linecap="round"/>
+</svg>

@@ -75,6 +75,7 @@ beforeEach(async () => {
     await setDoc(doc(db, `properties/${PROPERTY}`), { name: 'Main' });
     await setDoc(doc(db, `properties/${PROPERTY}/bookings/b1`), { version: 1, room: '202' });
     await setDoc(doc(db, `properties/${PROPERTY}/auditLogs/a1`), { operationId: OP_ID });
+    await setDoc(doc(db, 'migrationImports/batch-1'), { status: 'complete', propertyId: PROPERTY });
     await setDoc(doc(db, `operationResults/${OP_ID}`), {
       uid: 'staff-main',
       propertyId: PROPERTY,
@@ -311,5 +312,10 @@ describe('default deny', () => {
   it('an undeclared collection is closed', async () => {
     await assertFails(getDoc(doc(asAdmin(), 'somethingElse/x')));
     await assertFails(setDoc(doc(asAdmin(), 'somethingElse/x'), { a: 1 }));
+  });
+
+  it('keeps migration staging server-only even for a property admin', async () => {
+    await assertFails(getDoc(doc(asAdmin(), 'migrationImports/batch-1')));
+    await assertFails(setDoc(doc(asAdmin(), 'migrationImports/batch-2'), { status: 'complete' }));
   });
 });

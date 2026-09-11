@@ -16,11 +16,21 @@ Phase 1 foundation（本次）
 ├─ Firestore Rules + Emulator tests
 └─ mobile-first PWA shell
 
-Phase 2 domain implementation
-├─ schema mapping and migration IDs
-├─ bookings / stays / payments handlers
-├─ pricing parity tests against v3
+Phase 2 full-domain implementation
+├─ all-entity schema mapping and stable migration IDs
+├─ inspect and stage v3 schema 3.5 Dropbox JSON (admin + MFA + SHA-256)
+├─ rooms / gantt projections
+├─ bookings / stays / monthly rentals / payments handlers
+├─ housekeeping / maintenance handlers
+├─ reports / costs / holidays / properties / audit handlers
+├─ pricing and accounting parity tests against v3
 └─ offline queue and conflict UX
+
+Phase 2.5 full-interface parity
+├─ desktop: preserve every v3 page, top navigation and workflow
+├─ mobile: adaptive view for every authorized function
+├─ shared controllers / queries / operations, separate view components only
+└─ per-page desktop screenshot + 320/375/430px mobile QA
 
 Phase 3 DEV provision（基礎設施完成）
 ├─ [完成] 確認 DEV / PROD project 與建立 DEV Web App
@@ -54,6 +64,7 @@ Phase 5 production cutover
 - 權限：跨物業、停權、未登入、前端直寫皆被 Emulator 拒絕。
 - 身分：未驗證 email、未以 MFA 登入、自助註冊、非 admin 帳號管理皆被拒絕。
 - 回復：在演練環境完成 Firebase 匯出／還原與 v3 read-only 回復流程。
+- 介面：`v3-v4-full-parity-matrix.md` 每一列均達「已完成」；不得以 foundation demo 或單一房間總覽代替全產品驗收。
 
 ## 尚需專案擁有者決定
 
@@ -74,5 +85,6 @@ Phase 5 production cutover
 
 - 詳細盤點見 `v3-current-state-inventory.md`。
 - 不移轉 `backup_state`、`backup_logs`、`backup_config`、Dropbox 等憑證、本機 password hash/salt/session key。
+- 可使用原 Dropbox `bini_blooms_backup.json` 作為一次性來源檔；先寫入 `migrationImports` 暫存區，reconciliation 全數通過後才可 promotion，禁止直接從瀏覽器寫權威 collection。
 - 不把 `Room.next_booking` 與 `report_summary` 當權威資料；前者由未來有效預約即時計算，後者由交易資料投影。
 - 現有 rooms、bookings、monthly rentals 的 `property_id` 為空，匯入 DEV 時統一映射到 `property-main`，並在 reconciliation 明確驗證。

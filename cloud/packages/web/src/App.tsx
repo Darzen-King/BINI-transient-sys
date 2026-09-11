@@ -1,11 +1,19 @@
 import { useState, type ReactNode } from 'react';
-import { ROLE_DEFAULT_PAGES, type CloudPageId } from '@bini/cloud-shared';
+import {
+  CLOUD_PAGE_MANIFEST,
+  ROLE_DEFAULT_PAGES,
+  pagesAllowedForNavigation,
+  type CloudPageId,
+} from '@bini/cloud-shared';
 
 import { AccountManagement } from './accounts/AccountManagement.js';
 import type { AccountAdminGateway } from './accounts/account-admin.js';
 import type { StaffSession } from './auth/session.js';
+import { InitialDataImport } from './migration/InitialDataImport.js';
+import type { DataImportGateway } from './migration/data-import.js';
 
-type ViewId = 'today' | 'bookings' | 'housekeeping' | 'payments' | 'more' | 'accounts';
+type UtilityViewId = 'hub' | 'initial_import';
+type ViewId = 'today' | 'more' | 'accounts' | UtilityViewId | CloudPageId;
 
 interface NavItem {
   id: ViewId;
@@ -14,13 +22,26 @@ interface NavItem {
   requiredPage?: CloudPageId;
 }
 
-const navigation: NavItem[] = [
+const mobileNavigation: NavItem[] = [
   { id: 'today', label: '今日', icon: '⌂', requiredPage: 'rooms' },
   { id: 'bookings', label: '預約', icon: '▣', requiredPage: 'bookings' },
   { id: 'housekeeping', label: '房務', icon: '✓', requiredPage: 'housekeeping' },
   { id: 'payments', label: '款項', icon: '$', requiredPage: 'payments' },
   { id: 'more', label: '更多', icon: '•••' },
 ];
+
+const mobileViewForPage = (pageId: CloudPageId): ViewId => {
+  if (pageId === 'rooms') return 'today';
+  if (pageId === 'users') return 'accounts';
+  return pageId;
+};
+
+const activeDesktopPage = (view: ViewId): CloudPageId | null => {
+  if (view === 'today') return 'rooms';
+  if (view === 'accounts') return 'users';
+  if (view === 'more' || view === 'hub' || view === 'initial_import') return null;
+  return view;
+};
 
 const previewSession: StaffSession = {
   uid: 'preview-admin',
@@ -37,13 +58,102 @@ function formatLocalDate(date = new Date()) {
   return `${date.getFullYear()} 年 ${date.getMonth() + 1} 月 ${date.getDate()} 日 · ${weekdayLabels[date.getDay()]}`;
 }
 
-const rooms = [
-  { number: '201', guest: 'Carlos', state: '住宿中', tone: 'occupied', note: '今日 21:00 退房' },
-  { number: '202', guest: 'Juvy', state: '待入住', tone: 'arrival', note: '15:00 後可入住' },
-  { number: '203', guest: '—', state: '待清潔', tone: 'cleaning', note: '優先清潔' },
-  { number: '205', guest: '—', state: '空房', tone: 'vacant', note: '可立即入住' },
-  { number: '207', guest: '—', state: '維修中', tone: 'maintenance', note: '浴室檢查' },
+type RoomTone = 'occupied' | 'arrival' | 'cleaning' | 'vacant' | 'maintenance' | 'monthly';
+
+interface RoomViewModel {
+  number: string;
+  state: string;
+  tone: RoomTone;
+  guest?: string;
+  checkin?: string;
+  checkout?: string;
+  totalDue?: number;
+  totalPaid?: number;
+  depositPaid?: number;
+  balanceDue?: number;
+  maintenanceTitle?: string;
+  maintenanceEnd?: string;
+  nextBooking?: string;
+  note?: string;
+  actions: Array<'checkin' | 'extend' | 'payment' | 'checkout'>;
+}
+
+const rooms: RoomViewModel[] = [
+  {
+    number: '201', state: '月租套房', tone: 'monthly', guest: 'Carlos',
+    checkin: '2026-06-01', checkout: '2026-10-01', note: 'Monthly Rent', actions: [],
+  },
+  {
+    number: '202', state: '使用中', tone: 'occupied', guest: 'Joshua',
+    checkin: '2026-09-05 16:00', checkout: '2026-09-13 16:00',
+    totalDue: 6400, totalPaid: 0, depositPaid: 0, balanceDue: 6400,
+    nextBooking: '2026-09-19 11:00', actions: ['extend', 'payment', 'checkout'],
+  },
+  {
+    number: '203', state: '可入住', tone: 'vacant', nextBooking: '2026-09-11 21:00',
+    actions: ['checkin'],
+  },
+  {
+    number: '205', state: '可入住', tone: 'vacant', nextBooking: '2026-09-12 21:00',
+    actions: ['checkin'],
+  },
+  {
+    number: '206', state: '月租套房', tone: 'monthly', guest: 'Edong',
+    checkin: '2026-07-10', checkout: '2026-09-10', note: 'Monthly Rent', actions: [],
+  },
+  {
+    number: '207', state: '月租套房', tone: 'monthly', guest: 'Tangkad',
+    checkin: '2026-07-10', checkout: '2026-09-10', note: 'Monthly Rent', actions: [],
+  },
 ];
+
+const actionLabels = {
+  checkin: '辦理入住',
+  extend: '延住處理',
+  payment: '付款',
+  checkout: '退房辦理',
+} as const;
+
+function RoomDetails({ room }: { room: RoomViewModel }) {
+  const hasPaymentSummary = room.totalDue !== undefined;
+  return (
+    <div className="room-card-details">
+      <dl className="room-detail-list">
+        {room.guest ? <div><dt>目前旅客</dt><dd><strong>{room.guest}</strong></dd></div> : null}
+        {room.checkin ? <div><dt>入住時間</dt><dd>{room.checkin}</dd></div> : null}
+        {room.checkout ? <div><dt>退房時間</dt><dd>{room.checkout}</dd></div> : null}
+        {room.maintenanceTitle ? <div><dt>維修項目</dt><dd className="danger-text">{room.maintenanceTitle}</dd></div> : null}
+        {room.maintenanceEnd ? <div><dt>預計完成</dt><dd className="danger-text">{room.maintenanceEnd}</dd></div> : null}
+        {room.nextBooking ? <div><dt>下一筆預約</dt><dd className="info-text">{room.nextBooking}</dd></div> : null}
+        {room.note ? <div><dt>備註</dt><dd>{room.note}</dd></div> : null}
+      </dl>
+      {hasPaymentSummary ? (
+        <div className="room-payment-summary" aria-label={`${room.number} 房款項摘要`}>
+          <div><span>💰 應付總額</span><strong>NT$ {room.totalDue?.toLocaleString()}</strong></div>
+          <div><span>💳 已收款</span><strong className="success-text">NT$ {(room.totalPaid ?? 0).toLocaleString()}</strong></div>
+          {(room.depositPaid ?? 0) > 0 ? <div className="deposit-row"><span>↳ 含押金</span><span>NT$ {room.depositPaid?.toLocaleString()}</span></div> : null}
+          <div className="balance-row"><strong>餘額應收</strong><strong>NT$ {(room.balanceDue ?? 0).toLocaleString()}{(room.balanceDue ?? 0) <= 0 ? ' ✅' : ''}</strong></div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function RoomActions({ room, onAction }: { room: RoomViewModel; onAction: (action: string) => void }) {
+  if (room.actions.length === 0) return null;
+  return (
+    <div className="room-card-actions">
+      {room.actions.map((action) => (
+        <button
+          className={`room-action room-action--${action}`}
+          key={action}
+          onClick={() => onAction(`${room.number} · ${actionLabels[action]}`)}
+          type="button"
+        >{action === 'payment' ? '💵 ' : ''}{actionLabels[action]}</button>
+      ))}
+    </div>
+  );
+}
 
 function ShellSection({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
@@ -58,6 +168,8 @@ function ShellSection({ title, hint, children }: { title: string; hint?: string;
 }
 
 function TodayView({ onAction }: { onAction: (action: string) => void }) {
+  const [selectedRoom, setSelectedRoom] = useState<RoomViewModel | null>(null);
+
   return (
     <>
       <section className="summary-strip" aria-label="今日營運摘要">
@@ -72,15 +184,25 @@ function TodayView({ onAction }: { onAction: (action: string) => void }) {
         <button aria-label="辦理退房" onClick={() => onAction('辦理退房')}>↗<span>辦理退房</span></button>
       </section>
 
-      <ShellSection title="今日房態" hint="5 間" >
+      <ShellSection title="今日房態" hint={`${rooms.length} 間`} >
         <div className="room-grid" role="region" aria-label="今日房態">
           {rooms.map((room) => (
-            <button className={`room-card room-card--${room.tone}`} key={room.number} onClick={() => onAction(`${room.number} 房間`)}>
-              <span className="room-number">{room.number}</span>
-              <span className="status-pill">{room.state}</span>
-              <strong>{room.guest}</strong>
-              <small>{room.note}</small>
-            </button>
+            <article className={`room-card room-card--${room.tone}`} key={room.number}>
+              <button
+                aria-label={`查看 ${room.number} 房詳細資料`}
+                className="room-card-summary"
+                onClick={() => setSelectedRoom(room)}
+                type="button"
+              >
+                <span className="room-number">{room.number}</span>
+                <span className="status-pill">{room.state}</span>
+                <strong>{room.guest ?? '—'}</strong>
+                <small>{room.nextBooking ? `下一筆 ${room.nextBooking}` : room.note ?? '點擊查看完整資料'}</small>
+                <span className="mobile-detail-affordance" aria-hidden="true">查看詳細資料 ›</span>
+              </button>
+              <RoomDetails room={room} />
+              <RoomActions room={room} onAction={onAction} />
+            </article>
           ))}
         </div>
       </ShellSection>
@@ -91,6 +213,26 @@ function TodayView({ onAction }: { onAction: (action: string) => void }) {
           <button><span className="time">17:00</span><span><strong>203 · Chris</strong><small>預計入住 · 尚未收款</small></span><span>›</span></button>
         </div>
       </ShellSection>
+
+      {selectedRoom ? (
+        <div className="modal-backdrop room-detail-backdrop" onClick={() => setSelectedRoom(null)}>
+          <section
+            aria-label={`${selectedRoom.number} 房詳細資料`}
+            aria-modal="true"
+            className={`bottom-sheet room-detail-sheet room-card--${selectedRoom.tone}`}
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <div className="sheet-handle" />
+            <div className="sheet-title room-detail-title">
+              <div><h2>{selectedRoom.number} 房</h2><span className="status-pill">{selectedRoom.state}</span></div>
+              <button aria-label="關閉房間詳細資料" onClick={() => setSelectedRoom(null)}>×</button>
+            </div>
+            <RoomDetails room={selectedRoom} />
+            <RoomActions room={selectedRoom} onAction={(action) => { setSelectedRoom(null); onAction(action); }} />
+          </section>
+        </div>
+      ) : null}
     </>
   );
 }
@@ -130,43 +272,65 @@ function PaymentsView({ onAction }: { onAction: (action: string) => void }) {
   );
 }
 
-function MoreView({ isAdmin, allowedPages, onOpenAccounts }: {
+function MoreView({ isAdmin, allowedPages, onOpenPage, onLogout }: {
   isAdmin: boolean;
   allowedPages: CloudPageId[];
-  onOpenAccounts: () => void;
+  onOpenPage: (pageId: CloudPageId | UtilityViewId) => void;
+  onLogout: () => void;
 }) {
-  const items: Array<{ label: string; pages: CloudPageId[] }> = [
-    { label: '房間管理', pages: ['room_management'] },
-    { label: '維修管理', pages: ['maintenance'] },
-    { label: '成本紀錄', pages: ['costs'] },
-    { label: '統計報表', pages: ['reports'] },
-    { label: '審計軌跡', pages: ['audit'] },
-    { label: '館別與假日', pages: ['properties', 'holidays'] },
-  ];
-  const visibleItems = items.filter((item) => item.pages.some((page) => allowedPages.includes(page)));
+  const primaryPages = new Set<CloudPageId>(['rooms', 'bookings', 'housekeeping', 'payments']);
+  const visibleItems = pagesAllowedForNavigation(allowedPages).filter(
+    (page) => !primaryPages.has(page.id) && (page.id !== 'users' || isAdmin),
+  );
   return (
     <ShellSection title="更多功能">
       <div className="more-grid">
-        {visibleItems.map((item) => <button key={item.label}>{item.label}<span>›</span></button>)}
-        {isAdmin && allowedPages.includes('users') ? <button onClick={onOpenAccounts}>裝置與帳號<span>›</span></button> : null}
+        <button onClick={() => onOpenPage('hub')}>Prototype Hub<span>›</span></button>
+        {isAdmin ? <button onClick={() => onOpenPage('initial_import')}>初始資料導入<span>›</span></button> : null}
+        {visibleItems.map((item) => (
+          <button key={item.id} onClick={() => onOpenPage(item.id)}>{item.labelZhTw}<span>›</span></button>
+        ))}
+        <button onClick={onLogout}>登出<span>›</span></button>
       </div>
     </ShellSection>
   );
 }
 
-function ActiveView({ view, onAction, session, accountGateway, onOpenAccounts }: {
+function FoundationPage({ pageId, isAdmin, onOpenInitialImport }: {
+  pageId: CloudPageId | 'hub';
+  isAdmin: boolean;
+  onOpenInitialImport: () => void;
+}) {
+  const page = pageId === 'hub' ? null : CLOUD_PAGE_MANIFEST.find((candidate) => candidate.id === pageId);
+  const title = pageId === 'hub' ? 'Prototype Hub' : page?.labelZhTw ?? pageId;
+  return (
+    <ShellSection title={title} hint="全功能搬移中">
+      <div className="foundation-page">
+        <strong>此模組已列入 Firebase v4 完整搬移範圍</strong>
+        <p>目前 foundation 尚未接入真實 PMS 資料與 operation handler，因此不標示為完成功能。</p>
+        {pageId === 'hub' && isAdmin ? <button className="compact-primary import-entry" onClick={onOpenInitialImport}>從 Dropbox 備份進行初始資料導入</button> : null}
+      </div>
+    </ShellSection>
+  );
+}
+
+function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, onOpenPage, onLogout }: {
   view: ViewId;
   onAction: (action: string) => void;
   session: StaffSession;
   accountGateway: AccountAdminGateway | undefined;
-  onOpenAccounts: () => void;
+  dataImportGateway: DataImportGateway | undefined;
+  onOpenPage: (pageId: CloudPageId | UtilityViewId) => void;
+  onLogout: () => void;
 }) {
   if (view === 'bookings') return <BookingsView onAction={onAction} />;
   if (view === 'housekeeping') return <HousekeepingView />;
   if (view === 'payments') return <PaymentsView onAction={onAction} />;
-  if (view === 'accounts') return <AccountManagement session={session} gateway={accountGateway} />;
-  if (view === 'more') return <MoreView isAdmin={session.role === 'admin'} allowedPages={session.allowedPages} onOpenAccounts={onOpenAccounts} />;
-  return <TodayView onAction={onAction} />;
+  if (view === 'accounts' || view === 'users') return <AccountManagement session={session} gateway={accountGateway} />;
+  if (view === 'initial_import') return <InitialDataImport session={session} gateway={dataImportGateway} />;
+  if (view === 'more') return <MoreView isAdmin={session.role === 'admin'} allowedPages={session.allowedPages} onOpenPage={onOpenPage} onLogout={onLogout} />;
+  if (view === 'today' || view === 'rooms') return <TodayView onAction={onAction} />;
+  return <FoundationPage pageId={view} isAdmin={session.role === 'admin'} onOpenInitialImport={() => onOpenPage('initial_import')} />;
 }
 
 export function LoginScreen({ onLogin }: { onLogin: () => void }) {
@@ -188,18 +352,23 @@ export function App({
   initialAuthenticated = true,
   session = previewSession,
   accountGateway,
+  dataImportGateway,
   onLogout,
 }: {
   initialAuthenticated?: boolean;
   session?: StaffSession;
   accountGateway?: AccountAdminGateway;
+  dataImportGateway?: DataImportGateway;
   onLogout?: () => void | Promise<void>;
 }) {
   const [authenticated, setAuthenticated] = useState(initialAuthenticated);
   const [view, setView] = useState<ViewId>('today');
-  const [syncOpen, setSyncOpen] = useState(false);
   const [sheetAction, setSheetAction] = useState<string | null>(null);
-  const visibleNavigation = navigation.filter((item) => !item.requiredPage || session.allowedPages.includes(item.requiredPage));
+  const visibleMobileNavigation = mobileNavigation.filter((item) => !item.requiredPage || session.allowedPages.includes(item.requiredPage));
+  const visibleDesktopPages = pagesAllowedForNavigation(session.allowedPages).filter(
+    (page) => page.id !== 'users' || session.role === 'admin',
+  );
+  const selectedDesktopPage = activeDesktopPage(view);
 
   if (!authenticated) return <LoginScreen onLogin={() => setAuthenticated(true)} />;
 
@@ -210,51 +379,60 @@ export function App({
 
   return (
     <div className="app-shell">
-      <aside className="desktop-sidebar" aria-label="桌面主導覽">
-        <div className="brand"><img src="/bini-mark.svg" alt="" /><span>BINI PMS<small>雲端版基礎介面</small></span></div>
-        {visibleNavigation.map((item) => <a className={view === item.id ? 'active' : ''} href={`#${item.id}`} key={item.id} onClick={(event) => { event.preventDefault(); setView(item.id); }}><span>{item.icon}</span>{item.label}</a>)}
-        <button className="logout" onClick={logout}>登出</button>
-      </aside>
+      <header className="desktop-topnav">
+        <a className="desktop-brand" href="#hub" onClick={(event) => { event.preventDefault(); setView('hub'); }}>
+          <img src="/bini-mark.svg" alt="" />
+          <span>BINI Blooms PMS</span>
+        </a>
+        <nav aria-label="桌面主導覽">
+          <a className={view === 'hub' ? 'active' : ''} href="#hub" onClick={(event) => { event.preventDefault(); setView('hub'); }}>Prototype Hub</a>
+          {visibleDesktopPages.map((page) => (
+            <a
+              className={selectedDesktopPage === page.id ? 'active' : ''}
+              href={`#${page.id}`}
+              key={page.id}
+              onClick={(event) => { event.preventDefault(); setView(mobileViewForPage(page.id)); }}
+            >{page.labelZhTw}</a>
+          ))}
+        </nav>
+        <div className="desktop-account">
+          <span className="environment-state">DEV</span>
+          <strong>{session.displayName}</strong>
+          <button disabled title="完整雙語切換尚在搬移中" type="button">中文</button>
+          <button disabled title="完整雙語切換尚在搬移中" type="button">EN</button>
+          <button type="button" aria-label="登出" onClick={logout}>⏻</button>
+        </div>
+      </header>
 
       <div className="page-column">
         <header className="topbar">
-          <div><small>{formatLocalDate()}</small><h1>{view === 'today' ? '今日營運' : view === 'accounts' ? '裝置與帳號' : navigation.find((item) => item.id === view)?.label}</h1></div>
+          <div><small>{formatLocalDate()}</small><h1>{view === 'today' ? '今日營運' : view === 'accounts' ? '使用者管理' : view === 'hub' ? 'Prototype Hub' : view === 'initial_import' ? '初始資料導入' : CLOUD_PAGE_MANIFEST.find((page) => page.id === view)?.labelZhTw ?? mobileNavigation.find((item) => item.id === view)?.label}</h1></div>
           <button className="avatar" aria-label="帳號選單">{session.displayName.slice(0, 1) || '管'}</button>
         </header>
 
-        <button className="sync-banner" onClick={() => setSyncOpen(true)} aria-label="2 筆待同步，開啟待同步中心">
-          <span className="sync-dot" />
-          <span><strong>離線模式 · 2 筆待同步</strong><small>操作尚未完成，連線後將自動送出</small></span>
-          <span>查看 ›</span>
-        </button>
+        <div className="foundation-banner" role="status">
+          <span className="foundation-dot" />
+          <span><strong>DEV 開發中 · 尚不可作為正式營運系統</strong><small>登入與帳號管理已接 Firebase；其餘 PMS 模組將依全功能對照矩陣逐項接入。</small></span>
+        </div>
 
         <main className="page-content"><ActiveView
           view={view}
           onAction={setSheetAction}
           session={session}
           accountGateway={accountGateway}
-          onOpenAccounts={() => setView('accounts')}
+          dataImportGateway={dataImportGateway}
+          onOpenPage={(pageId) => setView(pageId === 'users' ? 'accounts' : pageId)}
+          onLogout={logout}
         /></main>
       </div>
 
       <nav className="mobile-nav" aria-label="手機主導覽">
-        {visibleNavigation.map((item) => (
+        {visibleMobileNavigation.map((item) => (
           <button className={view === item.id ? 'active' : ''} key={item.id} aria-label={item.label} onClick={() => setView(item.id)}>
             <span>{item.icon}</span><small>{item.label}</small>
           </button>
         ))}
       </nav>
-
-      {syncOpen ? (
-        <div className="modal-backdrop" onClick={() => setSyncOpen(false)}>
-          <section className="bottom-sheet" role="dialog" aria-modal="true" aria-label="待同步中心" onClick={(event) => event.stopPropagation()}>
-            <div className="sheet-handle" /><div className="sheet-title"><div><h2>待同步中心</h2><p>等待網路恢復後由伺服器確認</p></div><button aria-label="關閉待同步中心" onClick={() => setSyncOpen(false)}>×</button></div>
-            <p className="sync-warning">尚未完成</p>
-            <article className="pending-item"><span>新增預約</span><strong>202 · Juvy</strong><small>等待同步</small></article>
-            <article className="pending-item"><span>房務更新</span><strong>203 · 開始清潔</strong><small>等待同步</small></article>
-          </section>
-        </div>
-      ) : null}
 
       {sheetAction ? (
         <div className="modal-backdrop" onClick={() => setSheetAction(null)}>

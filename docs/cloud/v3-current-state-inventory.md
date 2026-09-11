@@ -28,7 +28,7 @@
 | 費率 | 12/24 小時與延住費目前硬編碼，非可編輯設定 | 第一階段維持同價計算；後續改為有版本的費率設定 |
 | 語言 | 中文／英文 cookie | 保留雙語能力，登入與手機流程先以繁中為主 |
 | 程式更新 | admin 從 GitHub 檢查並覆蓋桌面程式 | PWA 由 Hosting 發布，不保留本機覆蓋式更新 |
-| 外部備份 | Dropbox/WebDAV/FTP/Google Drive、手動同步／還原、事件觸發 | 完全排除；Firestore 是即時權威資料源，另設 Firebase 備援／匯出策略 |
+| 外部備份 | Dropbox/WebDAV/FTP/Google Drive、手動同步／還原、事件觸發 | 不搬移日常同步與憑證；僅把 Dropbox 產出的 `bini_blooms_backup.json` 作為一次性初始資料導入來源。Firestore 上線後是即時權威資料源，另設 Firebase 備援／匯出策略 |
 
 ## 營運功能
 
@@ -55,8 +55,12 @@ sessions、costs、maintenance schedules、monthly rentals、holidays、users/pr
 - `backup_state`、`backup_logs`、`backup_config` 與所有 Dropbox/WebDAV/FTP/Google Drive 憑證。
 - 本機 password hash、salt、session key：不得上傳；改由 Firebase Auth 管理。
 
+程式化對照位於 `cloud/packages/shared/src/migration/v3-mapping.ts`：12 個權威資料表均有目標 collection、穩定 legacy ID 與館別補值策略。現場金額欄位唯讀抽查均為整數新台幣；移轉契約會拒絕非整數或非安全整數，避免浮點金額靜默進入 Firestore。v3 的無時區日期字串會明確轉成 `Asia/Taipei` 的 `+08:00` ISO 時間，並保留來源版本、來源 table／ID 與 SHA-256 供重跑和 reconciliation。
+
+首次導入接受單機版 `_export_db()` 產出的 schema `3.5` JSON。`v3-backup.ts` 先檢查格式、必要陣列、重複 ID、8 MB／10,000 筆上限及未知欄位，並在瀏覽器移除 `users`、`report_summary`、未知欄位與 `rooms.next_booking`；`adminStageV3Backup` 只接收清理後的 12 類權威來源，再驗證 Firebase MFA、館別 admin 與 SHA-256，寫入不可由 client 讀寫的 `migrationImports/{batchId}/rows` 暫存區。舊密碼資料不會傳送到 Firebase。
+
 ## 雲端化前必修正的安全落差
 
 - 單機版 `allowed_pages` 主要控制導覽顯示，並非一致的後端授權；雲端版每個 operation 必須驗證角色與功能權限。
 - 單機版 middleware 把 `/api/` 當 public path，部分 API 缺少個別角色檢查；雲端版不得沿用，所有讀寫均由 Auth、MFA、active、property role 與 Rules／Functions 多層驗證。
-- 現場 Dropbox 狀態為自動備份關閉且最近同步失敗；這不影響 v4，因為 v4 不使用該備份鏈。
+- 現場 Dropbox 狀態為自動備份關閉且最近同步失敗；v4 不依賴該連線。操作員只需從 Dropbox 手動下載既有 JSON 檔，再由初始資料導入頁選檔。

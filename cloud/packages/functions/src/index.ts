@@ -14,6 +14,7 @@ export {
   adminSetStaffPassword,
   adminUpdateStaff,
 } from './admin/staff-admin.js';
+export { adminStageV3Backup } from './migration/stage-v3-backup.js';
 
 if (getApps().length === 0) initializeApp();
 

@@ -26,25 +26,52 @@ describe('mobile-first PMS shell', () => {
 
     expect(screen.getByRole('region', { name: '今日房態' })).toBeInTheDocument();
     expect(screen.getByText('201')).toBeInTheDocument();
-    expect(screen.getByText('待清潔')).toBeInTheDocument();
+    expect(screen.getByText('使用中')).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('keeps the original detailed room fields in the desktop card markup', () => {
+    render(<App />);
+
+    const roomCard = screen.getByRole('button', { name: '查看 202 房詳細資料' }).closest('article');
+    expect(roomCard).toHaveTextContent('目前旅客');
+    expect(roomCard).toHaveTextContent('入住時間');
+    expect(roomCard).toHaveTextContent('退房時間');
+    expect(roomCard).toHaveTextContent('應付總額');
+    expect(roomCard).toHaveTextContent('已收款');
+    expect(roomCard).toHaveTextContent('餘額應收');
+    expect(roomCard).toHaveTextContent('下一筆預約');
+    expect(roomCard).toHaveTextContent('延住處理');
+    expect(roomCard).toHaveTextContent('付款');
+    expect(roomCard).toHaveTextContent('退房辦理');
+  });
+
+  it('opens the same complete room details from a compact mobile room card', () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '查看 202 房詳細資料' }));
+    const dialog = screen.getByRole('dialog', { name: '202 房詳細資料' });
+    expect(dialog).toHaveTextContent('Joshua');
+    expect(dialog).toHaveTextContent('2026-09-05 16:00');
+    expect(dialog).toHaveTextContent('NT$ 6,400');
+    expect(dialog).toHaveTextContent('下一筆預約');
+    expect(dialog).toHaveTextContent('延住處理');
   });
 
   it('keeps the three highest-frequency front-desk actions one tap away', () => {
     render(<App />);
 
     expect(screen.getByRole('button', { name: '新增預約' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '辦理入住' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: '辦理入住' }).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: '辦理退房' })).toBeInTheDocument();
   });
 
-  it('makes offline work explicit and opens the pending-sync centre', () => {
+  it('labels the deployed shell as a non-operational DEV foundation without fake pending work', () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: /2 筆待同步/ }));
-    expect(screen.getByRole('dialog', { name: '待同步中心' })).toBeInTheDocument();
-    expect(screen.getByText('尚未完成')).toBeInTheDocument();
-    expect(screen.getByText('等待網路恢復後由伺服器確認')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('DEV 開發中');
+    expect(screen.getByRole('status')).toHaveTextContent('尚不可作為正式營運系統');
+    expect(screen.queryByText(/2 筆待同步|等待同步/)).not.toBeInTheDocument();
   });
 
   it('switches to a dedicated housekeeping screen through mobile navigation', () => {
@@ -82,7 +109,7 @@ describe('mobile-first PMS shell', () => {
     }} />);
     fireEvent.click(screen.getByRole('button', { name: '更多' }));
     expect(screen.queryByText('雲端備份')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /裝置與帳號/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /使用者/ })).toBeInTheDocument();
 
     rerender(<App session={{
       uid: 'front-1',
@@ -92,7 +119,7 @@ describe('mobile-first PMS shell', () => {
       role: 'front_desk',
       allowedPages: [],
     }} />);
-    expect(screen.queryByRole('button', { name: /裝置與帳號/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /使用者/ })).not.toBeInTheDocument();
   });
 
   it('filters navigation and more actions using the configured page permissions', () => {
@@ -113,6 +140,24 @@ describe('mobile-first PMS shell', () => {
     expect(navigation).not.toHaveTextContent('款項');
 
     fireEvent.click(screen.getByRole('button', { name: '更多' }));
-    expect(screen.queryByRole('button', { name: /成本紀錄|統計報表|裝置與帳號/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /成本紀錄|統計報表|使用者/ })).not.toBeInTheDocument();
+  });
+
+  it('preserves the complete v3 desktop navigation order without cloud backup', () => {
+    render(<App />);
+
+    const navigation = screen.getByRole('navigation', { name: '桌面主導覽' });
+    const labels = [
+      'Prototype Hub', '房間總覽', '甘特圖', '付款管理', '預約管理', '新增預約',
+      '入住登記', '延住處理', '退房辦理', '房間管理', '清潔管理', '維修管理',
+      '統計報表', '審計軌跡', '使用者', '館別管理', '成本紀錄', '假日管理',
+    ];
+    let cursor = -1;
+    for (const label of labels) {
+      const next = navigation.textContent?.indexOf(label) ?? -1;
+      expect(next).toBeGreaterThan(cursor);
+      cursor = next;
+    }
+    expect(navigation).not.toHaveTextContent('雲端備份');
   });
 });

@@ -1,8 +1,14 @@
-# 手機執行介面規格
+# 桌機同版／手機自適應介面規格
+
+## 產品介面原則
+
+- `>= 1100px` 保留 v3.9.14 的頂部導覽、頁面結構、欄位、表格／卡片和操作流程；目前 foundation 的桌面側欄不是最終介面。
+- `< 1100px` 才依空間逐步重排；手機不是精簡版，每個使用者有權限的 v3 功能都必須可完成。
+- 桌機 view 與手機 view 可以使用不同元件，但必須共用相同 controller、query、operation contract、計價與授權。
 
 ## 設計原則
 
-- Mobile-first：核心寬度從 320px 起可用，不把桌面表格等比例縮小。
+- 手機核心寬度從 320px 起可用，不把桌面表格等比例縮小。
 - 常用操作在拇指可及區：底部五分頁為「今日、預約、房務、款項、更多」。
 - 所有主要觸控目標至少 44px，支援 safe-area、reduced motion 與窄螢幕無水平捲動。
 - 房態同時用文字、色彩與左側色條辨識，避免只依賴顏色。
@@ -14,19 +20,20 @@
 - 預約：新增預約、搜尋、預約卡片；詳細編輯使用全螢幕流程，不使用寬表格。
 - 房務：優先房間、清潔狀態、維修提醒。
 - 款項：今日收款、待收款警示、新增款項。
-- 更多：房間、維修、報表、設定、使用者等低頻功能；不出現單機版「雲端備份」。
+- 更多：甘特圖、房間管理、維修、報表、審計、使用者、館別、成本、假日與 Prototype Hub 等所有有權限的低頻功能；admin 另可進「初始資料導入」。不出現單機版日常「雲端備份」。
 - 裝置與帳號：admin 專用；以手機卡片／bottom sheet 取代桌面寬表格，可新增、啟停、選角色、勾選功能與重設密碼。
 - 登入：沒有註冊連結；首次使用依序完成 email 驗證與 TOTP MFA 設定。
 
 ## 響應式行為
 
-- `< 768px`：兩欄房態卡、固定底部導覽、bottom sheet。
-- `768–1099px`：內容置中、三欄房態卡。
-- `>= 1100px`：桌面側欄、四欄房態卡；沿用同一 view state 與元件，不複製業務邏輯。
+- `< 480px`：單欄房態卡、固定底部導覽、bottom sheet。
+- `480–767px`：空間允許時使用兩欄房態卡；表單仍維持單欄。
+- `768–1099px`：內容置中、兩至三欄房態卡與平板導覽。
+- `>= 1100px`：還原 v3 頂部導覽與各頁桌機排版；房間總覽依現有內容寬度維持三欄房卡。不得以目前 foundation 側欄作為最終桌機資訊架構。
 
 ## 目前完成與限制
 
-- 已完成 React UI shell、真實 Firebase 登入／TOTP MFA 流程、admin 帳號設定、PWA manifest/service worker、響應式 CSS 與基本可及性標籤。
-- 已以實際窄螢幕瀏覽器檢查；document scroll width 等於 viewport，無水平溢位。
+- 已完成 React foundation shell、v3 同順序桌機頂部導覽、完整手機「更多」入口、真實 Firebase 登入／TOTP MFA 流程、admin 帳號設定、PWA manifest/service worker、響應式 CSS 與基本可及性標籤。
+- 已以實際瀏覽器檢查 320／375／430／768／1100px；document 未水平溢位，手機／桌機導覽在 breakpoint 正確切換。
 - 營運畫面資料目前仍是明確的展示資料，快捷操作只開啟 foundation 提示；Identity 已接 Auth/Firestore/Functions，但 PMS domain 與 IndexedDB 尚未接入。
-- 真實表單必須在各 domain operation contract 完成後逐一接入，禁止先讓手機直接寫權威 collection。
+- 真實表單必須在各 domain operation contract 完成後逐一接入，禁止先讓手機直接寫權威 collection。完整頁面清單與桌機／手機對照見 `v3-v4-full-parity-matrix.md`。

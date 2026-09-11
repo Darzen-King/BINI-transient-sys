@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Mobile-first BINI PMS v4 PWA with closed staff authentication; operational domains remain in progress.",
+  "description": "Responsive BINI PMS v4 PWA with v3 desktop parity, adaptive mobile views and closed staff authentication; operational domains remain in progress.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

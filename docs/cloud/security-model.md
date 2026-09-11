@@ -6,6 +6,7 @@
 - Web/PWA 是不受信任客戶端，不持有 Admin SDK 憑證。
 - Cloud Functions 使用 Admin SDK，是唯一可寫權威業務資料、operation results 與 audit logs 的元件。
 - Firestore Rules 採 default deny；未明確列出的 collection 全部拒絕。
+- `migrationImports` 暫存區不對任何 Web client 開放，包含 admin；只能由通過 email verification、TOTP MFA 與館別 admin 複驗的 callable 使用 Admin SDK 建立。
 
 ## 已實作規則
 

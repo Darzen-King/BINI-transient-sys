@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 
 const cssPath = fileURLToPath(new URL('../src/styles.css', import.meta.url));
 const css = readFileSync(cssPath, 'utf8');
+const viteConfigPath = fileURLToPath(new URL('../vite.config.ts', import.meta.url));
+const viteConfig = readFileSync(viteConfigPath, 'utf8');
 
 describe('responsive layout contract', () => {
   it('starts from a mobile layout and defines tablet and desktop breakpoints', () => {
@@ -22,8 +24,14 @@ describe('responsive layout contract', () => {
     expect(css).toContain('env(safe-area-inset-top)');
   });
 
-  it('uses dedicated mobile and desktop navigation rather than scaling one table', () => {
+  it('uses dedicated mobile navigation and the v3-style desktop top navigation', () => {
     expect(css).toMatch(/\.mobile-nav\s*\{/);
-    expect(css).toMatch(/\.desktop-sidebar\s*\{/);
+    expect(css).toMatch(/\.desktop-topnav\s*\{/);
+    expect(css).not.toMatch(/\.desktop-sidebar\s*\{/);
+  });
+
+  it('keeps the unauthenticated visual QA page out of the production build inputs', () => {
+    expect(viteConfig).not.toContain('ui-preview.html');
+    expect(viteConfig).not.toMatch(/rollupOptions\s*:/);
   });
 });

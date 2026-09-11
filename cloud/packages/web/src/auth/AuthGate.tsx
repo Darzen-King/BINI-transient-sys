@@ -20,6 +20,7 @@ import { CLOUD_ROLES, type CloudPageId, type CloudRole } from '@bini/cloud-share
 import { App } from '../App.js';
 import { createAccountAdminGateway } from '../accounts/account-admin.js';
 import type { FirebaseClient } from '../firebase-client.js';
+import { createDataImportGateway } from '../migration/data-import.js';
 import type { StaffSession } from './session.js';
 
 type GatePhase = 'loading' | 'login' | 'mfa' | 'verify-email' | 'enroll-mfa' | 'blocked' | 'ready';
@@ -193,6 +194,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
     return <App
       session={session}
       accountGateway={createAccountAdminGateway(client.functions)}
+      dataImportGateway={createDataImportGateway(client.functions)}
       onLogout={() => signOut(client.auth)}
     />;
   }

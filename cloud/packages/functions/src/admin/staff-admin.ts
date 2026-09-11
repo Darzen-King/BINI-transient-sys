@@ -19,7 +19,7 @@ function invalidInput(): never {
   throw new HttpsError('invalid-argument', '輸入資料格式不正確。');
 }
 
-async function requirePropertyAdmin(
+export async function requirePropertyAdmin(
   auth: { uid: string; token: unknown } | undefined,
   propertyId: string,
 ): Promise<string> {
@@ -29,12 +29,12 @@ async function requirePropertyAdmin(
   }
   const profile = await getFirestore().doc(`users/${auth.uid}`).get();
   if (roleForProperty(profile.data(), propertyId) !== 'admin') {
-    throw new HttpsError('permission-denied', '只有管理員可管理人員帳號。');
+    throw new HttpsError('permission-denied', '只有管理員可執行此操作。');
   }
   return auth.uid;
 }
 
-async function writeAudit(
+export async function writeAudit(
   propertyId: string,
   actorUid: string,
   action: string,

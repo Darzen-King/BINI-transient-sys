@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { FirebaseError } from 'firebase/app';
 import {
   TotpMultiFactorGenerator,
@@ -23,6 +23,7 @@ import { Button, Field, Notice } from '../design-system/index.js';
 import type { FirebaseClient } from '../firebase-client.js';
 import { LanguageSwitcher, useLocale } from '../i18n/locale.js';
 import { createDataImportGateway } from '../migration/data-import.js';
+import { createRoomOverviewGateway } from '../rooms/room-overview.js';
 import type { StaffSession } from './session.js';
 
 type GatePhase = 'loading' | 'login' | 'mfa' | 'verify-email' | 'enroll-mfa' | 'blocked' | 'ready';
@@ -75,6 +76,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const roomOverviewGateway = useMemo(() => createRoomOverviewGateway(client.db), [client.db]);
 
   const evaluateUser = useCallback(async (user: User) => {
     setCurrentUser(user);
@@ -198,6 +200,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
       session={session}
       accountGateway={createAccountAdminGateway(client.functions)}
       dataImportGateway={createDataImportGateway(client.functions)}
+      roomOverviewGateway={roomOverviewGateway}
       onLogout={() => signOut(client.auth)}
     />;
   }

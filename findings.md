@@ -44,6 +44,18 @@
 - Live manifest 已確認宣告 192／512 `any` 與 512 `maskable` PNG；部署後 JS bundle 引用 `/bini-blooms-logo.png` 且不再引用 `/bini-mark.svg`，Service Worker 新 cache 也包含全部品牌資產。
 - CHANGELOG、Claude Code 交接、首次匯入計畫、migration runbook 與 parity matrix 已同步為「staging + prepare/reconcile 已完成，promotion 待實作」。
 - 未來 promotion 必須再次要求 batch `status=ready`、目前 `transformVersion`、checksum 與 prepared row count 一致，不能只依 `preparedRows` 存在就寫入權威 collections。
+- `App.tsx` 的今日房態仍由檔案內固定 `rooms` 陣列驅動；桌機詳細卡片與手機詳細 dialog 已共用 `RoomViewModel`，可保留 view 並只替換 data source。
+- `AuthGate` 已持有 `client.db` 與通過 MFA／館別驗證的 `StaffSession`，可建立 room overview gateway 後注入 `App`；現有 Rules 已允許同館別讀取 rooms、bookings、stays、payments 且禁止 client 寫入。
+- 預覽與既有 13 項 mobile shell 測試直接 render `<App />`；新 gateway 應設為 optional，無 gateway 時保留匿名化 preview fixture，AuthGate 真實登入時才注入 Firestore gateway。
+- 房態 ViewModel 應保留 v3 的七種狀態語意；下一筆預約只能從 `status=已預約` 且 `checkInAt > now` 的 booking 即時計算，不能再使用任何 `next_booking` 快取欄位。
+- v3 房卡款項算法以目前 active stay 的 `created_at`（無則 check-in）為下界，或納入同 bookingId 的預先押金；已收款為一般＋押金−退款且不低於 0，押金另列，餘額為 `max(totalDue-totalPaid, 0)`。
+- 今日房態還需要讀取 `maintenanceSchedules` 才能比照 v3 在排程有效期間覆蓋房態；現行 Rules 尚未宣告該 collection，下一切片需新增同館別唯讀、client 永遠不可寫的規則與 emulator 測試。
+- room overview projection 已以 6 項純函式測試驗證過期預約排除、最早未來預約、v3 款項範圍、維修覆蓋、台北日界與損壞資料 fail closed；UI／舊 shell 共 15 項測試通過。
+- Firestore gateway 同時監聽 5 個 property-scoped collections，全部取得首次 snapshot 後才輸出，並每 60 秒重算時間邊界，避免已過時間的「下一筆預約」殘留到下次資料異動。
+- Rules Emulator 41/41 通過：maintenanceSchedules 僅同館別且 email verified + TOTP MFA 的 active member 可讀，任何 client 角色均不可直接寫。
+- 本切片只改 Web/shared read projection 與 Firestore Rules；部署應執行 `deploy:dev:firestore` 和 `deploy:dev:hosting`，不需再次更新 Functions。
+- DEV 已發布 Firestore Rules 與 Hosting bundle `index-CvQM9Ysu.js`；live bundle 包含 room gateway、maintenanceSchedules 與 fail-closed 文案。Bundle 中仍可找到字串 `next_booking` 是因首次匯入清理器必須辨識並剔除該來源欄位，不代表房態讀取使用快取。
+- 最終 fail-closed 修正已重新發布為 bundle `index-COsUaknt.js`；live HTTP 確認即時房態、maintenanceSchedules、錯誤後不顯示 preview 及 BINI logo 皆存在。
 
 ## 技術決策
 | 決策 | 理由 |

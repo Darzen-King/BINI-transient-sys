@@ -1,9 +1,12 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   CLOUD_PAGE_MANIFEST,
   ROLE_DEFAULT_PAGES,
   pagesAllowedForNavigation,
   type CloudPageId,
+  type CloudRoomStatus,
+  type RoomOverviewProjection,
+  type RoomOverviewRoom,
 } from '@bini/cloud-shared';
 
 import { AccountManagement } from './accounts/AccountManagement.js';
@@ -13,6 +16,7 @@ import { Badge, Button, Field, Notice, ResponsiveDialog, SectionCard } from './d
 import { LanguageSwitcher, useLocale, type AppLocale } from './i18n/locale.js';
 import { InitialDataImport } from './migration/InitialDataImport.js';
 import type { DataImportGateway } from './migration/data-import.js';
+import type { RoomOverviewGateway } from './rooms/room-overview.js';
 
 type UtilityViewId = 'hub' | 'initial_import';
 type ViewId = 'today' | 'more' | 'accounts' | UtilityViewId | CloudPageId;
@@ -76,27 +80,27 @@ function formatLocalDate(locale: AppLocale, date = new Date()) {
 }
 
 type RoomTone = 'occupied' | 'arrival' | 'cleaning' | 'vacant' | 'maintenance' | 'monthly';
-type RoomState = 'monthly' | 'occupied' | 'vacant' | 'arrival' | 'cleaning' | 'maintenance';
+type RoomState = 'monthly' | 'occupied' | 'departing' | 'vacant' | 'arrival' | 'cleaning' | 'cleaningInProgress' | 'maintenance';
 
 interface RoomViewModel {
   number: string;
   state: RoomState;
   tone: RoomTone;
-  guest?: string;
-  checkin?: string;
-  checkout?: string;
-  totalDue?: number;
-  totalPaid?: number;
-  depositPaid?: number;
-  balanceDue?: number;
-  maintenanceTitle?: string;
-  maintenanceEnd?: string;
-  nextBooking?: string;
-  note?: string;
+  guest?: string | undefined;
+  checkin?: string | undefined;
+  checkout?: string | undefined;
+  totalDue?: number | undefined;
+  totalPaid?: number | undefined;
+  depositPaid?: number | undefined;
+  balanceDue?: number | undefined;
+  maintenanceTitle?: string | undefined;
+  maintenanceEnd?: string | undefined;
+  nextBooking?: string | undefined;
+  note?: string | undefined;
   actions: Array<'checkin' | 'extend' | 'payment' | 'checkout'>;
 }
 
-const rooms: RoomViewModel[] = [
+const previewRooms: RoomViewModel[] = [
   {
     number: '201', state: 'monthly', tone: 'monthly', guest: 'Carlos',
     checkin: '2026-06-01', checkout: '2026-10-01', note: 'Monthly Rent', actions: [],
@@ -128,11 +132,63 @@ const rooms: RoomViewModel[] = [
 const roomStateLabels: Record<RoomState, readonly [string, string]> = {
   monthly: ['月租套房', 'Monthly'],
   occupied: ['使用中', 'Occupied'],
+  departing: ['即將退房', 'Departing'],
   vacant: ['可入住', 'Vacant'],
   arrival: ['待入住', 'Arrival'],
-  cleaning: ['待清潔', 'Cleaning'],
+  cleaning: ['待清潔', 'Needs cleaning'],
+  cleaningInProgress: ['清潔中', 'Cleaning'],
   maintenance: ['維修中', 'Maintenance'],
 };
+
+const roomStatusPresentation: Record<CloudRoomStatus, { state: RoomState; tone: RoomTone }> = {
+  可入住: { state: 'vacant', tone: 'vacant' },
+  使用中: { state: 'occupied', tone: 'occupied' },
+  即將退房: { state: 'departing', tone: 'occupied' },
+  待清潔: { state: 'cleaning', tone: 'cleaning' },
+  清潔中: { state: 'cleaningInProgress', tone: 'cleaning' },
+  維修中: { state: 'maintenance', tone: 'maintenance' },
+  月租套房: { state: 'monthly', tone: 'monthly' },
+};
+
+function formatTaipeiDateTime(value: string | null, locale: AppLocale): string | undefined {
+  if (!value) return undefined;
+  const formatted = new Intl.DateTimeFormat(locale === 'en' ? 'en-CA' : 'zh-TW', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(value));
+  const parts = Object.fromEntries(formatted.map((part) => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}`;
+}
+
+function formatTaipeiTime(value: string, locale: AppLocale): string {
+  return formatTaipeiDateTime(value, locale)?.slice(11) ?? '';
+}
+
+function toRoomViewModel(room: RoomOverviewRoom, locale: AppLocale): RoomViewModel {
+  const presentation = roomStatusPresentation[room.status];
+  return {
+    number: room.roomId,
+    state: presentation.state,
+    tone: presentation.tone,
+    guest: room.guestName ?? undefined,
+    checkin: formatTaipeiDateTime(room.checkInAt, locale),
+    checkout: formatTaipeiDateTime(room.checkOutAt, locale),
+    totalDue: room.totalDueNts ?? undefined,
+    totalPaid: room.totalPaidNts ?? undefined,
+    depositPaid: room.depositPaidNts ?? undefined,
+    balanceDue: room.balanceDueNts ?? undefined,
+    maintenanceTitle: room.maintenanceTitle ?? undefined,
+    maintenanceEnd: formatTaipeiDateTime(room.maintenanceEndAt, locale),
+    nextBooking: formatTaipeiDateTime(room.nextBookingAt, locale),
+    note: room.note ?? undefined,
+    actions: [...room.actions],
+  };
+}
 
 const actionLabels = {
   checkin: ['辦理入住', 'Check in'],
@@ -189,17 +245,47 @@ function ShellSection({ title, hint, children }: { title: string; hint?: string;
   return <SectionCard hint={hint} title={title}>{children}</SectionCard>;
 }
 
-function TodayView({ onAction }: { onAction: (action: string) => void }) {
+function TodayView({ onAction, propertyId, roomOverviewGateway }: {
+  onAction: (action: string) => void;
+  propertyId: string;
+  roomOverviewGateway: RoomOverviewGateway | undefined;
+}) {
   const { locale, text } = useLocale();
-  const [selectedRoom, setSelectedRoom] = useState<RoomViewModel | null>(null);
+  const [projection, setProjection] = useState<RoomOverviewProjection | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [selectedRoomNumber, setSelectedRoomNumber] = useState<string | null>(null);
   const stateLabel = (state: RoomState) => roomStateLabels[state][locale === 'zh-TW' ? 0 : 1];
+  const roomViewModels = roomOverviewGateway
+    ? (projection?.rooms.map((room) => toRoomViewModel(room, locale)) ?? [])
+    : previewRooms;
+  const summary = roomOverviewGateway
+    ? (projection?.summary ?? { arrivalsToday: 0, departuresToday: 0, cleaningPending: 0 })
+    : { arrivalsToday: 3, departuresToday: 2, cleaningPending: 1 };
+  const selectedRoom = roomViewModels.find((room) => room.number === selectedRoomNumber) ?? null;
+
+  useEffect(() => {
+    if (!roomOverviewGateway) return undefined;
+    setProjection(null);
+    setLoadError(false);
+    return roomOverviewGateway.subscribe(
+      propertyId,
+      (nextProjection) => {
+        setProjection(nextProjection);
+        setLoadError(false);
+      },
+      () => {
+        setProjection(null);
+        setLoadError(true);
+      },
+    );
+  }, [propertyId, roomOverviewGateway]);
 
   return (
     <>
       <section className="summary-strip" aria-label={text('今日營運摘要', "Today's operations summary")}>
-        <article><strong>3</strong><span>{text('今日入住', 'Arrivals')}</span></article>
-        <article><strong>2</strong><span>{text('今日退房', 'Departures')}</span></article>
-        <article><strong>1</strong><span>{text('清潔待辦', 'To clean')}</span></article>
+        <article><strong>{summary.arrivalsToday}</strong><span>{text('今日入住', 'Arrivals')}</span></article>
+        <article><strong>{summary.departuresToday}</strong><span>{text('今日退房', 'Departures')}</span></article>
+        <article><strong>{summary.cleaningPending}</strong><span>{text('清潔待辦', 'To clean')}</span></article>
       </section>
 
       <section className="quick-actions" aria-label={text('櫃檯快捷操作', 'Front desk quick actions')}>
@@ -208,14 +294,17 @@ function TodayView({ onAction }: { onAction: (action: string) => void }) {
         <Button aria-label={text('辦理退房', 'Check out')} onClick={() => onAction(text('辦理退房', 'Check out'))} variant="outline">↗<span>{text('辦理退房', 'Check out')}</span></Button>
       </section>
 
-      <ShellSection title={text('今日房態', "Today's rooms")} hint={text(`${rooms.length} 間`, `${rooms.length} rooms`)} >
+      <ShellSection title={text('今日房態', "Today's rooms")} hint={text(`${roomViewModels.length} 間`, `${roomViewModels.length} rooms`)} >
+        {loadError ? <Notice tone="danger" title={text('無法載入即時房態', 'Unable to load live room status')}>{text('資料格式或連線異常，請重新整理；系統不會改用展示資料。', 'Refresh the page. The system will not substitute preview data for live data.')}</Notice> : null}
+        {roomOverviewGateway && !projection && !loadError ? <div className="empty-card">{text('正在載入即時房態…', 'Loading live room status…')}</div> : null}
+        {projection && projection.rooms.length === 0 ? <div className="empty-card">{text('此館別尚無房間資料；請先完成初始資料導入。', 'This property has no room data. Complete the initial data import first.')}</div> : null}
         <div className="room-grid" role="region" aria-label={text('今日房態', "Today's rooms")}>
-          {rooms.map((room) => (
+          {roomViewModels.map((room) => (
             <article className={`room-card room-card--${room.tone}`} key={room.number}>
               <button
                 aria-label={text(`查看 ${room.number} 房詳細資料`, `View room ${room.number} details`)}
                 className="room-card-summary"
-                onClick={() => setSelectedRoom(room)}
+                onClick={() => setSelectedRoomNumber(room.number)}
                 type="button"
               >
                 <span className="room-number">{room.number}</span>
@@ -233,20 +322,28 @@ function TodayView({ onAction }: { onAction: (action: string) => void }) {
 
       <ShellSection title={text('接下來要處理', 'Up next')} hint={text('依時間排序', 'By time')}>
         <div className="task-list">
-          <button><span className="time">14:30</span><span><strong>202 · Juvy</strong><small>{text('預約入住 · 已付押金', 'Arrival · Deposit paid')}</small></span><span>›</span></button>
-          <button><span className="time">17:00</span><span><strong>203 · Chris</strong><small>{text('預計入住 · 尚未收款', 'Expected arrival · Payment due')}</small></span><span>›</span></button>
+          {roomOverviewGateway ? projection?.upNext.map((item) => (
+            <button key={item.bookingId} onClick={() => onAction(`${item.roomId} · ${item.guestName}`)}>
+              <span className="time">{formatTaipeiTime(item.checkInAt, locale)}</span>
+              <span><strong>{item.roomId} · {item.guestName}</strong><small>{item.paidNts > 0 ? text('預約入住 · 已有收款', 'Arrival · Payment received') : text('預約入住 · 尚未收款', 'Arrival · Payment due')}</small></span><span>›</span>
+            </button>
+          )) : <>
+            <button><span className="time">14:30</span><span><strong>202 · Juvy</strong><small>{text('預約入住 · 已付押金', 'Arrival · Deposit paid')}</small></span><span>›</span></button>
+            <button><span className="time">17:00</span><span><strong>203 · Chris</strong><small>{text('預計入住 · 尚未收款', 'Expected arrival · Payment due')}</small></span><span>›</span></button>
+          </>}
+          {roomOverviewGateway && projection?.upNext.length === 0 ? <div className="empty-card">{text('目前沒有未來有效預約。', 'There are no active future bookings.')}</div> : null}
         </div>
       </ShellSection>
 
       {selectedRoom ? (
         <ResponsiveDialog
           className={`room-detail-sheet room-card--${selectedRoom.tone}`}
-          onClose={() => setSelectedRoom(null)}
+          onClose={() => setSelectedRoomNumber(null)}
           title={text(`${selectedRoom.number} 房詳細資料`, `Room ${selectedRoom.number} details`)}
         >
             <Badge className="status-pill">{stateLabel(selectedRoom.state)}</Badge>
             <RoomDetails room={selectedRoom} />
-            <RoomActions room={selectedRoom} onAction={(action) => { setSelectedRoom(null); onAction(action); }} />
+            <RoomActions room={selectedRoom} onAction={(action) => { setSelectedRoomNumber(null); onAction(action); }} />
         </ResponsiveDialog>
       ) : null}
     </>
@@ -335,12 +432,13 @@ function FoundationPage({ pageId, isAdmin, onOpenInitialImport }: {
   );
 }
 
-function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, onOpenPage, onLogout }: {
+function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, roomOverviewGateway, onOpenPage, onLogout }: {
   view: ViewId;
   onAction: (action: string) => void;
   session: StaffSession;
   accountGateway: AccountAdminGateway | undefined;
   dataImportGateway: DataImportGateway | undefined;
+  roomOverviewGateway: RoomOverviewGateway | undefined;
   onOpenPage: (pageId: CloudPageId | UtilityViewId) => void;
   onLogout: () => void;
 }) {
@@ -350,7 +448,7 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   if (view === 'accounts' || view === 'users') return <AccountManagement session={session} gateway={accountGateway} />;
   if (view === 'initial_import') return <InitialDataImport session={session} gateway={dataImportGateway} />;
   if (view === 'more') return <MoreView isAdmin={session.role === 'admin'} allowedPages={session.allowedPages} onOpenPage={onOpenPage} onLogout={onLogout} />;
-  if (view === 'today' || view === 'rooms') return <TodayView onAction={onAction} />;
+  if (view === 'today' || view === 'rooms') return <TodayView onAction={onAction} propertyId={session.propertyId} roomOverviewGateway={roomOverviewGateway} />;
   return <FoundationPage pageId={view} isAdmin={session.role === 'admin'} onOpenInitialImport={() => onOpenPage('initial_import')} />;
 }
 
@@ -375,12 +473,14 @@ export function App({
   session = previewSession,
   accountGateway,
   dataImportGateway,
+  roomOverviewGateway,
   onLogout,
 }: {
   initialAuthenticated?: boolean;
   session?: StaffSession;
   accountGateway?: AccountAdminGateway;
   dataImportGateway?: DataImportGateway;
+  roomOverviewGateway?: RoomOverviewGateway;
   onLogout?: () => void | Promise<void>;
 }) {
   const { locale, text } = useLocale();
@@ -441,6 +541,7 @@ export function App({
           session={session}
           accountGateway={accountGateway}
           dataImportGateway={dataImportGateway}
+          roomOverviewGateway={roomOverviewGateway}
           onOpenPage={(pageId) => setView(pageId === 'users' ? 'accounts' : pageId)}
           onLogout={logout}
         /></main>

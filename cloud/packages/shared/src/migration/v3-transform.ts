@@ -14,9 +14,11 @@ import {
 import type { V3StagingRow } from './v3-backup.js';
 import { z } from 'zod';
 
+import { CLOUD_ROOM_STATUSES } from '../domain/room-overview.js';
+
 type JsonRecord = Record<string, unknown>;
 
-const ROOM_STATUSES = new Set(['可入住', '使用中', '即將退房', '待清潔', '清潔中', '維修中', '月租套房']);
+const ROOM_STATUSES: ReadonlySet<string> = new Set(CLOUD_ROOM_STATUSES);
 const BOOKING_STATUSES = new Set(['已預約', '已取消', 'No-show', '已入住']);
 const PAYMENT_STATUSES = new Set(['paid', 'pending', 'partial', 'refunded']);
 const CASHIER_STATUSES = new Set(['open', 'closed']);

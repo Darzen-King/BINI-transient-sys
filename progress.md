@@ -51,6 +51,25 @@
   - `cloud/packages/web/src/{App.tsx,auth/AuthGate.tsx,migration/InitialDataImport.tsx,migration/data-import.ts,styles.css}`
   - `cloud/packages/web/tests/{initial-data-import.test.tsx,mobile-layout-contract.test.ts}`
 
+### 階段 3：前台核心營運流程（房間總覽讀取切片）
+- **狀態：** in_progress
+- 執行的操作：
+  - 建立 shared room overview projection，從 rooms／bookings／stays／payments／maintenanceSchedules 產生同源桌機與手機資料。
+  - 移植 v3 active-stay 款項範圍、七種房態、維修排程覆蓋及未來有效預約即時計算；每分鐘重算時間邊界。
+  - AuthGate 真實登入時注入 Firestore gateway；無 gateway 的 `ui-preview`／測試才保留匿名預覽資料。
+  - 即時讀取錯誤時 fail closed，不回退展示房間；空館別提示先完成初始資料導入。
+  - 開放同館別讀取 maintenanceSchedules，維持所有 client（含 admin）不可直接寫入。
+  - DEV Firestore Rules 與 Hosting 部署成功；live bundle 已確認包含即時 gateway 與 fail-closed 行為。
+  - 監聽中斷後清除舊 projection 的最終修正已重新部署，live bundle `index-COsUaknt.js` 驗證通過。
+- 建立/修改的檔案：
+  - `cloud/packages/shared/src/domain/room-overview.ts`
+  - `cloud/packages/shared/tests/room-overview.test.ts`
+  - `cloud/packages/web/src/rooms/room-overview.ts`
+  - `cloud/packages/web/tests/room-overview-ui.test.tsx`
+  - `cloud/packages/web/src/{App.tsx,auth/AuthGate.tsx}`
+  - `cloud/firestore.rules`
+  - `cloud/packages/functions/tests/firestore-security.rules.test.ts`
+
 ## 測試結果
 | 測試 | 輸入 | 預期結果 | 實際結果 | 狀態 |
 |------|------|---------|---------|------|
@@ -64,6 +83,10 @@
 | Firestore Rules Emulator | `npm run test:rules` | 權威資料 server-only、migration staging default deny | 39/39 | 通過 |
 | Production build / package guards | build、Functions、Hosting | 全部通過 | 通過；僅有既有 bundle size warning | 通過 |
 | DEV Functions / Hosting | `bini-transient-dev` | 新 callable 與品牌資產上線 | 7 Functions；8 個 live URL HTTP 200 | 通過 |
+| 房間總覽聚焦測試 | shared projection、即時 UI、既有 mobile shell | 全部通過 | 23/23 | 通過 |
+| 更新後 Rules Emulator | maintenanceSchedules 同館別唯讀、client 禁寫 | 全部通過 | 41/41 | 通過 |
+| 完整 Vitest（房態切片後） | `npm test` | 全部通過 | 104/104；deploy guard 6/6 | 通過 |
+| DEV Rules / Hosting（房態切片） | `bini-transient-dev` | 規則與即時 bundle 發布 | deploy complete | 通過 |
 
 ## 錯誤日誌
 | 時間戳記 | 錯誤 | 嘗試次數 | 解決方案 |
@@ -72,6 +95,8 @@
 | 2026-09-12 | PowerShell alpha 檢查輸出發生整數字串串接錯誤 | 1 | 改用 `-f` 格式化字串，驗證通過 |
 | 2026-09-12 | 匯入 UI 測試以說明區既有檔名作等待條件，導致過早查詢 checkbox | 1 | 改等待匯入按鈕出現後再操作 |
 | 2026-09-12 | `computer-use` Windows 視覺服務未配置（`Trusted RPC service is not configured: sky`） | 1 | 停止 UI 自動化，改以線上 HTTP、manifest、圖片 metadata 與契約測試驗證 |
+| 2026-09-12 | room projection 接入 App 時觸發 `exactOptionalPropertyTypes`，明確 `undefined` 不符合原可選欄位 | 1 | ViewModel 可選顯示欄位明確加入 `| undefined`，不改動 domain 資料契約 |
+| 2026-09-12 | listener 中斷 UI 測試的連續 microtasks 被 React 批次合併，無法觀察中間成功畫面 | 1 | 改為由測試分階段觸發 gateway callbacks，分別驗證顯示與 fail-closed 清除 |
 
 ## 五問重啟檢查
 | 問題 | 答案 |

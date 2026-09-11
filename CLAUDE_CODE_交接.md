@@ -49,6 +49,7 @@
 - `App.tsx`：桌機依 v3 順序顯示 Prototype Hub＋17 個權限分頁的頂部導覽；手機為今日、預約、房務、款項、更多，且「更多」可到達全部低頻功能；沒有雲端備份，使用者管理只對 admin 顯示。
 - `styles.css`：產品／domain 版面樣式；基礎 token 已移到 design system。維持 44px target、safe-area、320／375／430px 單欄、768px 三欄、>=1100px v3 式桌機頂部導覽與三欄房卡，無水平溢位。
 - 「今日房態」以單一 room view model 同步輸出兩種 view：桌機卡片直接展開 v3 詳細欄位與快捷操作；手機卡片只保留房號／狀態／摘要，點擊後於詳細面板顯示完整欄位與操作。後續接 Firestore 時不得維護兩份資料邏輯。
+- `domain/room-overview.ts` + `web/src/rooms/room-overview.ts` 已接 property-scoped Firestore 即時讀取：rooms／bookings／stays／payments／maintenanceSchedules 全部取得首次 snapshot 後才輸出，且每 60 秒重算。projection 保留 v3 七種房態、active-stay 款項範圍與維修覆蓋；下一筆預約只取有效未來資料。AuthGate 才注入真實 gateway，`ui-preview` 無 gateway 時使用匿名 fixture；真實讀取失敗不回退 fixture。
 - `ui-preview.html` 只供本機 Vite 視覺 QA，未列入 Vite production input，Hosting build 不含該檔；不得將免登入預覽公開部署。
 - `InitialDataImport.tsx` + `v3-backup.ts` + `adminStageV3Backup` + `adminPrepareV3Backup`：本機選檔預覽、schema 3.5／大小／筆數／重複 ID 檢查；瀏覽器先剔除 users/password、report_summary、未知欄位與 `rooms.next_booking`，Functions 再做 MFA/admin／SHA-256 複驗、default-deny staging、typed transform 與 reconciliation。UI 顯示逐表 source → prepared 筆數與錯誤；正式 domain promotion 尚未實作，不得把 prepared staging 說成營運資料已完成搬移。
 - 實際 dry-run：`bini_backup_20260909_075803.json` 為 579,199 bytes／1,589 筆，清理後 431,817 bytes；排除 5 users，password 欄位傳輸檢查 false。這只是格式相容性證據，正式匯入必須使用操作員從 Dropbox 下載的最新檔。
@@ -58,9 +59,9 @@
 ### 驗證與部署結果
 
 ```text
-npm test                       94/94 passed
+npm test                       104/104 passed
 npm run test:deploy-guard       6/6 passed
-npm run test:rules             39/39 passed（Firestore Emulator）
+npm run test:rules             41/41 passed（Firestore Emulator）
 npm run typecheck              passed
 npm run lint                   passed
 npm run build                  passed
@@ -76,7 +77,7 @@ Functions 會將 shared contract 用 esbuild 打入 self-contained bundle，部�
 
 1. 管理員完成密碼設定後登入，首次綁定 TOTP；正式 pilot 前建立第二位 admin 並演練遺失驗證器恢復。
 2. 在既有 prepare/reconcile 基礎上完成 promotion repository、批次確認、回滾 metadata 與演練；所有權威寫入仍須由 Admin SDK／operation processor 執行，不可由 UI 直寫 Firestore。
-3. 依序完成 rooms/gantt → bookings → stays/check-in/out/transfer/monthly → payments/cashier → housekeeping/maintenance → reports/costs/holidays/properties/audit；每個 domain 要有 role matrix、payload schema、idempotency/conflict tests。
+3. room overview 即時讀取已完成；接續完成 room status／check-in／extend／payment／checkout 的 server-authoritative operations，再依序完成 gantt → bookings → stays/transfer/monthly → payments/cashier → housekeeping/maintenance → reports/costs/holidays/properties/audit。每個 domain 要有 role matrix、payload schema、idempotency/conflict tests。
 4. 每個 domain 同步交付 v3 等價桌機頁與完整手機 adaptive view；不得只做靜態畫面或無作用按鈕。
 5. 加入 IndexedDB operation queue、離線／衝突 UI、App Check、預算警示、日誌與 Firestore 匯出／還原演練。
 6. 使用匿名化 v3 snapshot 匯入 DEV，核對筆數、狀態、金額、`property-main` 映射與多裝置衝突。

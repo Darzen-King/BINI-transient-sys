@@ -74,6 +74,7 @@ beforeEach(async () => {
     });
     await setDoc(doc(db, `properties/${PROPERTY}`), { name: 'Main' });
     await setDoc(doc(db, `properties/${PROPERTY}/bookings/b1`), { version: 1, room: '202' });
+    await setDoc(doc(db, `properties/${PROPERTY}/maintenanceSchedules/m1`), { roomId: '202', status: 'scheduled' });
     await setDoc(doc(db, `properties/${PROPERTY}/auditLogs/a1`), { operationId: OP_ID });
     await setDoc(doc(db, 'migrationImports/batch-1'), { status: 'complete', propertyId: PROPERTY });
     await setDoc(doc(db, `operationResults/${OP_ID}`), {
@@ -125,6 +126,10 @@ describe('authorised reads', () => {
     await assertSucceeds(getDoc(doc(asStaff(), `properties/${PROPERTY}/bookings/b1`)));
   });
 
+  it('an active member reads maintenance schedules used by the room overview', async () => {
+    await assertSucceeds(getDoc(doc(asStaff(), `properties/${PROPERTY}/maintenanceSchedules/m1`)));
+  });
+
   it('a member of another property cannot read them', async () => {
     await assertFails(getDoc(doc(asOtherStaff(), `properties/${PROPERTY}/bookings/b1`)));
   });
@@ -169,6 +174,12 @@ describe('authoritative collections are server-only', () => {
   it('an admin cannot write a booking directly either', async () => {
     await assertFails(
       setDoc(doc(asAdmin(), `properties/${PROPERTY}/bookings/b2`), { version: 1, room: '203' }),
+    );
+  });
+
+  it('an admin cannot write a maintenance schedule directly either', async () => {
+    await assertFails(
+      setDoc(doc(asAdmin(), `properties/${PROPERTY}/maintenanceSchedules/m2`), { roomId: '203' }),
     );
   });
 

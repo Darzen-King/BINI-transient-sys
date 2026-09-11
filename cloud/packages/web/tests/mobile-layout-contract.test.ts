@@ -15,6 +15,20 @@ const appPath = fileURLToPath(new URL('../src/App.tsx', import.meta.url));
 const appSource = readFileSync(appPath, 'utf8');
 const viteConfigPath = fileURLToPath(new URL('../vite.config.ts', import.meta.url));
 const viteConfig = readFileSync(viteConfigPath, 'utf8');
+const manifestPath = fileURLToPath(new URL('../public/manifest.webmanifest', import.meta.url));
+const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+  icons: Array<{ src: string; sizes: string; type: string; purpose: string }>;
+};
+const indexPath = fileURLToPath(new URL('../index.html', import.meta.url));
+const indexSource = readFileSync(indexPath, 'utf8');
+const serviceWorkerPath = fileURLToPath(new URL('../public/sw.js', import.meta.url));
+const serviceWorkerSource = readFileSync(serviceWorkerPath, 'utf8');
+
+function pngDimensions(relativePath: string): readonly [number, number] {
+  const data = readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)));
+  expect(data.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+  return [data.readUInt32BE(16), data.readUInt32BE(20)];
+}
 
 describe('responsive layout contract', () => {
   it('starts from a mobile layout and defines tablet and desktop breakpoints', () => {
@@ -60,5 +74,22 @@ describe('responsive layout contract', () => {
   it('keeps the unauthenticated visual QA page out of the production build inputs', () => {
     expect(viteConfig).not.toContain('ui-preview.html');
     expect(viteConfig).not.toMatch(/rollupOptions\s*:/);
+  });
+
+  it('uses the supplied BINI brand assets for favicon, Apple and installable PWA icons', () => {
+    expect(indexSource).toContain('href="/favicon.ico"');
+    expect(indexSource).toContain('href="/apple-touch-icon.png"');
+    expect(indexSource).not.toContain('bini-mark.svg');
+    expect(manifest.icons).toEqual([
+      { src: '/pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/pwa-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+    ]);
+    expect(pngDimensions('../public/pwa-192.png')).toEqual([192, 192]);
+    expect(pngDimensions('../public/pwa-512.png')).toEqual([512, 512]);
+    expect(pngDimensions('../public/pwa-512-maskable.png')).toEqual([512, 512]);
+    expect(pngDimensions('../public/apple-touch-icon.png')).toEqual([180, 180]);
+    expect(serviceWorkerSource).toContain("'/pwa-512-maskable.png'");
+    expect(serviceWorkerSource).not.toContain('bini-mark.svg');
   });
 });

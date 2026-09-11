@@ -2,6 +2,7 @@ import {
   inspectV3BackupText,
   serializeV3BackupForStaging,
   V3_BACKUP_MAX_BYTES,
+  type V3BackupPrepareResult,
   type V3BackupInspection,
 } from '@bini/cloud-shared';
 import { useState, type ChangeEvent } from 'react';
@@ -24,12 +25,14 @@ export function InitialDataImport({ session, gateway }: { session: StaffSession;
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [result, setResult] = useState<V3BackupStageResult | null>(null);
+  const [stageResult, setStageResult] = useState<V3BackupStageResult | null>(null);
+  const [prepareResult, setPrepareResult] = useState<V3BackupPrepareResult | null>(null);
 
   const selectFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     setSelected(null);
-    setResult(null);
+    setStageResult(null);
+    setPrepareResult(null);
     setConfirmed(false);
     setError('');
     if (!file) return;
@@ -62,9 +65,10 @@ export function InitialDataImport({ session, gateway }: { session: StaffSession;
     if (!selected || !confirmed || !gateway) return;
     setBusy(true);
     setError('');
-    setResult(null);
+    setStageResult(null);
+    setPrepareResult(null);
     try {
-      setResult(await gateway.stage({
+      setStageResult(await gateway.stage({
         propertyId: session.propertyId,
         fileName: selected.fileName,
         checksumSha256: selected.checksumSha256,
@@ -72,6 +76,23 @@ export function InitialDataImport({ session, gateway }: { session: StaffSession;
       }));
     } catch {
       setError(text('匯入暫存失敗；尚未變更任何正式營運資料，請確認登入狀態後重試。', 'Staging failed. No operational data changed. Check your session and try again.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const prepareImport = async () => {
+    if (!stageResult || !gateway) return;
+    setBusy(true);
+    setError('');
+    setPrepareResult(null);
+    try {
+      setPrepareResult(await gateway.prepare({
+        propertyId: session.propertyId,
+        batchId: stageResult.batchId,
+      }));
+    } catch {
+      setError(text('對帳準備失敗；尚未變更任何正式營運資料，請稍後重試。', 'Reconciliation preparation failed. No operational data changed. Try again later.'));
     } finally {
       setBusy(false);
     }
@@ -92,6 +113,7 @@ export function InitialDataImport({ session, gateway }: { session: StaffSession;
         <li><span>1</span><div><strong>{text('下載備份', 'Download backup')}</strong><small>{text('從原 Dropbox 的 BiniBloomsData 資料夾下載 JSON。', 'Download the JSON from the original BiniBloomsData Dropbox folder.')}</small></div></li>
         <li><span>2</span><div><strong>{text('選擇並檢查', 'Choose and inspect')}</strong><small>{text('先在瀏覽器檢查格式、筆數與排除項目。', 'Review format, row counts, and exclusions in the browser.')}</small></div></li>
         <li><span>3</span><div><strong>{text('建立暫存批次', 'Create staging batch')}</strong><small>{text('伺服器驗證 MFA／管理員與 SHA-256 後才暫存。', 'The server verifies MFA, admin access, and SHA-256 before staging.')}</small></div></li>
+        <li><span>4</span><div><strong>{text('轉換與對帳', 'Transform and reconcile')}</strong><small>{text('驗證 12 類資料的型別、關聯、金額與日期；不寫入營運資料。', 'Validate types, references, amounts, and dates across 12 data groups without writing operational data.')}</small></div></li>
       </ol>
 
       <label className="import-file-picker">
@@ -130,10 +152,50 @@ export function InitialDataImport({ session, gateway }: { session: StaffSession;
         </div>
       ) : null}
 
-      {result ? (
-        <Notice tone="success" title={result.duplicate ? text('此備份已暫存，未重複建立', 'This backup was already staged') : text('匯入暫存批次已建立', 'Staging batch created')}>
-          {text(`批次 ${result.batchId.slice(0, 12)}…，共 ${result.rowCount} 筆。待各 domain schema 與 reconciliation 通過後，才可升級為權威資料。`, `Batch ${result.batchId.slice(0, 12)}… contains ${result.rowCount} rows. It can be promoted only after domain schema and reconciliation checks pass.`)}
-        </Notice>
+      {stageResult ? (
+        <div className="import-reconcile-actions">
+          <Notice tone="success" title={stageResult.duplicate ? text('此備份已暫存，未重複建立', 'This backup was already staged') : text('匯入暫存批次已建立', 'Staging batch created')}>
+            {text(`批次 ${stageResult.batchId.slice(0, 12)}…，共 ${stageResult.rowCount} 筆。下一步只會準備資料並產生對帳報告。`, `Batch ${stageResult.batchId.slice(0, 12)}… contains ${stageResult.rowCount} rows. The next step only prepares data and generates a reconciliation report.`)}
+          </Notice>
+          <Button block loading={busy} onClick={() => void prepareImport()} size="lg" variant="outline">
+            {text('產生 DEV 轉換與對帳報告', 'Generate DEV transformation report')}
+          </Button>
+        </div>
+      ) : null}
+
+      {prepareResult ? (
+        <div className="reconciliation-report">
+          <Notice
+            tone={prepareResult.report.valid ? 'success' : 'danger'}
+            title={prepareResult.report.valid ? text('對帳通過，資料已準備完成', 'Reconciliation passed; data is prepared') : text('對帳未通過，已阻擋匯入', 'Reconciliation failed; import is blocked')}
+          >
+            {prepareResult.report.valid
+              ? text('prepared rows 仍位於管理員限定的暫存區；目前尚未寫入正式營運 collections。', 'Prepared rows remain in the admin-only staging area and have not been written to operational collections.')
+              : text(`發現 ${prepareResult.report.errors.length} 個錯誤；修正來源資料後重新建立批次。`, `${prepareResult.report.errors.length} errors were found. Correct the source data and create a new batch.`)}
+          </Notice>
+          <div className="reconciliation-summary">
+            <div><small>{text('來源筆數', 'Source rows')}</small><strong>{prepareResult.report.sourceRowCount}</strong></div>
+            <div><small>{text('已轉換筆數', 'Prepared rows')}</small><strong>{prepareResult.report.preparedRowCount}</strong></div>
+            <div><small>{text('錯誤', 'Errors')}</small><strong>{prepareResult.report.errors.length}</strong></div>
+          </div>
+          <div className="reconciliation-table" role="table" aria-label={text('逐表對帳', 'Table reconciliation')}>
+            {prepareResult.report.tables.map((table) => (
+              <div role="row" key={table.sourceTable}>
+                <span role="cell">{table.sourceTable}</span>
+                <span role="cell">{table.sourceCount} → {table.preparedCount}</span>
+              </div>
+            ))}
+          </div>
+          {prepareResult.report.errors.length > 0 ? (
+            <ul className="reconciliation-errors">
+              {prepareResult.report.errors.map((issue, index) => (
+                <li key={`${issue.code}-${issue.sourceTable ?? 'batch'}-${issue.sourceId ?? index}`}>
+                  <strong>{issue.code}</strong> — {issue.sourceTable ? `${issue.sourceTable}/${issue.sourceId}: ` : ''}{issue.message}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
       ) : null}
     </SectionCard>
   );

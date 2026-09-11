@@ -8,7 +8,7 @@ export const V3_AUTHORITATIVE_ENTITY_MAPPINGS = [
   { sourceTable: 'properties', targetCollection: 'properties', idStrategy: 'preserve', propertyStrategy: 'self' },
   { sourceTable: 'rooms', targetCollection: 'rooms', idStrategy: 'preserve', propertyStrategy: 'blank_to_default' },
   { sourceTable: 'bookings', targetCollection: 'bookings', idStrategy: 'preserve', propertyStrategy: 'blank_to_default' },
-  { sourceTable: 'active_stays', targetCollection: 'activeStays', idStrategy: 'numeric_prefix', propertyStrategy: 'infer_from_room' },
+  { sourceTable: 'active_stays', targetCollection: 'stays', idStrategy: 'numeric_prefix', propertyStrategy: 'infer_from_room' },
   { sourceTable: 'stay_logs', targetCollection: 'stayLogs', idStrategy: 'numeric_prefix', propertyStrategy: 'infer_from_room' },
   { sourceTable: 'activity_logs', targetCollection: 'auditLogs', idStrategy: 'numeric_prefix', propertyStrategy: 'default' },
   { sourceTable: 'payments', targetCollection: 'payments', idStrategy: 'numeric_prefix', propertyStrategy: 'infer_from_room_or_booking' },

@@ -359,7 +359,7 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
   return (
     <main className="login-page">
       <form className="login-card" onSubmit={(event) => { event.preventDefault(); onLogin(); }}>
-        <img src="/bini-mark.svg" alt="BINI Blooms" />
+        <img className="brand-wordmark" src="/bini-blooms-logo.png" alt="BINI Blooms" />
         <h1>{text('員工登入', 'Staff sign in')}</h1>
         <p>{text('僅限已核准的 BINI PMS 帳號', 'Approved BINI PMS accounts only')}</p>
         <Field label={text('電子郵件', 'Email')}><input required type="email" autoComplete="username" /></Field>
@@ -403,9 +403,8 @@ export function App({
   return (
     <div className="app-shell">
       <header className="desktop-topnav">
-        <a className="desktop-brand" href="#hub" onClick={(event) => { event.preventDefault(); setView('hub'); }}>
-          <img src="/bini-mark.svg" alt="" />
-          <span>BINI Blooms PMS</span>
+        <a aria-label="BINI Blooms PMS" className="desktop-brand" href="#hub" onClick={(event) => { event.preventDefault(); setView('hub'); }}>
+          <img src="/bini-blooms-logo.png" alt="" />
         </a>
         <nav aria-label={text('桌面主導覽', 'Desktop navigation')}>
           <a className={view === 'hub' ? 'active' : ''} href="#hub" onClick={(event) => { event.preventDefault(); setView('hub'); }}>Prototype Hub</a>

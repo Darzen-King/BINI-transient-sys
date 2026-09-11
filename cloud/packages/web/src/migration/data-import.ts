@@ -1,4 +1,10 @@
-import { v3BackupStageInputSchema, type V3BackupStageInput } from '@bini/cloud-shared';
+import {
+  v3BackupPrepareInputSchema,
+  v3BackupStageInputSchema,
+  type V3BackupPrepareInput,
+  type V3BackupPrepareResult,
+  type V3BackupStageInput,
+} from '@bini/cloud-shared';
 import { httpsCallable, type Functions } from 'firebase/functions';
 
 export interface V3BackupStageResult {
@@ -10,6 +16,7 @@ export interface V3BackupStageResult {
 
 export interface DataImportGateway {
   stage(input: V3BackupStageInput): Promise<V3BackupStageResult>;
+  prepare(input: V3BackupPrepareInput): Promise<V3BackupPrepareResult>;
 }
 
 export function createDataImportGateway(functions: Functions): DataImportGateway {
@@ -17,6 +24,12 @@ export function createDataImportGateway(functions: Functions): DataImportGateway
     async stage(input) {
       const safeInput = v3BackupStageInputSchema.parse(input);
       const call = httpsCallable<V3BackupStageInput, V3BackupStageResult>(functions, 'adminStageV3Backup');
+      const result = await call(safeInput);
+      return result.data;
+    },
+    async prepare(input) {
+      const safeInput = v3BackupPrepareInputSchema.parse(input);
+      const call = httpsCallable<V3BackupPrepareInput, V3BackupPrepareResult>(functions, 'adminPrepareV3Backup');
       const result = await call(safeInput);
       return result.data;
     },

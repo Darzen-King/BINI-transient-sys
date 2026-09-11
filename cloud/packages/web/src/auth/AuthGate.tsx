@@ -28,7 +28,7 @@ import type { StaffSession } from './session.js';
 type GatePhase = 'loading' | 'login' | 'mfa' | 'verify-email' | 'enroll-mfa' | 'blocked' | 'ready';
 
 function AuthCard({ children }: { children: ReactNode }) {
-  return <main className="login-page"><section className="login-card"><LanguageSwitcher className="auth-language-switch" /><img src="/bini-mark.svg" alt="BINI Blooms" />{children}</section></main>;
+  return <main className="login-page"><section className="login-card"><LanguageSwitcher className="auth-language-switch" /><img className="brand-wordmark" src="/bini-blooms-logo.png" alt="BINI Blooms" />{children}</section></main>;
 }
 
 function friendlyError(error: unknown, text: (zhTw: string, en: string) => string): string {
@@ -245,7 +245,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
     <main className="login-page">
       <form className="login-card" onSubmit={(event) => void login(event)}>
         <LanguageSwitcher className="auth-language-switch" />
-        <img src="/bini-mark.svg" alt="BINI Blooms" />
+        <img className="brand-wordmark" src="/bini-blooms-logo.png" alt="BINI Blooms" />
         <h1>{text('員工登入', 'Staff sign in')}</h1><p>{text('僅限管理員已建立的 BINI PMS 帳號', 'Only administrator-created BINI PMS accounts may sign in')}</p>
         {notice ? <Notice tone="success" title={notice} /> : null}{error ? <Notice tone="danger" title={text('登入失敗', 'Sign-in failed')}>{error}</Notice> : null}
         <Field label={text('電子郵件', 'Email')}><input required name="email" type="email" autoComplete="username" /></Field>

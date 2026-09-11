@@ -17,8 +17,10 @@ Phase 1 foundation（本次）
 └─ mobile-first PWA shell
 
 Phase 2 full-domain implementation
-├─ all-entity schema mapping and stable migration IDs
-├─ inspect and stage v3 schema 3.5 Dropbox JSON (admin + MFA + SHA-256)
+├─ [完成] all-entity schema mapping and stable migration IDs
+├─ [完成] inspect and stage v3 schema 3.5 Dropbox JSON (admin + MFA + SHA-256)
+├─ [完成] prepare 12 typed document groups + reconciliation report
+├─ [未完成] promotion repository + rollback metadata / drill
 ├─ rooms / gantt projections
 ├─ bookings / stays / monthly rentals / payments handlers
 ├─ housekeeping / maintenance handlers

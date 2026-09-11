@@ -48,7 +48,7 @@ HTML、JSON、CSS、JS 亦已於現況盤點中以正規化換行後比對一致
 | 19 | 成本紀錄 `costs.html` | `/costs`、新增／修改／刪除、分類／付款方式／定期／收據、損益 | `costEntries`；`cost.create/update/delete`；報表投影同步更新 | 保留摘要、篩選、表格、P&L 與 CRUD | KPI、成本卡、篩選 sheet、全螢幕表單 | **待實作** |
 | 20 | 假日管理 `holidays.html` | `/admin/holidays`、政府 API 重同步、手動新增／刪除 | `holidays`、`holidaySyncRuns`；`holiday.add/delete/resync`；來源與版本可稽核 | 保留年度、來源、同步與手動維護 | 年度 tabs、假日卡、同步狀態與新增 sheet | **待實作** |
 | 21 | 全站導覽／語言／狀態 `base.html` | 頂部 17 個營運分頁、館別、角色、語言、登出、同步狀態 | route manifest＋page permission；onSnapshot／operation queue 狀態；`setLocale` | **保留現有頂部導覽，不改成側欄**；依角色／個人權限顯示 | 底部「今日、預約、房務、款項、更多」＋更多頁完整列出有權限功能 | **Auth／權限基礎完成；桌機完整導覽待補** |
-| 22 | 雲端備份 `backup.html` | Dropbox/WebDAV/FTP/Google Drive、同步／還原、GitHub 桌面更新 | 日常功能由 Firestore 即時資料＋排程 export、restore drill、Hosting 原子發布／回滾替代；另提供管理員限定的一次性 v3 JSON 初始導入 | 不提供日常備份頁與桌面覆蓋更新；初始導入置於 Prototype Hub | 手機「更多」可進初始導入；不顯示外部備份設定 | **部分完成：staging** |
+| 22 | 雲端備份 `backup.html` | Dropbox/WebDAV/FTP/Google Drive、同步／還原、GitHub 桌面更新 | 日常功能由 Firestore 即時資料＋排程 export、restore drill、Hosting 原子發布／回滾替代；另提供管理員限定的一次性 v3 JSON 初始導入 | 不提供日常備份頁與桌面覆蓋更新；初始導入置於 Prototype Hub | 手機「更多」可進初始導入；不顯示外部備份設定 | **部分完成：staging + prepare/reconcile；promotion 待實作** |
 
 ## 共用商業規則（不得只做畫面）
 

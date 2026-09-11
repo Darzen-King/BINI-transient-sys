@@ -4,7 +4,7 @@
 
 **目標：** Firestore `asia-east1`／`bini-transient-dev`
 
-**日期：** 2026-09-11
+**日期：** 2026-09-12
 
 **停機：** staging 階段不需停機；最終切換需短暫凍結 v3 寫入
 **回滾窗口：** promotion 後至少 7 日保留 v3 唯讀資料庫、來源 JSON 與 Firebase export
@@ -19,7 +19,7 @@
 |---|---|---|---|
 | 新增 default-deny `migrationImports` | 是 | 低 | client 無直接讀寫權 |
 | 上傳並暫存 schema 3.5 JSON | 是 | 中 | MFA/admin、8 MB、10,000 筆、SHA-256、stable IDs |
-| 暫存轉換為 domain 文件 | 尚未 | 高 | 每個 domain 先完成 schema、transaction 與 reconciliation |
+| 暫存轉換為 typed domain 文件 | 是（prepared staging） | 中 | 白名單欄位、property-scoped path、逐表 reconciliation；不直接 promotion |
 | v4 成為唯一寫入端 | 否 | 高 | 凍結 v3、final backup、驗收、明確切換窗口 |
 
 ## 2. Expand / Stage / Promote / Contract
@@ -41,15 +41,23 @@
 
 回滾：暫存批次不被營運 UI 讀取，保持 `failed`／`complete` 供稽核；不需刪除即可回復。
 
-### Phase 3 — Reconcile + Promote（未實作，禁止提前）
+### Phase 3 — Prepare + Reconcile（已實作，尚待操作員選檔）
 
-- 每一 domain 實作 typed transformer、日期／金額轉換、FK 檢查與 dry-run 差異報告。
-- 驗證房間、預約、入住、付款、成本、月租、維修、假日、館別與審計筆數。
-- 驗證所有 booking/stay/payment room references、金額合計及時間區間。
+- `adminPrepareV3Backup` 讀取同館別 staged rows，複驗 checksum／row count，套用 12 類白名單 typed transformer。
+- 轉換輸出採 `properties/{propertyId}/{collection}/{documentId}`，日期轉 `+08:00` ISO、金額限整數 NTS、SQLite boolean 轉布林。
+- 驗證逐表筆數、來源 identity、room／booking FK、允許狀態及重複 active stay／active monthly rental。
+- 只有 reconciliation 全數通過才寫入 `preparedRows`；失敗批次標記 `blocked`。兩者皆位於 default-deny staging，不會影響營運資料。
+- Web UI 顯示 source／prepared／error 摘要與逐表報告；目前沒有 promotion 按鈕。
+
+回滾：prepare 只新增 staging 文件，不被營運 UI 讀取；停用 callable／隱藏 UI 即可，不需改動權威 collections。
+
+### Phase 4 — Promote（未實作，禁止提前）
+
 - promotion 只由 Admin SDK 執行，使用 deterministic ID 與 migration metadata；不得由 Web client 直寫。
-- 回滾：切換前建立 Firestore export；promotion 文件須帶 batchId，提供按 batch 還原或以 export 回復的演練工具。
+- 切換前建立 Firestore export；promotion 文件須帶 batchId，並提供按 batch 還原或以 export 回復的演練工具。
+- 完成全部 domain schema、transaction、報表投影與操作員確認後，才可開放 promotion。
 
-### Phase 4 — Cutover / Contract（未實作）
+### Phase 5 — Cutover / Contract（未實作）
 
 - 凍結 v3 寫入，產生 final Dropbox JSON，再跑 Stage/Reconcile/Promote。
 - 驗收後才讓 v4 成為唯一寫入端；v3 保留唯讀至少 7 日。
@@ -69,5 +77,5 @@
 ## 4. 執行責任與 TODO
 
 - 操作員：admin 下載檔案、核對畫面筆數、建立 staging 批次。
-- Codex／Claude Code：實作 transformer、reconciliation、promotion、rollback drill 與獨立驗收。
-- Gate：未完成 Phase 3 全部 domain 與還原演練，不部署 PROD、不把 v4 用於營運。
+- Codex／Claude Code：prepare/reconciliation 已完成；接續實作 promotion、rollback drill 與獨立驗收。
+- Gate：未完成 Phase 4 全部 domain 與還原演練，不部署 PROD、不把 v4 用於營運。

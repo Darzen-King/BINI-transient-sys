@@ -44,7 +44,7 @@ export const adminStageV3Backup = onCall(callableOptions, async (request) => {
   const database = getFirestore();
   const importRef = database.doc(`migrationImports/${batchId}`);
   const existing = await importRef.get();
-  if (existing.data()?.status === 'complete') {
+  if (['complete', 'ready', 'blocked'].includes(String(existing.data()?.status ?? ''))) {
     return { batchId, status: 'complete' as const, rowCount: Number(existing.data()?.rowCount ?? rows.length), duplicate: true };
   }
   if (existing.data()?.status === 'importing') {

@@ -1,7 +1,16 @@
 /* global self, caches, URL, fetch */
 
-const CACHE_NAME = 'bini-pms-v4-foundation-1';
-const APP_SHELL = ['/', '/manifest.webmanifest', '/bini-mark.svg'];
+const CACHE_NAME = 'bini-pms-v4-migration-2';
+const APP_SHELL = [
+  '/',
+  '/manifest.webmanifest',
+  '/favicon.ico',
+  '/apple-touch-icon.png',
+  '/pwa-192.png',
+  '/pwa-512.png',
+  '/pwa-512-maskable.png',
+  '/bini-blooms-logo.png',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));

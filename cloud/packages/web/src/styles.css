@@ -223,7 +223,12 @@ h1, h2, p { margin-top: 0; }
 .import-file-picker { display: grid; min-height: 74px; border: 2px dashed var(--bds-color-berry-300); border-radius: 15px; background: var(--bds-color-surface-subtle); color: var(--brand-dark); font-weight: 850; cursor: pointer; place-items: center; }
 .import-file-picker input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; }
 .import-preview { display: grid; gap: 12px; }
-.import-reconcile-actions, .reconciliation-report { display: grid; gap: 10px; }
+.import-reconcile-actions, .reconciliation-report, .promotion-confirmation { display: grid; gap: 10px; }
+.promotion-confirmation { padding: 12px; border: 1px solid var(--bds-color-amber-300); border-radius: 14px; background: var(--bds-color-feedback-warning-bg); }
+.promotion-confirmation > code { display: block; padding: 10px; overflow-wrap: anywhere; border: 1px dashed var(--bds-color-amber-300); border-radius: 10px; background: var(--bds-color-surface); color: var(--bds-color-feedback-warning); font-size: 12px; font-weight: 850; text-align: center; }
+.promotion-confirmation label { display: grid; gap: 6px; color: var(--bds-color-neutral-700); font-size: 12px; font-weight: 750; }
+.promotion-confirmation input { width: 100%; min-height: 44px; padding: 9px 11px; border: 1px solid var(--bds-color-amber-300); border-radius: 10px; background: var(--bds-color-surface); color: var(--ink); font: inherit; }
+.promotion-confirmation input:focus { outline: 3px solid rgb(246 167 42 / 25%); outline-offset: 1px; }
 .reconciliation-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: hidden; border: 1px solid var(--line); border-radius: var(--bds-radius-sm); }
 .reconciliation-summary > div { display: grid; padding: 10px; text-align: center; gap: 3px; }
 .reconciliation-summary > div + div { border-left: 1px solid var(--line); }

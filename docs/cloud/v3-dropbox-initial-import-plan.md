@@ -13,13 +13,13 @@
 
 ## 1. 目標與相容性
 
-把 Dropbox 既有 `bini_blooms_backup.json` 作為一次性搬家來源，不恢復任何日常 Dropbox 同步或憑證。來源含 12 類權威資料，以及必須排除的 users、report_summary 與 `rooms.next_booking`。目標 domain schema 尚在建立，因此先採非破壞性的 staging；權威資料 promotion 必須是另一個部署階段。
+把 Dropbox 既有 `bini_blooms_backup.json` 作為一次性搬家來源，不恢復任何日常 Dropbox 同步或憑證。來源含 12 類權威資料，以及必須排除的 users、report_summary 與 `rooms.next_booking`。promotion 程式採獨立受控階段；它不代表完整 PMS domain、切換或還原演練已完成。
 
 | 變更 | 相容 | 風險 | 控制 |
 |---|---|---|---|
 | 新增 default-deny `migrationImports` | 是 | 低 | client 無直接讀寫權 |
 | 上傳並暫存 schema 3.5 JSON | 是 | 中 | MFA/admin、8 MB、10,000 筆、SHA-256、stable IDs |
-| 暫存轉換為 typed domain 文件 | 是（prepared staging） | 中 | 白名單欄位、property-scoped path、逐表 reconciliation；不直接 promotion |
+| 暫存轉換為 typed domain 文件 | 是（prepared staging） | 中 | 白名單欄位、property-scoped path、逐表 reconciliation；只由受控 callable promotion |
 | v4 成為唯一寫入端 | 否 | 高 | 凍結 v3、final backup、驗收、明確切換窗口 |
 
 ## 2. Expand / Stage / Promote / Contract
@@ -47,15 +47,16 @@
 - 轉換輸出採 `properties/{propertyId}/{collection}/{documentId}`，日期轉 `+08:00` ISO、金額限整數 NTS、SQLite boolean 轉布林。
 - 驗證逐表筆數、來源 identity、room／booking FK、允許狀態及重複 active stay／active monthly rental。
 - 只有 reconciliation 全數通過才寫入 `preparedRows`；失敗批次標記 `blocked`。兩者皆位於 default-deny staging，不會影響營運資料。
-- Web UI 顯示 source／prepared／error 摘要與逐表報告；目前沒有 promotion 按鈕。
+- Web UI 顯示 source／prepared／error 摘要與逐表報告；對帳通過才會顯示批次專屬確認字串與 DEV promotion 控制。
 
 回滾：prepare 只新增 staging 文件，不被營運 UI 讀取；停用 callable／隱藏 UI 即可，不需改動權威 collections。
 
-### Phase 4 — Promote（未實作，禁止提前）
+### Phase 4 — Promote（已部署 DEV；尚未對真實資料執行）
 
-- promotion 只由 Admin SDK 執行，使用 deterministic ID 與 migration metadata；不得由 Web client 直寫。
-- 切換前建立 Firestore export；promotion 文件須帶 batchId，並提供按 batch 還原或以 export 回復的演練工具。
-- 完成全部 domain schema、transaction、報表投影與操作員確認後，才可開放 promotion。
+- `adminPromotePreparedV3Backup` 只由 MFA + property admin 呼叫，要求輸入 `PROMOTE DEV <batch-prefix>`；Web client 不可直寫權威 collection。
+- callable 重新檢查 `ready` 批次的 property、checksum、transform version、來源／prepared 實際筆數、reconciliation、逐表計數、target path 與 migration metadata。所有 path 由 mapping 重建，不能信任 staged path 字串。
+- promotion 以 350 筆 transaction chunks 寫入 deterministic documents，僅允許不存在的文件；同 batch 且內容完全相同的文件才可安全續作，任何既有不同文件都會 fail closed。預先建立的 cloud property root 是唯一窄例外：保留其 `name`／`active`／`currency`／`timezone` 設定，僅一次性附加 legacy property 資料到 `legacyV3Import`；批次保留 attempt／lease／failure／complete metadata，並寫 audit。
+- `adminPromotePreparedV3Backup` 已部署至 `bini-transient-dev` 的 `asia-east1`；**尚未執行任何真實 Dropbox 資料 promotion。** promotion 程式不是 rollback；切換前 Firestore export、按批次 restore drill、v3 凍結與操作員驗收仍是必要 gate。
 
 ### Phase 5 — Cutover / Contract（未實作）
 
@@ -77,5 +78,5 @@
 ## 4. 執行責任與 TODO
 
 - 操作員：admin 下載檔案、核對畫面筆數、建立 staging 批次。
-- Codex／Claude Code：prepare/reconciliation 已完成；接續實作 promotion、rollback drill 與獨立驗收。
+- Codex／Claude Code：prepare/reconciliation 與受控 promotion 已完成；接續完成 Firestore export／restore drill 與獨立驗收。
 - Gate：未完成 Phase 4 全部 domain 與還原演練，不部署 PROD、不把 v4 用於營運。

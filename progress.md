@@ -2,6 +2,15 @@
 
 ## 會話：2026-09-11—2026-09-12
 
+### 階段 2：promotion 垂直切片恢復
+- **狀態：** complete（整體階段 2 仍為 in_progress）
+- 執行的操作：
+  - 重新讀取完整移轉計畫、差距矩陣與既有進度，確認「prepare/reconcile 已完成但 promotion 仍禁止」是目前阻斷真實資料閉環的首要缺口。
+  - 本輪將以 DEV-only、MFA + property admin、batch/version/checksum/count 重驗證、可重試冪等與稽核紀錄為界線，實作受控 promotion callable；不執行任何實際 Dropbox 資料匯入，也不部署 PROD。
+  - 完成 shared promotion planner、`adminPromotePreparedV3Backup`、確認字串 UI、create-only transaction chunk、同 batch 完整內容續作、collision fail closed 與 failure/audit metadata。
+  - 只讀確認 DEV 的預建 `properties/property-main` 根設定存在；修正 promotion，使它僅保留既有 cloud 設定並一次附加 `legacyV3Import`，所有其他權威文件仍維持 create-only。完成狀態與成功 audit 改在同一 transaction 寫入，避免資料已成功但 audit 失敗時誤回報失敗。
+  - Functions 的 stage/prepare/promotion 三支 callable 已精準部署至 DEV `operations` codebase；Hosting 已發布 `index-CQUT3I8c.js`。Functions list 確認第 8 支 callable 位於 `asia-east1`；root-setting preserve 修正後，`adminPromotePreparedV3Backup` 已再次部署並由 `gcloud functions describe` 驗證為 `ACTIVE`、Node.js 22、1 GiB、540 秒；未執行任何真實 Dropbox JSON promotion。
+
 ### 階段 1：權威盤點與差距矩陣
 - **狀態：** complete
 - **開始時間：** 2026-09-11
@@ -87,6 +96,10 @@
 | 更新後 Rules Emulator | maintenanceSchedules 同館別唯讀、client 禁寫 | 全部通過 | 41/41 | 通過 |
 | 完整 Vitest（房態切片後） | `npm test` | 全部通過 | 104/104；deploy guard 6/6 | 通過 |
 | DEV Rules / Hosting（房態切片） | `bini-transient-dev` | 規則與即時 bundle 發布 | deploy complete | 通過 |
+| promotion 聚焦測試 | shared planner、transform、初始匯入 UI | confirmation、precondition、same-batch resume、property root preserve、collision fail closed | 13/13 | 通過 |
+| 完整 Vitest（promotion 切片後） | `npm test` | 全部通過 | 109/109；deploy guard 6/6 | 通過 |
+| 更新後 Rules Emulator | `npm run test:rules` | 權威資料 server-only、migration staging default deny | 41/41 | 通過 |
+| DEV Functions / Hosting（promotion 切片） | `bini-transient-dev` | 新 callable 與確認 UI 發布 | 8 Functions；首頁及 live bundle HTTP 200 | 通過 |
 
 ## 錯誤日誌
 | 時間戳記 | 錯誤 | 嘗試次數 | 解決方案 |
@@ -97,6 +110,12 @@
 | 2026-09-12 | `computer-use` Windows 視覺服務未配置（`Trusted RPC service is not configured: sky`） | 1 | 停止 UI 自動化，改以線上 HTTP、manifest、圖片 metadata 與契約測試驗證 |
 | 2026-09-12 | room projection 接入 App 時觸發 `exactOptionalPropertyTypes`，明確 `undefined` 不符合原可選欄位 | 1 | ViewModel 可選顯示欄位明確加入 `| undefined`，不改動 domain 資料契約 |
 | 2026-09-12 | listener 中斷 UI 測試的連續 microtasks 被 React 批次合併，無法觀察中間成功畫面 | 1 | 改為由測試分階段觸發 gateway callbacks，分別驗證顯示與 fail-closed 清除 |
+| 2026-09-12 | 讀取舊 processor 檔案時使用了不存在的 `process-operation.ts` 路徑 | 1 | 改讀取實際的 `processor/core.ts`，維持既有 processor 架構不變 |
+| 2026-09-12 | Claude Code 非互動工作程序在 30 秒內未輸出且未建立任何檔案 | 1 | 以 git diff 確認無變更後停止等待；改由目前代理直接實作並獨立驗收 |
+| 2026-09-12 | 在 repo 根目錄執行 npm 驗證，該目錄沒有 package.json | 1 | 確認 Node workspace 位於 `cloud/`，後續從該目錄執行測試與建置 |
+| 2026-09-12 | Windows `firebase` 解析為 `firebase.ps1`，不能直接供 `Start-Process -FilePath` 啟動 | 1 | 不視為部署成功；改由隱藏 `cmd.exe` 執行同一個精準 DEV-only deploy 指令並保留日誌 |
+| 2026-09-12 | 未指定 Firebase multi-codebase 名稱的 `--only functions:<name>` 篩選找不到任何函式 | 1 | 讀取 `firebase.json` 後確認 codebase 為 `operations`；改用 `functions:operations:<name>`，仍不使用 `--force` |
+| 2026-09-12 | Firebase Functions 成功建立／更新後詢問 Artifact Registry image cleanup 保留天數 | 1 | 此為額外雲端刪除／成本設定且未獲指定；在三支 function operation 成功後停止提示，不設定 cleanup policy |
 
 ## 五問重啟檢查
 | 問題 | 答案 |
@@ -109,8 +128,8 @@
 
 ## 本切片交付狀態
 - **狀態：** complete（整體階段 2 仍為 in_progress）
-- **完成：** 12 類 v3 prepare/reconcile、受控 callable、對帳 UI、BINI 品牌與手機 PWA icon、DEV Functions／Hosting 部署。
-- **尚未做：** promotion、rollback drill、真實最新 Dropbox JSON 操作員匯入，以及各 PMS domain handlers／真實營運 UI。
+- **完成：** 12 類 v3 prepare/reconcile、受控 promotion callable、明確確認 UI、create-only 同批次續作、對帳 UI、BINI 品牌與手機 PWA icon、DEV Functions／Hosting 部署。
+- **尚未做：** Firestore export/rollback drill、真實最新 Dropbox JSON 操作員匯入，以及各 PMS domain handlers／真實營運 UI。
 
 ---
 *每個階段完成後或遇到錯誤時更新此檔案*

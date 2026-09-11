@@ -8,7 +8,7 @@
 - Firebase：DEV `bini-transient-dev`；PROD `bini-transient`（顯示名稱 `BINI-Transient`）。只部署 DEV，PROD 未部署、未修改。
 - DEV Firestore `(default)`：`asia-east1`、Native mode、Standard edition、delete protection。
 - Identity Platform：email/password、email enumeration protection、關閉公開註冊／自助刪除、TOTP MFA 強制流程。
-- DEV Hosting、Firestore Rules/indexes、七個 Node.js 22 Functions 已部署；網址：`https://bini-transient-dev.web.app`。
+- DEV Hosting、Firestore Rules/indexes、八個 Node.js 22 Functions 已部署；網址：`https://bini-transient-dev.web.app`。
 - 首位 admin `biniblooms250808@gmail.com` 已以 server-side bootstrap 建立，`emailVerified=true`、active、`property-main/admin`、17 個頁面權限、`mfaRequired=true`，並已寄出繁中一次性密碼設定信。
 - 實際 Web SDK 設定與 alias 保存在 Git 忽略的 `cloud/.env.local`、`cloud/.firebaserc`；禁止提交或輸出內容。
 
@@ -51,7 +51,7 @@
 - 「今日房態」以單一 room view model 同步輸出兩種 view：桌機卡片直接展開 v3 詳細欄位與快捷操作；手機卡片只保留房號／狀態／摘要，點擊後於詳細面板顯示完整欄位與操作。後續接 Firestore 時不得維護兩份資料邏輯。
 - `domain/room-overview.ts` + `web/src/rooms/room-overview.ts` 已接 property-scoped Firestore 即時讀取：rooms／bookings／stays／payments／maintenanceSchedules 全部取得首次 snapshot 後才輸出，且每 60 秒重算。projection 保留 v3 七種房態、active-stay 款項範圍與維修覆蓋；下一筆預約只取有效未來資料。AuthGate 才注入真實 gateway，`ui-preview` 無 gateway 時使用匿名 fixture；真實讀取失敗不回退 fixture。
 - `ui-preview.html` 只供本機 Vite 視覺 QA，未列入 Vite production input，Hosting build 不含該檔；不得將免登入預覽公開部署。
-- `InitialDataImport.tsx` + `v3-backup.ts` + `adminStageV3Backup` + `adminPrepareV3Backup`：本機選檔預覽、schema 3.5／大小／筆數／重複 ID 檢查；瀏覽器先剔除 users/password、report_summary、未知欄位與 `rooms.next_booking`，Functions 再做 MFA/admin／SHA-256 複驗、default-deny staging、typed transform 與 reconciliation。UI 顯示逐表 source → prepared 筆數與錯誤；正式 domain promotion 尚未實作，不得把 prepared staging 說成營運資料已完成搬移。
+- `InitialDataImport.tsx` + `v3-backup.ts` + `adminStageV3Backup` + `adminPrepareV3Backup` + `adminPromotePreparedV3Backup`：本機選檔預覽、schema 3.5／大小／筆數／重複 ID 檢查；瀏覽器先剔除 users/password、report_summary、未知欄位與 `rooms.next_booking`，Functions 再做 MFA/admin／SHA-256 複驗、default-deny staging、typed transform 與 reconciliation。對帳通過後，UI 要求輸入 `PROMOTE DEV <batch-prefix>`，promotion callable 才會再驗 batch/property/checksum/version/count、每個 prepared path 與 migration metadata；除已驗證的既有雲端館別根設定外，只可 `create` 不存在的資料。既有根設定會保留 `name`／`active`／`currency`／`timezone`，legacy property 只可一次附加至 `legacyV3Import`；其餘既有不同資料 fail closed，相同 batch 的完全相同文件才可續作。成功狀態與完成 audit 在同一 transaction 寫入；批次 metadata 另記錄嘗試／失敗。尚未對真實 Dropbox 檔執行，且 rollback/export restore drill 仍未實作，不能宣稱可正式切換。
 - 實際 dry-run：`bini_backup_20260909_075803.json` 為 579,199 bytes／1,589 筆，清理後 431,817 bytes；排除 5 users，password 欄位傳輸檢查 false。這只是格式相容性證據，正式匯入必須使用操作員從 Dropbox 下載的最新檔。
 - Hosting 曾因 workspace Vite 未讀根目錄 `.env.local` 出現粉色空白頁；已在 `vite.config.ts` 設 `envDir: '../..'`，並新增 `guard:hosting-package`，缺少實際 DEV 設定會在部署前 fail closed。
 - 線上資產 QA：首頁、manifest、favicon、Apple touch icon、三個 PWA icon 與 BINI logo 均 HTTP 200；線上 manifest 的尺寸／purpose 正確，JS bundle 引用新 logo 且無舊 `/bini-mark.svg`，Service Worker 使用新 cache 並包含品牌資產。本輪 Windows `computer-use` RPC 未配置，因此未新增自動化 Chrome 截圖。
@@ -76,7 +76,7 @@ Functions 會將 shared contract 用 esbuild 打入 self-contained bundle，部�
 ### 下一張工作單（全功能範圍）
 
 1. 管理員完成密碼設定後登入，首次綁定 TOTP；正式 pilot 前建立第二位 admin 並演練遺失驗證器恢復。
-2. 在既有 prepare/reconcile 基礎上完成 promotion repository、批次確認、回滾 metadata 與演練；所有權威寫入仍須由 Admin SDK／operation processor 執行，不可由 UI 直寫 Firestore。
+2. promotion repository 與批次確認已完成；接續為 promotion 加入 Firestore export／按批次 restore drill，並以匿名化 snapshot 執行一次完整 DEV 匯入驗收。所有權威寫入仍須由 Admin SDK／operation processor 執行，不可由 UI 直寫 Firestore。
 3. room overview 即時讀取已完成；接續完成 room status／check-in／extend／payment／checkout 的 server-authoritative operations，再依序完成 gantt → bookings → stays/transfer/monthly → payments/cashier → housekeeping/maintenance → reports/costs/holidays/properties/audit。每個 domain 要有 role matrix、payload schema、idempotency/conflict tests。
 4. 每個 domain 同步交付 v3 等價桌機頁與完整手機 adaptive view；不得只做靜態畫面或無作用按鈕。
 5. 加入 IndexedDB operation queue、離線／衝突 UI、App Check、預算警示、日誌與 Firestore 匯出／還原演練。

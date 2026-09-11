@@ -68,11 +68,11 @@ export const adminPrepareV3Backup = onCall(callableOptions, async (request): Pro
   if (!importSnapshot.exists) throw new HttpsError('not-found', '找不到匯入暫存批次。');
   const importData = importSnapshot.data() ?? {};
   if (importData.propertyId !== input.propertyId) throw new HttpsError('permission-denied', '匯入批次不屬於目前館別。');
-  if (!['complete', 'ready', 'blocked'].includes(String(importData.status ?? ''))) {
+  if (!['complete', 'ready', 'blocked', 'promoted'].includes(String(importData.status ?? ''))) {
     throw new HttpsError('failed-precondition', '匯入暫存批次尚未完成。');
   }
   if (
-    (importData.status === 'ready' || importData.status === 'blocked')
+    (importData.status === 'ready' || importData.status === 'blocked' || importData.status === 'promoted')
     && importData.transformVersion === V3_MIGRATION_TRANSFORM_VERSION
     && typeof importData.reconciliation === 'object'
     && importData.reconciliation !== null

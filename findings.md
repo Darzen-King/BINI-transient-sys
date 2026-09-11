@@ -40,9 +40,9 @@
 - 舊文件仍把 Phase 3 全部標為未實作，且測試數仍為 78；本切片必須同步改成「prepare/reconcile 已完成，promotion 仍禁止」。
 - DEV Functions 部署已建立 `adminPrepareV3Backup` 並更新其餘 6 個 Functions；DEV Hosting 已發布 12 個檔案。Firebase 部署成功但再次顯示舊 build image 清理警告，沒有自行刪除雲端資源。
 - `computer-use` 的 Windows RPC 本輪未配置，無法自動擷取 Chrome 視覺證據；改採 live HTTP／asset metadata／contract tests，並把人工畫面確認留作補充而非阻擋部署。
-- Firebase live function list 已確認 7 個 Node.js 22 Functions 全位於 `asia-east1`，包含新建立的 `adminPrepareV3Backup`；DEV 首頁、manifest、favicon、Apple touch icon、三個 PWA icon 與 BINI logo URL 均回應 HTTP 200。
+- Firebase live function list 已確認 8 個 Node.js 22 Functions 全位於 `asia-east1`，包含 `adminPrepareV3Backup` 與 `adminPromotePreparedV3Backup`；DEV 首頁、manifest、favicon、Apple touch icon、三個 PWA icon 與 BINI logo URL 均回應 HTTP 200。
 - Live manifest 已確認宣告 192／512 `any` 與 512 `maskable` PNG；部署後 JS bundle 引用 `/bini-blooms-logo.png` 且不再引用 `/bini-mark.svg`，Service Worker 新 cache 也包含全部品牌資產。
-- CHANGELOG、Claude Code 交接、首次匯入計畫、migration runbook 與 parity matrix 已同步為「staging + prepare/reconcile 已完成，promotion 待實作」。
+- CHANGELOG、Claude Code 交接、首次匯入計畫、migration runbook 與 parity matrix 已同步為「staging + prepare/reconcile + DEV promotion 程式已完成；真實匯入與 restore drill 待執行」。
 - 未來 promotion 必須再次要求 batch `status=ready`、目前 `transformVersion`、checksum 與 prepared row count 一致，不能只依 `preparedRows` 存在就寫入權威 collections。
 - `App.tsx` 的今日房態仍由檔案內固定 `rooms` 陣列驅動；桌機詳細卡片與手機詳細 dialog 已共用 `RoomViewModel`，可保留 view 並只替換 data source。
 - `AuthGate` 已持有 `client.db` 與通過 MFA／館別驗證的 `StaffSession`，可建立 room overview gateway 後注入 `App`；現有 Rules 已允許同館別讀取 rooms、bookings、stays、payments 且禁止 client 寫入。
@@ -56,6 +56,10 @@
 - 本切片只改 Web/shared read projection 與 Firestore Rules；部署應執行 `deploy:dev:firestore` 和 `deploy:dev:hosting`，不需再次更新 Functions。
 - DEV 已發布 Firestore Rules 與 Hosting bundle `index-CvQM9Ysu.js`；live bundle 包含 room gateway、maintenanceSchedules 與 fail-closed 文案。Bundle 中仍可找到字串 `next_booking` 是因首次匯入清理器必須辨識並剔除該來源欄位，不代表房態讀取使用快取。
 - 最終 fail-closed 修正已重新發布為 bundle `index-COsUaknt.js`；live HTTP 確認即時房態、maintenanceSchedules、錯誤後不顯示 preview 及 BINI logo 皆存在。
+- `adminPromotePreparedV3Backup` 已建立為程式碼切片：只有 MFA + property admin 且輸入批次專屬確認字串可觸發；它重新驗證 ready batch、checksum、version、source/prepared counts、prepared document mapping 與 migration metadata，並以 350 筆 transaction chunks 只建立不存在文件。
+- read-only 檢查 DEV 確認 `properties/property-main` 是預建雲端館別根設定（`active`、`currency`、`name`、`propertyId`、`timezone`、`updatedAt`）。promotion 因此只對符合這個完整形狀、且尚未含 migration marker 的根文件一次附加 `legacyV3Import`，絕不覆寫任何既有設定；所有其他 collision 仍 fail closed。
+- promotion 不會覆寫現有營運資料；相同 batch 的完整相同文件可重試續作，其他 collision fail closed。成功狀態與完成 audit 在同一 transaction 寫入；批次另保留嘗試／失敗 metadata。尚未對真實 Dropbox JSON 執行，也尚無 export/restore drill，不能視為切換完成。
+- promotion Functions 與 Hosting 已部署至 DEV；live bundle `index-CQUT3I8c.js` 含 `adminPromotePreparedV3Backup`、`PROMOTE DEV` 與 BINI logo，首頁 HTTP 200。Functions 部署完成後 Firebase 詢問 Artifact Registry image cleanup policy；因其涉及額外刪除／成本策略且未獲指定，已在三個 function operation 成功後停止提示，沒有設定該 policy。
 
 ## 技術決策
 | 決策 | 理由 |

@@ -16,6 +16,7 @@ export {
 } from './admin/staff-admin.js';
 export { adminStageV3Backup } from './migration/stage-v3-backup.js';
 export { adminPrepareV3Backup } from './migration/prepare-v3-backup.js';
+export { adminPromotePreparedV3Backup } from './migration/promote-v3-backup.js';
 
 if (getApps().length === 0) initializeApp();
 

@@ -4,7 +4,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { V3BackupPrepareResult } from '@bini/cloud-shared';
+import { v3PromotionConfirmationForBatch, type V3BackupPrepareResult } from '@bini/cloud-shared';
 
 import type { StaffSession } from '../src/auth/session.js';
 import { LocaleProvider } from '../src/i18n/locale.js';
@@ -64,13 +64,14 @@ function gateway(): DataImportGateway {
   return {
     stage: vi.fn().mockResolvedValue({ batchId, status: 'complete', rowCount: 3, duplicate: false }),
     prepare: vi.fn().mockResolvedValue(prepareResult()),
+    promote: vi.fn().mockResolvedValue({ batchId, status: 'promoted', transformVersion: 1, documentCount: 3 }),
   };
 }
 
 afterEach(() => cleanup());
 
 describe('initial v3 data import', () => {
-  it('stages a sanitized backup and requests a server reconciliation report without promotion', async () => {
+  it('stages a sanitized backup, requests reconciliation, and keeps promotion disabled until the phrase is typed', async () => {
     const api = gateway();
     render(<LocaleProvider><InitialDataImport session={session} gateway={api} /></LocaleProvider>);
     const file = new File([backup()], 'bini_blooms_backup.json', { type: 'application/json' });
@@ -90,7 +91,19 @@ describe('initial v3 data import', () => {
     await waitFor(() => expect(api.prepare).toHaveBeenCalledWith({ propertyId: 'property-main', batchId }));
     expect(await screen.findByText('對帳通過，資料已準備完成')).toBeInTheDocument();
     expect(screen.getByText(/尚未寫入正式營運 collections/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /promotion|正式匯入/i })).not.toBeInTheDocument();
+    const promote = screen.getByRole('button', { name: '確認並寫入 Firebase DEV' });
+    expect(promote).toBeDisabled();
+    expect(api.promote).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText('正式匯入確認字串'), { target: { value: v3PromotionConfirmationForBatch(batchId) } });
+    expect(promote).toBeEnabled();
+    fireEvent.click(promote);
+    await waitFor(() => expect(api.promote).toHaveBeenCalledWith({
+      propertyId: 'property-main',
+      batchId,
+      confirmation: v3PromotionConfirmationForBatch(batchId),
+    }));
+    expect(await screen.findByText('DEV 正式匯入完成')).toBeInTheDocument();
   });
 
   it('does not expose the import workflow to non-admin staff', () => {

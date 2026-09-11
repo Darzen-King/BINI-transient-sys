@@ -2,7 +2,9 @@ import {
   inspectV3BackupText,
   serializeV3BackupForStaging,
   V3_BACKUP_MAX_BYTES,
+  v3PromotionConfirmationForBatch,
   type V3BackupPrepareResult,
+  type V3BackupPromotionResult,
   type V3BackupInspection,
 } from '@bini/cloud-shared';
 import { useState, type ChangeEvent } from 'react';
@@ -27,12 +29,16 @@ export function InitialDataImport({ session, gateway }: { session: StaffSession;
   const [error, setError] = useState('');
   const [stageResult, setStageResult] = useState<V3BackupStageResult | null>(null);
   const [prepareResult, setPrepareResult] = useState<V3BackupPrepareResult | null>(null);
+  const [promotionConfirmation, setPromotionConfirmation] = useState('');
+  const [promotionResult, setPromotionResult] = useState<V3BackupPromotionResult | null>(null);
 
   const selectFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     setSelected(null);
     setStageResult(null);
     setPrepareResult(null);
+    setPromotionConfirmation('');
+    setPromotionResult(null);
     setConfirmed(false);
     setError('');
     if (!file) return;
@@ -67,6 +73,8 @@ export function InitialDataImport({ session, gateway }: { session: StaffSession;
     setError('');
     setStageResult(null);
     setPrepareResult(null);
+    setPromotionConfirmation('');
+    setPromotionResult(null);
     try {
       setStageResult(await gateway.stage({
         propertyId: session.propertyId,
@@ -98,6 +106,26 @@ export function InitialDataImport({ session, gateway }: { session: StaffSession;
     }
   };
 
+  const promoteImport = async () => {
+    if (!stageResult || !prepareResult?.report.valid || !gateway) return;
+    const confirmation = v3PromotionConfirmationForBatch(stageResult.batchId);
+    if (promotionConfirmation !== confirmation) return;
+    setBusy(true);
+    setError('');
+    setPromotionResult(null);
+    try {
+      setPromotionResult(await gateway.promote({
+        propertyId: session.propertyId,
+        batchId: stageResult.batchId,
+        confirmation,
+      }));
+    } catch {
+      setError(text('正式匯入未完成。系統不會覆寫既有營運資料；請由管理員確認同一批次的狀態後再處理。', 'Promotion did not complete. Existing operational data was not overwritten; an administrator must review this same batch before proceeding.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (session.role !== 'admin') {
     return <SectionCard title={text('初始資料導入', 'Initial data import')}><Notice tone="danger" title={text('權限不足', 'Access denied')}>{text('只有管理員可以使用此功能。', 'Only administrators can use this feature.')}</Notice></SectionCard>;
   }
@@ -114,6 +142,7 @@ export function InitialDataImport({ session, gateway }: { session: StaffSession;
         <li><span>2</span><div><strong>{text('選擇並檢查', 'Choose and inspect')}</strong><small>{text('先在瀏覽器檢查格式、筆數與排除項目。', 'Review format, row counts, and exclusions in the browser.')}</small></div></li>
         <li><span>3</span><div><strong>{text('建立暫存批次', 'Create staging batch')}</strong><small>{text('伺服器驗證 MFA／管理員與 SHA-256 後才暫存。', 'The server verifies MFA, admin access, and SHA-256 before staging.')}</small></div></li>
         <li><span>4</span><div><strong>{text('轉換與對帳', 'Transform and reconcile')}</strong><small>{text('驗證 12 類資料的型別、關聯、金額與日期；不寫入營運資料。', 'Validate types, references, amounts, and dates across 12 data groups without writing operational data.')}</small></div></li>
+        <li><span>5</span><div><strong>{text('確認並正式匯入', 'Confirm and promote')}</strong><small>{text('需輸入本批次確認字串，且只會寫入 Firebase DEV。', 'Type the batch confirmation phrase before writing to Firebase DEV only.')}</small></div></li>
       </ol>
 
       <label className="import-file-picker">
@@ -195,7 +224,41 @@ export function InitialDataImport({ session, gateway }: { session: StaffSession;
               ))}
             </ul>
           ) : null}
+          {prepareResult.report.valid && stageResult ? (
+            <div className="promotion-confirmation">
+              <Notice tone="warning" title={text('最後確認：將寫入 Firebase DEV', 'Final confirmation: write to Firebase DEV')}>
+                {text('這會把已對帳的資料寫入 DEV 營運 collections。系統會拒絕覆寫既有文件；請逐字輸入下列確認字串。', 'This writes reconciled data to DEV operational collections. Existing documents are never overwritten; type the exact phrase below.')}
+              </Notice>
+              <code>{v3PromotionConfirmationForBatch(stageResult.batchId)}</code>
+              <label>
+                <span>{text('確認字串', 'Confirmation phrase')}</span>
+                <input
+                  aria-label={text('正式匯入確認字串', 'Promotion confirmation phrase')}
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                  onChange={(event) => setPromotionConfirmation(event.target.value)}
+                  spellCheck={false}
+                  value={promotionConfirmation}
+                />
+              </label>
+              <Button
+                block
+                disabled={promotionConfirmation !== v3PromotionConfirmationForBatch(stageResult.batchId)}
+                loading={busy}
+                onClick={() => void promoteImport()}
+                size="lg"
+              >
+                {text('確認並寫入 Firebase DEV', 'Confirm and write to Firebase DEV')}
+              </Button>
+            </div>
+          ) : null}
         </div>
+      ) : null}
+
+      {promotionResult ? (
+        <Notice tone="success" title={promotionResult.status === 'already_promoted' ? text('此批次已完成正式匯入', 'This batch was already promoted') : text('DEV 正式匯入完成', 'DEV promotion completed')}>
+          {text(`已驗證並寫入 ${promotionResult.documentCount} 筆資料。此動作只作用於 Firebase DEV；完整 PMS 流程仍需逐項驗收。`, `${promotionResult.documentCount} verified documents were written. This affects Firebase DEV only; the full PMS workflow still requires per-feature acceptance.`)}
+        </Notice>
       ) : null}
     </SectionCard>
   );

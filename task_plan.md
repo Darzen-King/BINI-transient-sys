@@ -30,6 +30,7 @@
 - [ ] 完成共用日期、金額、房態、權限與錯誤處理元件
 - [ ] 完成 DEV Rules／Functions emulator 驗證
 - [x] 完成 12 類 v3 資料 transformer、reconciliation 與 prepare callable
+- [x] 完成 MFA/admin 確認的 prepared-data promotion callable、同批次續作與 audit（未執行真實資料）
 - **狀態：** in_progress
 
 ### 階段 3：前台核心營運流程
@@ -71,7 +72,7 @@
 | 桌機維持完整資訊，手機改為響應式操作而非刪減功能 | 符合「完整功能搬移、只調整手機介面」要求 |
 | 以逐功能證據矩陣判定完成 | 防止 UI 或單一模組進度被誤認為完整移轉 |
 | 匯入依序採 stage → reconcile → promote | 在任何營運資料寫入前先驗證 schema、關聯、金額與時間 |
-| 本切片先交付 prepare/reconcile，不自動 promotion | promotion 仍需完整 domain schema、回滾與操作員確認 |
+| promotion 採明確確認與 create-only 策略 | promotion 重新驗證批次並拒絕覆寫；唯一例外是保留預建館別根設定並附加 legacy property，rollback/export drill 仍是後續 gate |
 
 ## 遇到的錯誤
 | 錯誤 | 嘗試次數 | 解決方案 |

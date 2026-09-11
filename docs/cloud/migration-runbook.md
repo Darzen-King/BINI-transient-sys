@@ -20,7 +20,8 @@ Phase 2 full-domain implementation
 ├─ [完成] all-entity schema mapping and stable migration IDs
 ├─ [完成] inspect and stage v3 schema 3.5 Dropbox JSON (admin + MFA + SHA-256)
 ├─ [完成] prepare 12 typed document groups + reconciliation report
-├─ [未完成] promotion repository + rollback metadata / drill
+├─ [完成] MFA/admin confirmed promotion repository（除保留雲端館別根設定外只建立不存在的文件、同 batch 可續作、原子 audit）
+├─ [未完成] Firestore export + rollback metadata / restore drill
 ├─ rooms / gantt projections
 ├─ bookings / stays / monthly rentals / payments handlers
 ├─ housekeeping / maintenance handlers

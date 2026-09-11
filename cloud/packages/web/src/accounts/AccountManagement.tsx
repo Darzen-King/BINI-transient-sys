@@ -9,34 +9,38 @@ import {
 
 import type { AccountAdminGateway } from './account-admin.js';
 import type { StaffSession } from '../auth/session.js';
+import { Badge, Button, Field, Notice, ResponsiveDialog } from '../design-system/index.js';
+import { useLocale, type AppLocale } from '../i18n/locale.js';
 
-const ROLE_LABELS: Record<CloudRole, string> = {
-  admin: '系統管理員',
-  manager: '主管',
-  front_desk: '前台',
-  housekeeping: '房務',
-  maintenance: '維修',
+const ROLE_LABELS: Record<CloudRole, readonly [string, string]> = {
+  admin: ['系統管理員', 'Administrator'],
+  manager: ['主管', 'Manager'],
+  front_desk: ['前台', 'Front Desk'],
+  housekeeping: ['房務', 'Housekeeping'],
+  maintenance: ['維修', 'Maintenance'],
 };
 
-const PAGE_LABELS: Record<CloudPageId, string> = {
-  rooms: '房間總覽',
-  gantt: '甘特圖',
-  payments: '付款管理',
-  bookings: '預約管理',
-  bookings_new: '新增預約',
-  checkin: '入住登記',
-  extend: '延住處理',
-  checkout: '退房辦理',
-  room_management: '房間管理',
-  housekeeping: '清潔管理',
-  maintenance: '維修管理',
-  reports: '統計報表',
-  audit: '審計軌跡',
-  users: '使用者',
-  properties: '館別管理',
-  costs: '成本紀錄',
-  holidays: '假日管理',
+const PAGE_LABELS: Record<CloudPageId, readonly [string, string]> = {
+  rooms: ['房間總覽', 'Rooms'],
+  gantt: ['甘特圖', 'Gantt'],
+  payments: ['付款管理', 'Payments'],
+  bookings: ['預約管理', 'Bookings'],
+  bookings_new: ['新增預約', 'New Booking'],
+  checkin: ['入住登記', 'Check-in'],
+  extend: ['延住處理', 'Extend Stay'],
+  checkout: ['退房辦理', 'Check-out'],
+  room_management: ['房間管理', 'Room Management'],
+  housekeeping: ['清潔管理', 'Housekeeping'],
+  maintenance: ['維修管理', 'Maintenance'],
+  reports: ['統計報表', 'Reports'],
+  audit: ['審計軌跡', 'Audit Trail'],
+  users: ['使用者', 'Users'],
+  properties: ['館別管理', 'Properties'],
+  costs: ['成本紀錄', 'Costs'],
+  holidays: ['假日管理', 'Holidays'],
 };
+
+const localized = (labels: readonly [string, string], locale: AppLocale) => labels[locale === 'zh-TW' ? 0 : 1];
 
 interface EditorState {
   uid: string;
@@ -58,19 +62,20 @@ const defaultEditor = (role: CloudRole = 'front_desk'): EditorState => ({
   password: '',
 });
 
-function messageFrom(error: unknown): string {
-  return error instanceof Error ? error.message : '操作失敗，請稍後再試。';
+function messageFrom(error: unknown, text: (zhTw: string, en: string) => string): string {
+  return error instanceof Error ? error.message : text('操作失敗，請稍後再試。', 'The action failed. Try again later.');
 }
 
 function PagePicker({ value, onChange }: {
   value: CloudPageId[];
   onChange: (pages: CloudPageId[]) => void;
 }) {
+  const { locale, text } = useLocale();
   return (
     <fieldset className="permission-picker">
-      <legend>可使用功能</legend>
+      <legend>{text('可使用功能', 'Available features')}</legend>
       <div className="permission-actions">
-        <button type="button" onClick={() => onChange([])}>清除</button>
+        <Button onClick={() => onChange([])} size="sm" variant="ghost">{text('清除', 'Clear')}</Button>
       </div>
       <div className="permission-grid">
         {CLOUD_PAGE_IDS.map((page) => (
@@ -82,7 +87,7 @@ function PagePicker({ value, onChange }: {
                 ? [...value, page]
                 : value.filter((item) => item !== page))}
             />
-            {PAGE_LABELS[page]}
+            {localized(PAGE_LABELS[page], locale)}
           </label>
         ))}
       </div>
@@ -95,12 +100,11 @@ function RoleSelect({ value, onChange, disabled = false }: {
   onChange: (role: CloudRole) => void;
   disabled?: boolean;
 }) {
+  const { locale, text } = useLocale();
   return (
-    <label>角色
-      <select disabled={disabled} value={value} onChange={(event) => onChange(event.target.value as CloudRole)}>
-        {Object.entries(ROLE_LABELS).map(([role, label]) => <option value={role} key={role}>{label}</option>)}
-      </select>
-    </label>
+    <Field label={text('角色', 'Role')}><select disabled={disabled} value={value} onChange={(event) => onChange(event.target.value as CloudRole)}>
+      {Object.entries(ROLE_LABELS).map(([role, labels]) => <option value={role} key={role}>{localized(labels, locale)}</option>)}
+    </select></Field>
   );
 }
 
@@ -108,6 +112,7 @@ export function AccountManagement({ session, gateway }: {
   session: StaffSession;
   gateway: AccountAdminGateway | undefined;
 }) {
+  const { locale, text } = useLocale();
   const [users, setUsers] = useState<StaffDirectoryEntry[]>([]);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [creating, setCreating] = useState(false);
@@ -121,11 +126,11 @@ export function AccountManagement({ session, gateway }: {
     try {
       setUsers(await gateway.list(session.propertyId));
     } catch (loadError) {
-      setError(messageFrom(loadError));
+      setError(messageFrom(loadError, text));
     } finally {
       setBusy(false);
     }
-  }, [gateway, session.propertyId]);
+  }, [gateway, session.propertyId, text]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -192,57 +197,55 @@ export function AccountManagement({ session, gateway }: {
       setEditor(null);
       await load();
     } catch (saveError) {
-      setError(messageFrom(saveError));
+      setError(messageFrom(saveError, text));
     } finally {
       setBusy(false);
     }
   };
 
-  if (!gateway) return <div className="empty-card">帳號管理服務尚未連線。</div>;
+  if (!gateway) return <div className="empty-card">{text('帳號管理服務尚未連線。', 'The account service is not connected.')}</div>;
 
   return (
     <section className="account-management" aria-label="裝置與帳號">
       <div className="account-heading">
-        <div><h2>裝置與帳號</h2><p>僅管理員可新增、停用及調整人員權限。</p></div>
-        <button className="compact-primary" onClick={openCreate}>＋ 新增人員</button>
+        <div><h2>{text('裝置與帳號', 'Staff accounts')}</h2><p>{text('僅管理員可新增、停用及調整人員權限。', 'Only administrators can add staff, disable accounts, or change permissions.')}</p></div>
+        <Button onClick={openCreate}>＋ {text('新增人員', 'Add staff')}</Button>
       </div>
-      <div className="security-note">所有人員均須使用已驗證的電子郵件、密碼與驗證器 MFA；系統不提供自行註冊。</div>
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
-      {busy && users.length === 0 ? <div className="empty-card">讀取中…</div> : null}
+      <Notice tone="info" title={text('封閉式員工系統', 'Closed staff system')}>{text('所有人員均須使用已驗證的電子郵件、密碼與驗證器 MFA；系統不提供自行註冊。', 'Every staff member must use a verified email, password, and authenticator MFA. Self-registration is unavailable.')}</Notice>
+      {error ? <Notice tone="danger" title={text('操作失敗', 'Action failed')}>{error}</Notice> : null}
+      {busy && users.length === 0 ? <div className="empty-card">{text('讀取中…', 'Loading…')}</div> : null}
       <div className="staff-list">
         {users.map((user) => (
           <article className={!user.active ? 'disabled' : ''} key={user.uid}>
             <div className="staff-avatar">{(user.displayName || user.email).slice(0, 1).toUpperCase()}</div>
             <div className="staff-main">
-              <strong>{user.displayName || user.email}{user.uid === session.uid ? '（你）' : ''}</strong>
+              <strong>{user.displayName || user.email}{user.uid === session.uid ? text('（你）', ' (you)') : ''}</strong>
               <small>{user.email}</small>
               <div className="staff-badges">
-                <span>{ROLE_LABELS[user.role]}</span>
-                <span>{user.active ? '啟用' : '停用'}</span>
-                <span>{user.mfaEnrolled ? 'MFA 已設定' : 'MFA 待設定'}</span>
+                <Badge tone="brand">{localized(ROLE_LABELS[user.role], locale)}</Badge>
+                <Badge tone={user.active ? 'success' : 'neutral'}>{user.active ? text('啟用', 'Active') : text('停用', 'Disabled')}</Badge>
+                <Badge tone={user.mfaEnrolled ? 'success' : 'warning'}>{user.mfaEnrolled ? text('MFA 已設定', 'MFA ready') : text('MFA 待設定', 'MFA pending')}</Badge>
               </div>
             </div>
-            <button className="outline-button" onClick={() => openEdit(user)}>編輯</button>
+            <Button onClick={() => openEdit(user)} size="sm" variant="outline">{text('編輯', 'Edit')}</Button>
           </article>
         ))}
       </div>
 
       {editor ? (
-        <div className="modal-backdrop" onClick={() => setEditor(null)}>
-          <form className="bottom-sheet account-editor" onSubmit={(event) => void save(event)} onClick={(event) => event.stopPropagation()}>
-            <div className="sheet-handle" />
-            <div className="sheet-title"><h2>{creating ? '新增人員' : '編輯人員'}</h2><button type="button" aria-label="關閉帳號設定" onClick={() => setEditor(null)}>×</button></div>
+        <ResponsiveDialog onClose={() => setEditor(null)} title={creating ? text('新增人員', 'Add staff') : text('編輯人員', 'Edit staff')}>
+          <form className="account-editor" onSubmit={(event) => void save(event)}>
             <div className="editor-grid">
-              <label>顯示名稱<input required maxLength={80} value={editor.displayName} onChange={(event) => setEditor({ ...editor, displayName: event.target.value })} /></label>
-              <label>登入電子郵件<input required disabled={!creating} type="email" value={editor.email} onChange={(event) => setEditor({ ...editor, email: event.target.value })} /></label>
-              <label>{creating ? '初始密碼' : '重設密碼（留空不變）'}<input required={creating} minLength={12} type="password" autoComplete="new-password" value={editor.password} onChange={(event) => setEditor({ ...editor, password: event.target.value })} /><small>至少 12 字元，且包含英文字母與數字。</small></label>
+              <Field label={text('顯示名稱', 'Display name')}><input required maxLength={80} value={editor.displayName} onChange={(event) => setEditor({ ...editor, displayName: event.target.value })} /></Field>
+              <Field label={text('登入電子郵件', 'Sign-in email')}><input required disabled={!creating} type="email" value={editor.email} onChange={(event) => setEditor({ ...editor, email: event.target.value })} /></Field>
+              <Field hint={text('至少 12 字元，且包含英文字母與數字。', 'At least 12 characters with letters and numbers.')} label={creating ? text('初始密碼', 'Initial password') : text('重設密碼（留空不變）', 'Reset password (leave blank to keep)')}><input required={creating} minLength={12} type="password" autoComplete="new-password" value={editor.password} onChange={(event) => setEditor({ ...editor, password: event.target.value })} /></Field>
               <RoleSelect value={editor.role} disabled={editor.uid === session.uid} onChange={chooseRole} />
             </div>
-            {!creating ? <label className="switch-row"><input checked={editor.active} disabled={editor.uid === session.uid} type="checkbox" onChange={(event) => setEditor({ ...editor, active: event.target.checked })} />啟用此帳號</label> : null}
+            {!creating ? <label className="switch-row"><input checked={editor.active} disabled={editor.uid === session.uid} type="checkbox" onChange={(event) => setEditor({ ...editor, active: event.target.checked })} />{text('啟用此帳號', 'Enable this account')}</label> : null}
             <PagePicker value={editor.allowedPages} onChange={(allowedPages) => setEditor({ ...editor, allowedPages })} />
-            <div className="editor-actions"><button type="button" className="outline-button" onClick={() => setEditor(null)}>取消</button><button className="compact-primary" disabled={busy} type="submit">{busy ? '儲存中…' : '儲存'}</button></div>
+            <div className="editor-actions"><Button onClick={() => setEditor(null)} variant="outline">{text('取消', 'Cancel')}</Button><Button loading={busy} type="submit">{text('儲存', 'Save')}</Button></div>
           </form>
-        </div>
+        </ResponsiveDialog>
       ) : null}
     </section>
   );

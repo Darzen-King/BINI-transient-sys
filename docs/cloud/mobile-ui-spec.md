@@ -11,6 +11,7 @@
 - 手機核心寬度從 320px 起可用，不把桌面表格等比例縮小。
 - 常用操作在拇指可及區：底部五分頁為「今日、預約、房務、款項、更多」。
 - 所有主要觸控目標至少 44px，支援 safe-area、reduced motion 與窄螢幕無水平捲動。
+- 手機頂部固定提供「中／EN」切換；與桌機、登入及 MFA 共用同一語系狀態，切換後即時更新並以 localStorage 記住選擇。
 - 房態同時用文字、色彩與左側色條辨識，避免只依賴顏色。
 - 離線或送出未完成時，必須顯示待同步數量、狀態與可開啟的 bottom sheet。
 
@@ -34,6 +35,8 @@
 ## 目前完成與限制
 
 - 已完成 React foundation shell、v3 同順序桌機頂部導覽、完整手機「更多」入口、真實 Firebase 登入／TOTP MFA 流程、admin 帳號設定、PWA manifest/service worker、響應式 CSS 與基本可及性標籤。
+- 已建立 BINI Design System v1 的 semantic tokens 與 Button／Badge／SectionCard／Field／Notice／ResponsiveDialog 核心元件；登入、MFA、主 shell、帳號與首次匯入開始採用。
+- 手機及桌機已使用共用中文／English 切換；目前 foundation 既有畫面均接入，後續 domain 頁面必須在同一 PR 同步提供兩種語言。
 - 已以實際瀏覽器檢查 320／375／430／768／1100px；document 未水平溢位，手機／桌機導覽在 breakpoint 正確切換。
 - 營運畫面資料目前仍是明確的展示資料，快捷操作只開啟 foundation 提示；Identity 已接 Auth/Firestore/Functions，但 PMS domain 與 IndexedDB 尚未接入。
 - 真實表單必須在各 domain operation contract 完成後逐一接入，禁止先讓手機直接寫權威 collection。完整頁面清單與桌機／手機對照見 `v3-v4-full-parity-matrix.md`。

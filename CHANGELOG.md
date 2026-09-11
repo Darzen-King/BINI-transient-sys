@@ -4,6 +4,8 @@
 
 ## Unreleased — Firebase v4 全介面／全功能雲端搬移（DEV）
 
+- 建立 BINI Design System v1：將既有粉色品牌演進為 primitive／semantic 雙層 Tokens，涵蓋色彩、字級、4px 間距、圓角、陰影、motion、44px touch target 與房態語意；新增 Button、Badge、SectionCard、Field、Notice、ResponsiveDialog 六個 React 核心元件與 contract tests，並開始套用到登入、MFA、今日房態、帳號管理及首次資料導入。
+- 補上手機版遺漏的「中／EN」語言切換，並啟用原先停用的桌機語言按鈕；兩種版面及登入流程共用 `LocaleProvider`，切換不需重新載入、會記住選擇，且目前已完成的導覽、房態、操作、帳號與匯入文字同步切換。
 - 明確鎖定 v4 為 **v3.9.14 全介面、全功能雲端搬移**：桌機版保留現有頂部導覽、頁面與操作流程，只有手機版依小螢幕改成卡片／全螢幕表單／bottom sheet；新增 `docs/cloud/v3-v4-full-parity-matrix.md`，逐頁追蹤 22 個介面／替代項目。實作順序僅為風險切片，不代表縮減範圍。
 - 啟動全資料移轉契約：新增 12 個權威資料表到 Firestore collection 的明確對照、穩定 legacy document ID、空館別映射 `property-main`、Asia/Taipei 時間轉換、整數新台幣與 SHA-256 來源中繼資料；密碼雜湊、備份憑證、`Room.next_booking` 與 `report_summary` 明確不可匯入為權威資料。
 - 新增完整 17 分頁導覽 manifest，桌機版改回 v3 同順序的頂部導覽與三欄房卡，手機版保留五個主分頁並可由「更多」到達所有有權限的低頻功能；移除會誤導為真實狀態的固定「2 筆待同步」假資料，明確標示 DEV 尚不可營運。
@@ -17,7 +19,7 @@
 - 完成封閉式員工 Auth：沒有公開註冊，管理員可新增、啟停、設定角色／17 個分頁權限與重設密碼；密碼只寫入 Firebase Auth，不進 Firestore 或 audit log。
 - 強制 email 驗證與 TOTP MFA；未完成 MFA、停權、跨館別與非 admin 的帳號管理請求均拒絕。首位 DEV admin `biniblooms250808@gmail.com` 已由 server-side bootstrap 建立並寄出一次性密碼設定信。
 - 所有權威資料維持 server-only write；客戶端只能建立 append-only operation request，處理器具 idempotency、版本衝突偵測與 audit log。
-- 手機版採專用資訊架構：底部五分頁、快捷操作、房態卡與 bottom sheet；使用 44px 觸控目標、safe-area、房態語意色及窄螢幕無水平溢位，桌面寬度才切換側欄。
+- 手機版採專用資訊架構：底部五分頁、快捷操作、房態卡與 bottom sheet；使用 44px 觸控目標、safe-area、房態語意色及窄螢幕無水平溢位，桌面寬度切換為 v3 頂部導覽。
 - DEV Firestore 已建立於 `asia-east1`；Rules、indexes、五個 Node.js 22 Functions 與 Hosting 已部署至 `bini-transient-dev`，PROD `bini-transient` 未部署、未修改。
 - 修正 Hosting 空白頁：workspace Vite 明確由 `cloud/.env.local` 讀取 DEV 設定；新增 bundle guard，缺設定、placeholder 或非 DEV project 時禁止部署。
 - DEV 預覽：`https://bini-transient-dev.web.app`。實際手機瀏覽器確認登入卡正常、無目前版本 console error，且頁面沒有註冊或外部備份入口。

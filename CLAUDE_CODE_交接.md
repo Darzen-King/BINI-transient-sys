@@ -41,10 +41,12 @@
 
 ### 手機 UI 與登入
 
+- `design-system/tokens.css` + `components.css` + `components.tsx`：BINI Design System v1，採 `bds-*` 命名空間，提供 semantic tokens 與 Button／Badge／SectionCard／Field／Notice／ResponsiveDialog；新增頁面必須優先組合使用，禁止再複製主要按鈕、錯誤框或 dialog 樣式。完整規格及缺口見 `docs/cloud/bini-design-system-v1.md`。
+- `i18n/locale.tsx`：手機頂部、桌機右上、登入與 MFA 共用中文／English 狀態；使用 `aria-pressed` 且 localStorage 記憶。後續每個 domain 的桌機與手機 view 必須在同一變更中補齊兩種語言。
 - `AuthGate.tsx`：無註冊入口；email/password → email 驗證 → 首次 TOTP enrollment → 後續 MFA 登入 → profile/role 檢查。
 - `AccountManagement.tsx`：admin 專用手機卡片與 bottom sheet，可新增、啟停、選角色、勾分頁與重設密碼。
 - `App.tsx`：桌機依 v3 順序顯示 Prototype Hub＋17 個權限分頁的頂部導覽；手機為今日、預約、房務、款項、更多，且「更多」可到達全部低頻功能；沒有雲端備份，使用者管理只對 admin 顯示。
-- `styles.css`：44px target、safe-area、320／375／430px 單欄、768px 三欄、>=1100px v3 式桌機頂部導覽與三欄房卡，無水平溢位。
+- `styles.css`：產品／domain 版面樣式；基礎 token 已移到 design system。維持 44px target、safe-area、320／375／430px 單欄、768px 三欄、>=1100px v3 式桌機頂部導覽與三欄房卡，無水平溢位。
 - 「今日房態」以單一 room view model 同步輸出兩種 view：桌機卡片直接展開 v3 詳細欄位與快捷操作；手機卡片只保留房號／狀態／摘要，點擊後於詳細面板顯示完整欄位與操作。後續接 Firestore 時不得維護兩份資料邏輯。
 - `ui-preview.html` 只供本機 Vite 視覺 QA，未列入 Vite production input，Hosting build 不含該檔；不得將免登入預覽公開部署。
 - `InitialDataImport.tsx` + `v3-backup.ts` + `adminStageV3Backup`：本機選檔預覽、schema 3.5／大小／筆數／重複 ID 檢查；瀏覽器先剔除 users/password、report_summary、未知欄位與 `rooms.next_booking`，Functions 再做 MFA/admin／清理後內容 SHA-256 複驗及 default-deny staging。正式 domain promotion 尚未實作，不得把 staging 說成營運資料已完成搬移。

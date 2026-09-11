@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from '../src/App.js';
+import { LocaleProvider } from '../src/i18n/locale.js';
 
 afterEach(() => {
   cleanup();
@@ -96,6 +97,17 @@ describe('mobile-first PMS shell', () => {
 
     expect(screen.getByRole('heading', { name: '員工登入' })).toBeInTheDocument();
     expect(screen.queryByText(/註冊|建立帳號/)).not.toBeInTheDocument();
+  });
+
+  it('switches the mobile shell between Chinese and English without reloading', () => {
+    render(<LocaleProvider initialLocale="zh-TW"><App /></LocaleProvider>);
+
+    expect(screen.getByRole('navigation', { name: '手機主導覽' })).toHaveTextContent('今日');
+    const switches = screen.getAllByRole('group', { name: '語言切換' });
+    fireEvent.click(within(switches[1]!).getByRole('button', { name: 'EN' }));
+    expect(screen.getByRole('navigation', { name: 'Mobile navigation' })).toHaveTextContent('Today');
+    expect(screen.getByRole('heading', { name: "Today's Operations" })).toBeInTheDocument();
+    expect(document.documentElement).toHaveAttribute('lang', 'en');
   });
 
   it('removes desktop cloud-backup settings and exposes account settings only to admins', () => {

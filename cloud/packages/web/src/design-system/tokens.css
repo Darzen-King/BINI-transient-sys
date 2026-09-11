@@ -1,0 +1,159 @@
+:root {
+  color: var(--bds-color-text-primary);
+  background: var(--bds-color-canvas);
+  font-family: var(--bds-font-family-sans);
+  font-synthesis: none;
+
+  /* Primitive colour palette — evolved from the existing BINI pink identity. */
+  --bds-color-berry-50: #fff4f9;
+  --bds-color-berry-100: #ffe1ef;
+  --bds-color-berry-200: #ffc6df;
+  --bds-color-berry-300: #f99ac5;
+  --bds-color-berry-400: #f064a8;
+  --bds-color-berry-500: #e83e8c;
+  --bds-color-berry-600: #ce2675;
+  --bds-color-berry-700: #a9195d;
+  --bds-color-berry-800: #86194d;
+  --bds-color-berry-900: #711943;
+
+  --bds-color-neutral-0: #ffffff;
+  --bds-color-neutral-25: #fffafd;
+  --bds-color-neutral-50: #fbf8fa;
+  --bds-color-neutral-100: #f5eef2;
+  --bds-color-neutral-200: #eadfe6;
+  --bds-color-neutral-300: #d8cad3;
+  --bds-color-neutral-400: #bbb1b8;
+  --bds-color-neutral-500: #756b76;
+  --bds-color-neutral-600: #5f5660;
+  --bds-color-neutral-700: #4f4650;
+  --bds-color-neutral-900: #2d2430;
+
+  --bds-color-green-50: #edf9f4;
+  --bds-color-green-100: #dff7ec;
+  --bds-color-green-300: #99d8bd;
+  --bds-color-green-500: #18855b;
+  --bds-color-green-600: #14724f;
+  --bds-color-green-700: #116847;
+  --bds-color-amber-50: #fff9e6;
+  --bds-color-amber-100: #fff1c7;
+  --bds-color-amber-300: #efc36a;
+  --bds-color-amber-500: #d88d00;
+  --bds-color-amber-600: #a36c00;
+  --bds-color-amber-700: #795300;
+  --bds-color-red-50: #ffecef;
+  --bds-color-red-500: #c43f50;
+  --bds-color-red-700: #9e2c3b;
+  --bds-color-blue-50: #edf7ff;
+  --bds-color-blue-100: #cfe9ff;
+  --bds-color-blue-300: #87b9ef;
+  --bds-color-blue-500: #2d86d4;
+  --bds-color-blue-600: #4a6f91;
+  --bds-color-blue-700: #154f82;
+  --bds-color-purple-50: #f0e9ff;
+  --bds-color-purple-500: #7a51c2;
+  --bds-color-purple-700: #5b399b;
+
+  /* Semantic colour layer — product code should consume these tokens. */
+  --bds-color-canvas: #fff7fb;
+  --bds-color-surface: var(--bds-color-neutral-0);
+  --bds-color-surface-subtle: var(--bds-color-neutral-25);
+  --bds-color-surface-brand: var(--bds-color-berry-50);
+  --bds-color-text-primary: var(--bds-color-neutral-900);
+  --bds-color-text-secondary: var(--bds-color-neutral-500);
+  --bds-color-text-inverse: var(--bds-color-neutral-0);
+  --bds-color-border: var(--bds-color-neutral-200);
+  --bds-color-border-strong: var(--bds-color-neutral-300);
+  --bds-color-action-primary: var(--bds-color-berry-500);
+  --bds-color-action-primary-hover: var(--bds-color-berry-600);
+  --bds-color-action-primary-pressed: var(--bds-color-berry-700);
+  --bds-color-action-secondary: var(--bds-color-berry-100);
+  --bds-color-action-secondary-text: var(--bds-color-berry-800);
+  --bds-color-focus: #1769aa;
+  --bds-color-feedback-success: var(--bds-color-green-500);
+  --bds-color-feedback-success-bg: var(--bds-color-green-50);
+  --bds-color-feedback-warning: var(--bds-color-amber-700);
+  --bds-color-feedback-warning-bg: var(--bds-color-amber-50);
+  --bds-color-feedback-danger: var(--bds-color-red-700);
+  --bds-color-feedback-danger-bg: var(--bds-color-red-50);
+  --bds-color-feedback-info: var(--bds-color-blue-700);
+  --bds-color-feedback-info-bg: var(--bds-color-blue-50);
+
+  /* Room state semantics shared by desktop cards and mobile detail sheets. */
+  --bds-color-room-occupied: var(--bds-color-purple-500);
+  --bds-color-room-arrival: #1976d2;
+  --bds-color-room-cleaning: var(--bds-color-amber-500);
+  --bds-color-room-vacant: #159366;
+  --bds-color-room-maintenance: var(--bds-color-red-500);
+  --bds-color-room-monthly: #252a32;
+
+  /* Typography. */
+  --bds-font-family-sans: Inter, "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --bds-font-size-2xs: 0.625rem;
+  --bds-font-size-xs: 0.6875rem;
+  --bds-font-size-sm: 0.75rem;
+  --bds-font-size-md: 0.8125rem;
+  --bds-font-size-lg: 1rem;
+  --bds-font-size-xl: 1.25rem;
+  --bds-font-size-2xl: 1.5625rem;
+  --bds-font-size-3xl: 1.875rem;
+  --bds-font-weight-regular: 500;
+  --bds-font-weight-semibold: 700;
+  --bds-font-weight-bold: 800;
+  --bds-font-weight-black: 900;
+  --bds-line-height-tight: 1.25;
+  --bds-line-height-normal: 1.5;
+  --bds-line-height-relaxed: 1.65;
+
+  /* 4px spacing grid. */
+  --bds-space-0: 0;
+  --bds-space-1: 0.25rem;
+  --bds-space-2: 0.5rem;
+  --bds-space-3: 0.75rem;
+  --bds-space-4: 1rem;
+  --bds-space-5: 1.25rem;
+  --bds-space-6: 1.5rem;
+  --bds-space-8: 2rem;
+  --bds-space-10: 2.5rem;
+  --bds-space-12: 3rem;
+
+  --bds-radius-xs: 0.4375rem;
+  --bds-radius-sm: 0.625rem;
+  --bds-radius-md: 0.75rem;
+  --bds-radius-lg: 0.9375rem;
+  --bds-radius-xl: 1.125rem;
+  --bds-radius-2xl: 1.5rem;
+  --bds-radius-full: 999px;
+
+  --bds-shadow-sm: 0 2px 10px rgb(74 31 57 / 6%);
+  --bds-shadow-md: 0 8px 28px rgb(74 31 57 / 9%);
+  --bds-shadow-lg: 0 18px 48px rgb(44 25 37 / 18%);
+  --bds-duration-fast: 120ms;
+  --bds-duration-normal: 200ms;
+  --bds-easing-standard: cubic-bezier(.2, 0, 0, 1);
+  --bds-touch-target: 44px;
+  --bds-content-max: 1280px;
+  --bds-z-nav: 20;
+  --bds-z-dialog: 40;
+
+  /* Temporary aliases keep legacy product styles compatible during adoption. */
+  --brand: var(--bds-color-action-primary);
+  --brand-dark: var(--bds-color-berry-700);
+  --brand-soft: var(--bds-color-action-secondary);
+  --ink: var(--bds-color-text-primary);
+  --muted: var(--bds-color-text-secondary);
+  --line: var(--bds-color-border);
+  --surface: var(--bds-color-surface);
+  --success: var(--bds-color-feedback-success);
+  --warning: var(--bds-color-feedback-warning);
+  --danger: var(--bds-color-feedback-danger);
+  --touch-target: var(--bds-touch-target);
+  --radius: var(--bds-radius-xl);
+  --shadow: var(--bds-shadow-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --bds-duration-fast: 0ms;
+    --bds-duration-normal: 0ms;
+  }
+}

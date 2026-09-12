@@ -92,4 +92,15 @@ describe('live room overview UI', () => {
     expect(screen.getByText('無法載入即時房態')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '查看 301 房詳細資料' })).not.toBeInTheDocument();
   });
+
+  it('filters the detailed desktop cards by room status without changing the live source', async () => {
+    const mixedProjection: RoomOverviewProjection = { ...projection, rooms: [...projection.rooms, { ...projection.rooms[0], roomId: '302', status: '可入住', guestName: null, checkInAt: null, checkOutAt: null, totalDueNts: null, totalPaidNts: null, depositPaidNts: null, balanceDueNts: null, nextBookingAt: null, actions: ['checkin'] }] };
+    render(<App roomOverviewGateway={gateway(mixedProjection)} />);
+    await screen.findByRole('button', { name: '查看 301 房詳細資料' });
+    fireEvent.click(screen.getByRole('button', { name: /可入住 房態 1/ }));
+    expect(screen.getByRole('button', { name: '查看 302 房詳細資料' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '查看 301 房詳細資料' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /全部房間 2/ }));
+    expect(screen.getByRole('button', { name: '查看 301 房詳細資料' })).toBeInTheDocument();
+  });
 });

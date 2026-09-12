@@ -291,6 +291,7 @@ function TodayView({ canCreate, canCheckIn, canExtend, canCheckout, canImport, o
   const [projection, setProjection] = useState<RoomOverviewProjection | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [selectedRoomNumber, setSelectedRoomNumber] = useState<string | null>(null);
+  const [roomFilter, setRoomFilter] = useState<RoomState | 'all'>('all');
   const stateLabel = (state: RoomState) => roomStateLabels[state][locale === 'zh-TW' ? 0 : 1];
   const roomViewModels = roomOverviewGateway
     ? (projection?.rooms.map((room) => toRoomViewModel(room, locale)) ?? [])
@@ -298,6 +299,7 @@ function TodayView({ canCreate, canCheckIn, canExtend, canCheckout, canImport, o
   const summary = roomOverviewGateway
     ? (projection?.summary ?? { arrivalsToday: 0, departuresToday: 0, cleaningPending: 0 })
     : { arrivalsToday: 3, departuresToday: 2, cleaningPending: 1 };
+  const visibleRoomViewModels = roomFilter === 'all' ? roomViewModels : roomViewModels.filter((room) => room.state === roomFilter);
   const selectedRoom = roomViewModels.find((room) => room.number === selectedRoomNumber) ?? null;
 
   useEffect(() => {
@@ -331,12 +333,19 @@ function TodayView({ canCreate, canCheckIn, canExtend, canCheckout, canImport, o
         <Button aria-label={text('辦理退房', 'Check out')} onClick={() => onAction(text('辦理退房', 'Check out'))} variant="outline">↗<span>{text('辦理退房', 'Check out')}</span></Button>
       </section>
 
-      <ShellSection title={text('今日房態', "Today's rooms")} hint={text(`${roomViewModels.length} 間`, `${roomViewModels.length} rooms`)} >
+      <ShellSection title={text('今日房態', "Today's rooms")} hint={text(`${visibleRoomViewModels.length}/${roomViewModels.length} 間`, `${visibleRoomViewModels.length}/${roomViewModels.length} rooms`)} >
         {loadError ? <Notice tone="danger" title={text('無法載入即時房態', 'Unable to load live room status')}>{text('資料格式或連線異常，請重新整理；系統不會改用展示資料。', 'Refresh the page. The system will not substitute preview data for live data.')}</Notice> : null}
         {roomOverviewGateway && !projection && !loadError ? <div className="empty-card">{text('正在載入即時房態…', 'Loading live room status…')}</div> : null}
         {projection && projection.rooms.length === 0 ? <div className="empty-card"><p>{text('此館別尚無房間資料；請先完成初始資料導入。', 'This property has no room data. Complete the initial data import first.')}</p>{canImport ? <Button onClick={onOpenInitialImport} size="sm">{text('開啟初始資料導入', 'Open initial data import')}</Button> : null}</div> : null}
+        <div aria-label={text('房態篩選', 'Room status filter')} className="room-status-filters" role="group">
+          {(['all', ...Object.keys(roomStateLabels)] as Array<RoomState | 'all'>).map((filter) => {
+            const count = filter === 'all' ? roomViewModels.length : roomViewModels.filter((room) => room.state === filter).length;
+            const label = filter === 'all' ? text('全部房間', 'All rooms') : `${stateLabel(filter)} ${text('房態', 'status')}`;
+            return <button aria-pressed={roomFilter === filter} className={roomFilter === filter ? 'is-active' : ''} key={filter} onClick={() => setRoomFilter(filter)} type="button"><span>{label}</span><strong>{count}</strong></button>;
+          })}
+        </div>
         <div className="room-grid" role="region" aria-label={text('今日房態', "Today's rooms")}>
-          {roomViewModels.map((room) => (
+          {visibleRoomViewModels.map((room) => (
             <article className={`room-card room-card--${room.tone}`} key={room.number}>
               <button
                 aria-label={text(`查看 ${room.number} 房詳細資料`, `View room ${room.number} details`)}
@@ -355,6 +364,7 @@ function TodayView({ canCreate, canCheckIn, canExtend, canCheckout, canImport, o
             </article>
           ))}
         </div>
+        {roomViewModels.length > 0 && visibleRoomViewModels.length === 0 ? <div className="empty-card">{text('此房態目前沒有房間。', 'No rooms match this status.')}</div> : null}
       </ShellSection>
 
       <ShellSection title={text('接下來要處理', 'Up next')} hint={text('依時間排序', 'By time')}>

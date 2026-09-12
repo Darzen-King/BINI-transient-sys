@@ -123,6 +123,11 @@ h1, h2, p { margin-top: 0; }
 .room-card-summary > strong { align-self: end; font-size: 13px; }
 .room-card-summary > small { grid-column: 1 / -1; color: var(--muted); font-size: 11px; }
 .mobile-detail-affordance { grid-column: 1 / -1; margin-top: 8px; color: var(--brand-dark); font-size: 11px; font-weight: 800; }
+.room-status-filters { display: flex; gap: 8px; margin: 0 0 16px; overflow-x: auto; padding: 2px 1px 6px; scrollbar-width: thin; }
+.room-status-filters button { align-items: center; background: var(--bds-color-surface); border: 1px solid var(--line); border-radius: 12px; color: var(--ink); cursor: pointer; display: inline-flex; flex: 0 0 auto; font: inherit; font-size: 12px; font-weight: 700; gap: 8px; min-height: 42px; padding: 8px 11px; }
+.room-status-filters button strong { align-items: center; background: var(--surface-soft); border-radius: 999px; color: var(--brand-dark); display: inline-flex; font-size: 12px; justify-content: center; min-width: 22px; padding: 2px 6px; }
+.room-status-filters button.is-active { border-color: var(--brand); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 14%, transparent); color: var(--brand-dark); }
+.room-status-filters button.is-active strong { background: var(--brand); color: var(--bds-color-text-inverse); }
 .room-card-details, .room-card-actions { display: none; }
 .room-detail-sheet .room-card-details { display: block; margin-top: 16px; }
 .room-detail-sheet .room-card-actions { display: flex; margin-top: 16px; }

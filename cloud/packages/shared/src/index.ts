@@ -16,6 +16,7 @@ export * from './domain/payment-list.js';
 export * from './domain/housekeeping-list.js';
 export * from './domain/maintenance-list.js';
 export * from './domain/room-management.js';
+export * from './domain/room-timeline.js';
 export * from './migration/v3-mapping.js';
 export * from './migration/v3-backup.js';
 export * from './migration/v3-transform.js';

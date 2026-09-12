@@ -40,6 +40,7 @@ import { createPaymentListGateway } from '../payments/payment-list.js';
 import { createHousekeepingGateway } from '../housekeeping/housekeeping-gateway.js';
 import { createMaintenanceGateway } from '../maintenance/maintenance-gateway.js';
 import { createRoomManagementGateway } from '../room-management/room-management-gateway.js';
+import { createRoomTimelineGateway } from '../gantt/room-timeline-gateway.js';
 import type { StaffSession } from './session.js';
 
 type GatePhase = 'loading' | 'login' | 'mfa' | 'verify-email' | 'enroll-mfa' | 'blocked' | 'ready';
@@ -109,6 +110,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
   const housekeepingGateway = useMemo(() => createHousekeepingGateway(client.db, client.functions), [client.db, client.functions]);
   const maintenanceGateway = useMemo(() => createMaintenanceGateway(client.db, client.functions), [client.db, client.functions]);
   const roomManagementGateway = useMemo(() => createRoomManagementGateway(client.db, client.functions), [client.db, client.functions]);
+  const roomTimelineGateway = useMemo(() => createRoomTimelineGateway(client.db), [client.db]);
 
   const evaluateUser = useCallback(async (user: User) => {
     setCurrentUser(user);
@@ -239,6 +241,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
       bookingSoonGateway={bookingSoonGateway}
       bookingRoomGateway={bookingRoomGateway}
       roomOverviewGateway={roomOverviewGateway}
+      roomTimelineGateway={roomTimelineGateway}
       stayCheckInGateway={stayCheckInGateway}
       stayExtendGateway={stayExtendGateway}
       activeStaysGateway={activeStaysGateway}

@@ -44,6 +44,8 @@ import { MaintenancePage } from './maintenance/MaintenancePage.js';
 import type { MaintenanceGateway } from './maintenance/maintenance-gateway.js';
 import { RoomManagementPage } from './room-management/RoomManagementPage.js';
 import type { RoomManagementGateway } from './room-management/room-management-gateway.js';
+import { RoomTimelinePage } from './gantt/RoomTimelinePage.js';
+import type { RoomTimelineGateway } from './gantt/room-timeline-gateway.js';
 
 type UtilityViewId = 'hub' | 'initial_import';
 type ViewId = 'today' | 'more' | 'accounts' | UtilityViewId | CloudPageId;
@@ -568,7 +570,7 @@ function FoundationPage({ pageId, isAdmin, onOpenInitialImport }: {
   );
 }
 
-function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingCreateGateway, bookingRoomGateway, roomOverviewGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
+function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingCreateGateway, bookingRoomGateway, roomOverviewGateway, roomTimelineGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
   view: ViewId;
   onAction: (action: string) => void;
   session: StaffSession;
@@ -580,6 +582,7 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   bookingCreateGateway: BookingCreateGateway | undefined;
   bookingRoomGateway: BookingRoomGateway | undefined;
   roomOverviewGateway: RoomOverviewGateway | undefined;
+  roomTimelineGateway: RoomTimelineGateway | undefined;
   stayCheckInGateway: StayCheckInGateway | undefined;
   stayExtendGateway: StayExtendGateway | undefined;
   stayCheckoutGateway: StayCheckoutGateway | undefined;
@@ -602,6 +605,7 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   if (view === 'housekeeping') return <HousekeepingPage gateway={housekeepingGateway} session={session} />;
   if (view === 'maintenance') return <MaintenancePage gateway={maintenanceGateway} session={session} />;
   if (view === 'room_management') return <RoomManagementPage gateway={roomManagementGateway} session={session} />;
+  if (view === 'gantt') return <RoomTimelinePage gateway={roomTimelineGateway} session={session} />;
   if (view === 'payments') return <PaymentsPage createGateway={paymentCreateGateway} listGateway={paymentListGateway} session={session} staysGateway={activeStaysGateway} />;
   if (view === 'accounts' || view === 'users') return <AccountManagement session={session} gateway={accountGateway} />;
   if (view === 'initial_import') return <InitialDataImport session={session} gateway={dataImportGateway} />;
@@ -638,6 +642,7 @@ export function App({
   bookingCreateGateway,
   bookingRoomGateway,
   roomOverviewGateway,
+  roomTimelineGateway,
   stayCheckInGateway,
   stayExtendGateway,
   stayCheckoutGateway,
@@ -661,6 +666,7 @@ export function App({
   bookingCreateGateway?: BookingCreateGateway;
   bookingRoomGateway?: BookingRoomGateway;
   roomOverviewGateway?: RoomOverviewGateway;
+  roomTimelineGateway?: RoomTimelineGateway;
   stayCheckInGateway?: StayCheckInGateway;
   stayExtendGateway?: StayExtendGateway;
   stayCheckoutGateway?: StayCheckoutGateway;
@@ -739,6 +745,7 @@ export function App({
           bookingCreateGateway={bookingCreateGateway}
           bookingRoomGateway={bookingRoomGateway}
           roomOverviewGateway={roomOverviewGateway}
+          roomTimelineGateway={roomTimelineGateway}
           stayCheckInGateway={stayCheckInGateway}
           stayExtendGateway={stayExtendGateway}
           stayCheckoutGateway={stayCheckoutGateway}

@@ -8,7 +8,7 @@
 - Firebase：DEV `bini-transient-dev`；PROD `bini-transient`（顯示名稱 `BINI-Transient`）。只部署 DEV，PROD 未部署、未修改。
 - DEV Firestore `(default)`：`asia-east1`、Native mode、Standard edition、delete protection。
 - Identity Platform：email/password、email enumeration protection、關閉公開註冊／自助刪除、TOTP MFA 強制流程。
-- DEV Hosting、Firestore Rules/indexes、九個 Node.js 22 Functions 已部署；網址：`https://bini-transient-dev.web.app`。
+- DEV Hosting、Firestore Rules/indexes、十個 Node.js 22 Functions 已部署；網址：`https://bini-transient-dev.web.app`。
 - 首位 admin `biniblooms250808@gmail.com` 已以 server-side bootstrap 建立，`emailVerified=true`、active、`property-main/admin`、17 個頁面權限、`mfaRequired=true`，並已寄出繁中一次性密碼設定信。
 - 實際 Web SDK 設定與 alias 保存在 Git 忽略的 `cloud/.env.local`、`cloud/.firebaserc`；禁止提交或輸出內容。
 
@@ -37,6 +37,7 @@
 - 帳號管理 callables：`adminListStaff`、`adminCreateStaff`、`adminUpdateStaff`、`adminSetStaffPassword`；server 端再次驗證 MFA + property admin。
 - 密碼只送 Firebase Auth，不寫 Firestore/audit；重設後 revoke refresh tokens。管理員不能停用自己或移除自己的 admin 身分。
 - `bookingCreate` 是第一個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`bookings_new` page allowlist。它在單一 transaction 驗證 room、有效 booking、active stay、maintenance schedule、月租限制及 holidays，伺服器重算 v3 block-ceiling 報價，原子建立 booking／可選 deposit payment／audit／operation record；相同 UUID 加相同 fingerprint 只回傳原結果。其餘預約寫入與入住／退房／一般付款等仍未雲端化，不可誤認為已可營運。
+- `bookingCancel` 是第二個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`bookings` page allowlist。它在單一 transaction 驗證 property／booking identity／status／version，只允許 `已預約` 改為 `已取消`，並原子寫入 audit 與 operation record；相同 UUID 加相同 fingerprint 只回傳原結果。v3 取消不直接異動 payment、stay 或 room；No-show 提醒仍未接。
 - `packages/shared/src/migration/v3-transform.ts` 已完成 12 個權威 v3 table 的白名單 typed transformer：穩定 legacy ID、`property-main` 補值、property-scoped target path、Asia/Taipei 時間、SQLite boolean、整數 NTS、狀態、FK 與重複 active stay 檢查。`active_stays` 統一寫入規格中的 `stays` collection；真實備份仍待操作員從 Dropbox 下載後選檔。
 
 ### 手機 UI 與登入
@@ -47,7 +48,8 @@
 - 品牌資產：登入／MFA／桌機頂部改用 `/bini-blooms-logo.png`；PWA 使用 `/pwa-192.png`、`/pwa-512.png` 與獨立 `/pwa-512-maskable.png`，另提供 Apple touch icon 與 favicon。`manifest.webmanifest`、`index.html`、`sw.js` 均已更新，舊 `/bini-mark.svg` 已移除。
 - `AccountManagement.tsx`：admin 專用手機卡片與 bottom sheet，可新增、啟停、選角色、勾分頁與重設密碼。
 - `App.tsx`：桌機依 v3 順序顯示 Prototype Hub＋17 個權限分頁的頂部導覽；手機為今日、預約、房務、款項、更多，且「更多」可到達全部低頻功能；沒有雲端備份，使用者管理只對 admin 顯示。
-- `bookings/BookingCreatePage.tsx`：新增預約已接真實 Firebase callable；房間選項由 property-scoped listener 驗證後提供，月租房不可選；自動／手動計價、天數、折扣與選填訂金共用桌機雙欄／手機單欄表單。失敗重送須維持同一 operation ID，不能重新產生 UUID；目前沒有 edit/cancel/no-show/multi 與前置 quote／availability UI。
+- `bookings/BookingCreatePage.tsx`：新增預約已接真實 Firebase callable；房間選項由 property-scoped listener 驗證後提供，月租房不可選；自動／手動計價、天數、折扣與選填訂金共用桌機雙欄／手機單欄表單。失敗重送須維持同一 operation ID，不能重新產生 UUID；目前沒有 edit/no-show/multi 與前置 quote／availability UI。
+- `bookings/booking-cancel.ts` + `App.tsx` 預約明細：預約清單點擊後在桌機 dialog／手機 bottom sheet 顯示相同明細；取消先二次確認再呼叫 callable，失敗重送保持同 UUID。成功後 Firestore 即時清單與房態 projection 自行移除取消預約；預覽模式明確不寫入。
 - `styles.css`：產品／domain 版面樣式；基礎 token 已移到 design system。維持 44px target、safe-area、320／375／430px 單欄、768px 三欄、>=1100px v3 式桌機頂部導覽與三欄房卡，無水平溢位。
 - 「今日房態」以單一 room view model 同步輸出兩種 view：桌機卡片直接展開 v3 詳細欄位與快捷操作；手機卡片只保留房號／狀態／摘要，點擊後於詳細面板顯示完整欄位與操作。後續接 Firestore 時不得維護兩份資料邏輯。
 - `domain/room-overview.ts` + `web/src/rooms/room-overview.ts` 已接 property-scoped Firestore 即時讀取：rooms／bookings／stays／payments／maintenanceSchedules 全部取得首次 snapshot 後才輸出，且每 60 秒重算。projection 保留 v3 七種房態、active-stay 款項範圍與維修覆蓋；下一筆預約只取有效未來資料。AuthGate 才注入真實 gateway，`ui-preview` 無 gateway 時使用匿名 fixture；真實讀取失敗不回退 fixture。
@@ -61,7 +63,7 @@
 ### 驗證與部署結果
 
 ```text
-npm test                       125/125 passed
+npm test                       128/128 passed
 npm run test:deploy-guard       6/6 passed
 npm run test:rules             41/41 passed（Firestore Emulator）
 npm run typecheck              passed
@@ -69,15 +71,16 @@ npm run lint                   passed
 npm run build                  passed
 npm run guard:functions-package passed
 npm run guard:hosting-package   passed
-DEV Functions                  9/9 listed, asia-east1, nodejs22
+DEV Functions                  10/10 listed, asia-east1, nodejs22
 DEV bookingCreate              callable, 512 MiB, nodejs22
-DEV Hosting                    index-joCnTi8P.js live; bundle contains bookingCreate
+DEV bookingCancel              callable, 512 MiB, nodejs22
+DEV Hosting                    index-C8hgkLWM.js live; bundle contains bookingCreate and bookingCancel
 DEV HTTP smoke                 home/manifest/favicon/PWA 192 icon = 200
 ```
 
 Functions 會將 shared contract 用 esbuild 打入 self-contained bundle，部署 runtime dependencies 不含私有 `@bini/*` package。Firebase 部署曾提示舊 GCR build image 清理錯誤；唯讀檢查顯示 `asia.gcr.io/bini-transient-dev` repository 不存在，未發現可刪除的舊 GCR 映像。
 
-PowerShell 呼叫 Firebase CLI 時，含逗號的 `--only` 值不可裸寫：它會被解析成多個引數。需以 `--only "hosting"` 或完整引號值執行，並於部署後核對 Hosting 的最新 bundle hash 與所需 callable 字串；本次先部署 `bookingCreate`，再以明確的 Hosting target 發布 `index-joCnTi8P.js`。
+PowerShell 呼叫 Firebase CLI 時，含逗號的 `--only` 值不可裸寫：它會被解析成多個引數。需以 `--only "hosting"` 或完整引號值執行，並於部署後核對 Hosting 的最新 bundle hash 與所需 callable 字串；本輪 `bookingCancel` 先單獨建立，再以明確的 Hosting target 發布 `index-C8hgkLWM.js`。
 
 ### 下一張工作單（全功能範圍）
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  bookingCancelInputSchema,
   bookingCreateInputSchema,
   findBookingAvailabilityConflict,
   quoteBooking,
@@ -66,5 +67,26 @@ describe('booking creation contract', () => {
       id: 'MAINT-3', source: 'maintenance', roomId: '203', guestName: null, status: 'scheduled',
       startAt: '2026-09-14T07:00:00Z', endAt: '2026-09-14T08:00:00Z',
     }])).toMatchObject({ id: 'MAINT-3', source: 'maintenance' });
+  });
+});
+
+describe('booking cancellation contract', () => {
+  it('accepts only a property-scoped UUID operation for a booking id', () => {
+    expect(bookingCancelInputSchema.parse({
+      propertyId: 'property-main',
+      bookingId: 'RSV-260914-ABC12345',
+      operationId: '6c2b6dc7-5283-4c08-a6c8-6b7865ed9cb8',
+    })).toMatchObject({ bookingId: 'RSV-260914-ABC12345' });
+    expect(() => bookingCancelInputSchema.parse({
+      propertyId: 'property-main',
+      bookingId: 'RSV-260914-ABC12345',
+      operationId: 'not-a-uuid',
+    })).toThrow();
+    expect(() => bookingCancelInputSchema.parse({
+      propertyId: 'property-main',
+      bookingId: 'RSV-260914-ABC12345',
+      operationId: '6c2b6dc7-5283-4c08-a6c8-6b7865ed9cb8',
+      directWrite: true,
+    })).toThrow();
   });
 });

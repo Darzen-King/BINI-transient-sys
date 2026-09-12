@@ -10,6 +10,7 @@ export type BookingPaymentType = (typeof BOOKING_PAYMENT_TYPES)[number];
 const propertyIdSchema = z.string().trim().min(1).max(128).regex(/^[^/]+$/);
 const operationIdSchema = z.string().uuid();
 const roomIdSchema = z.string().trim().min(1).max(128).regex(/^[^/]+$/);
+const bookingIdSchema = z.string().trim().min(1).max(128).regex(/^[^/]+$/);
 const ntsAmountSchema = z.number().int().safe().min(0).max(100_000_000);
 const dateTimeSchema = z.string().trim().min(20).max(64).regex(
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/,
@@ -66,6 +67,22 @@ export const bookingCreateResultSchema = z.object({
 }).strict();
 
 export type BookingCreateResult = z.infer<typeof bookingCreateResultSchema>;
+
+export const bookingCancelInputSchema = z.object({
+  propertyId: propertyIdSchema,
+  operationId: operationIdSchema,
+  bookingId: bookingIdSchema,
+}).strict();
+
+export type BookingCancelInput = z.infer<typeof bookingCancelInputSchema>;
+
+export const bookingCancelResultSchema = z.object({
+  status: z.enum(['cancelled', 'replayed']),
+  bookingId: bookingIdSchema,
+  cancelledAt: dateTimeSchema,
+}).strict();
+
+export type BookingCancelResult = z.infer<typeof bookingCancelResultSchema>;
 
 export interface BookingHolidayCalendar {
   /** Explicit values from the property holiday collection, keyed YYYY-MM-DD. */

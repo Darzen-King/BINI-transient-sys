@@ -18,6 +18,7 @@ export { adminStageV3Backup } from './migration/stage-v3-backup.js';
 export { adminPrepareV3Backup } from './migration/prepare-v3-backup.js';
 export { adminPromotePreparedV3Backup } from './migration/promote-v3-backup.js';
 export { bookingCreate } from './bookings/create-booking.js';
+export { bookingCancel } from './bookings/cancel-booking.js';
 
 if (getApps().length === 0) initializeApp();
 

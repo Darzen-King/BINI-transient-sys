@@ -39,7 +39,8 @@
   - [ ] 館別／房態篩選、快捷操作 routing 與 server-authoritative handlers
 - [ ] 預約建立／修改／取消與下一筆有效預約
   - [x] 單筆建立：MFA＋頁面權限、跨 collection transaction、v3 計價、訂金與 operation ID retry
-  - [ ] 修改、取消、No-show、多時段、送出前 quote／availability
+  - [x] 取消：MFA＋`bookings` 頁面權限、僅有效預約、transaction／audit／operation ID retry、桌機／手機二次確認
+  - [ ] 修改、No-show、多時段、送出前 quote／availability
 - [ ] 入住、延住、付款、退房與退款
 - [ ] 房務清潔與維修狀態
 - **狀態：** in_progress

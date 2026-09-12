@@ -64,6 +64,8 @@
 - v3 新增預約的寫入規則同時依賴房間狀態、有效預約、active stay、未完成維修排程、日期邊界與金額／折扣。現有通用 operation processor 只以單一 entity version 交易，無法原子鎖定這些跨 collection 的衝突來源；booking create/edit/cancel 必須改採專屬 server transaction callable，並以每次操作 ID 保持冪等。
 - `bookingCreate` 已採專屬 callable 而非通用 processor：它先驗證 email＋TOTP MFA、active profile 與 `bookings_new` 細粒度頁面權限，再於單一 transaction 查詢同房 rooms／bookings／stays／maintenanceSchedules／holidays。重試時以 request fingerprint 拒絕同 operation ID 的不同 payload，並回傳原結果，不會重複建立預約、訂金或 audit。Web 表單亦會在失敗重送時保留 operation ID。
 - DEV 部署後，`bookingCreate` 與既有八支 Functions 都列於 `asia-east1`；其規格為 callable、Node.js 22、512 MiB。Hosting 的最新 `index-joCnTi8P.js` 含 `bookingCreate`，首頁、manifest、favicon 與 PWA 192 icon 均回應 HTTP 200。實際營運寫入 smoke test 仍須待管理員完成 MFA 並匯入真實測試房間後，以 UI 建立一筆可取消的測試預約驗收。
+- v3 的一般取消與「即將到店」提醒中的 No-show endpoint 最終都只把仍為 `已預約` 的 booking 改成 `已取消`；不會直接改付款、房間或 stay。雲端不維護 `rooms.next_booking` 快取，取消後的列表與房態將由既有 effective-booking projection 自動排除該文件。故下一個 transaction 僅需鎖定 booking／operation／audit，No-show 的 15 分鐘提醒介面則另列為後續切片。
+- `bookingCancel` 已發布至 DEV：MFA／`bookings` 頁面權限通過後，transaction 會驗證 property、booking ID、受支援 status 與 version，僅將 `已預約` 改為 `已取消`，同時寫入可重播 operation 與 audit。live bundle `index-C8hgkLWM.js` 同時含 `bookingCreate`／`bookingCancel`，10 支 Functions 均在 `asia-east1`；實際資料寫入 smoke test 仍須由完成 MFA 的管理員，在匯入測試房間後自行建立並取消一筆測試預約。
 - 單機 `icon.ico` 與雲端 `favicon.ico` 的 SHA-256 已加入契約測試鎖定為同一檔案；行動安裝圖示維持由專案 `Transient icon.png` 清背後產生的透明來源、192／512／maskable 與 Apple Touch Icon，不會退回臨時機器人圖示。
 
 ## 技術決策

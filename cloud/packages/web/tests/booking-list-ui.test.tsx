@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BookingListItem } from '@bini/cloud-shared';
 import { App } from '../src/App.js';
+import type { BookingCancelGateway } from '../src/bookings/booking-cancel.js';
 import type { BookingListGateway } from '../src/bookings/booking-list.js';
 
 afterEach(cleanup);
@@ -59,5 +60,39 @@ describe('live booking list UI', () => {
     expect(await screen.findByText('無法載入即時預約')).toBeInTheDocument();
     expect(screen.queryByText('202 · Juvy')).not.toBeInTheDocument();
     expect(screen.getByText('系統不會顯示展示預約。', { exact: false })).toBeInTheDocument();
+  });
+
+  it('opens the booking detail dialog and sends a guarded cancellation', async () => {
+    const cancel = vi.fn().mockResolvedValue({
+      status: 'cancelled', bookingId: 'RSV-live-203', cancelledAt: '2026-09-13T05:00:00.000Z',
+    });
+    render(<App bookingCancelGateway={{ cancel } satisfies BookingCancelGateway} bookingListGateway={gateway(bookings)} />);
+    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(await screen.findByText('203 · Live Guest'));
+
+    expect(await screen.findByText('預約編號')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '取消預約' }));
+    expect(await screen.findByText('確認取消預約？')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '確認取消' }));
+    await waitFor(() => expect(cancel).toHaveBeenCalledWith(expect.objectContaining({
+      propertyId: 'property-main', bookingId: 'RSV-live-203', operationId: expect.any(String),
+    })));
+    expect(await screen.findByText('預約已取消')).toBeInTheDocument();
+  });
+
+  it('reuses the cancellation operation id when a network retry is needed', async () => {
+    const cancel = vi.fn()
+      .mockRejectedValueOnce(new Error('temporary network failure'))
+      .mockResolvedValueOnce({ status: 'cancelled', bookingId: 'RSV-live-203', cancelledAt: '2026-09-13T05:00:00.000Z' });
+    render(<App bookingCancelGateway={{ cancel } satisfies BookingCancelGateway} bookingListGateway={gateway(bookings)} />);
+    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(await screen.findByText('203 · Live Guest'));
+    fireEvent.click(screen.getByRole('button', { name: '取消預約' }));
+    fireEvent.click(screen.getByRole('button', { name: '確認取消' }));
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: '確認取消' }));
+
+    await waitFor(() => expect(cancel).toHaveBeenCalledTimes(2));
+    expect(cancel.mock.calls[1]?.[0].operationId).toBe(cancel.mock.calls[0]?.[0].operationId);
   });
 });

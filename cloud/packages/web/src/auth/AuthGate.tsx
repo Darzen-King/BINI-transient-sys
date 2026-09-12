@@ -24,7 +24,9 @@ import type { FirebaseClient } from '../firebase-client.js';
 import { LanguageSwitcher, useLocale } from '../i18n/locale.js';
 import { createDataImportGateway } from '../migration/data-import.js';
 import { createBookingListGateway } from '../bookings/booking-list.js';
+import { createBookingCreateGateway } from '../bookings/booking-create.js';
 import { createRoomOverviewGateway } from '../rooms/room-overview.js';
+import { createBookingRoomGateway } from '../rooms/booking-room-options.js';
 import type { StaffSession } from './session.js';
 
 type GatePhase = 'loading' | 'login' | 'mfa' | 'verify-email' | 'enroll-mfa' | 'blocked' | 'ready';
@@ -78,6 +80,8 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const bookingListGateway = useMemo(() => createBookingListGateway(client.db), [client.db]);
+  const bookingCreateGateway = useMemo(() => createBookingCreateGateway(client.functions), [client.functions]);
+  const bookingRoomGateway = useMemo(() => createBookingRoomGateway(client.db), [client.db]);
   const roomOverviewGateway = useMemo(() => createRoomOverviewGateway(client.db), [client.db]);
 
   const evaluateUser = useCallback(async (user: User) => {
@@ -203,6 +207,8 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
       accountGateway={createAccountAdminGateway(client.functions)}
       dataImportGateway={createDataImportGateway(client.functions)}
       bookingListGateway={bookingListGateway}
+      bookingCreateGateway={bookingCreateGateway}
+      bookingRoomGateway={bookingRoomGateway}
       roomOverviewGateway={roomOverviewGateway}
       onLogout={() => signOut(client.auth)}
     />;

@@ -31,7 +31,7 @@ PWA（手機／電腦）
 PWA <────────────────── operationResults/{operationId}
 ```
 
-客戶端不能直接寫入 `bookings`、`stays`、`payments` 等權威 collection。每個操作以 UUID 作為 idempotency key，並攜帶 `baseVersion` 做 optimistic concurrency control。處理器在 Firestore transaction 中再次檢查版本，避免兩台裝置同時修改時覆蓋資料。
+客戶端不能直接寫入 `bookings`、`stays`、`payments` 等權威 collection。一般操作使用 append-only queue；跨 collection 的即時預約建立使用受 MFA／頁面權限保護的 `bookingCreate` callable。兩者皆以 UUID 作為 idempotency key，並在 Firestore transaction 中重新檢查資料，避免兩台裝置同時操作造成覆寫或雙重訂房。
 
 ## Monorepo 模組
 

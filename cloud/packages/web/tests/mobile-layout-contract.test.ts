@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
@@ -28,6 +29,10 @@ function pngDimensions(relativePath: string): readonly [number, number] {
   const data = readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)));
   expect(data.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
   return [data.readUInt32BE(16), data.readUInt32BE(20)];
+}
+
+function sha256(relativePath: string): string {
+  return createHash('sha256').update(readFileSync(fileURLToPath(new URL(relativePath, import.meta.url)))).digest('hex');
 }
 
 describe('responsive layout contract', () => {
@@ -89,6 +94,9 @@ describe('responsive layout contract', () => {
     expect(pngDimensions('../public/pwa-512.png')).toEqual([512, 512]);
     expect(pngDimensions('../public/pwa-512-maskable.png')).toEqual([512, 512]);
     expect(pngDimensions('../public/apple-touch-icon.png')).toEqual([180, 180]);
+    expect(pngDimensions('../public/bini-app-icon-source.png')).toEqual([1254, 1254]);
+    // The installed desktop shortcut and browser tab must remain the same supplied ICO asset.
+    expect(sha256('../../../../icon.ico')).toBe(sha256('../public/favicon.ico'));
     expect(serviceWorkerSource).toContain("'/pwa-512-maskable.png'");
     expect(serviceWorkerSource).not.toContain('bini-mark.svg');
   });

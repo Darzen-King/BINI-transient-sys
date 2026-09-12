@@ -11,9 +11,11 @@
   - 只讀確認 DEV 的預建 `properties/property-main` 根設定存在；修正 promotion，使它僅保留既有 cloud 設定並一次附加 `legacyV3Import`，所有其他權威文件仍維持 create-only。完成狀態與成功 audit 改在同一 transaction 寫入，避免資料已成功但 audit 失敗時誤回報失敗。
   - Functions 的 stage/prepare/promotion 三支 callable 已精準部署至 DEV `operations` codebase；Hosting 已發布 `index-CQUT3I8c.js`。Functions list 確認第 8 支 callable 位於 `asia-east1`；root-setting preserve 修正後，`adminPromotePreparedV3Backup` 已再次部署並由 `gcloud functions describe` 驗證為 `ACTIVE`、Node.js 22、1 GiB、540 秒；未執行任何真實 Dropbox JSON promotion。
 
-### 階段 3：預約管理即時讀取切片
-- **狀態：** in_progress（讀取完成；寫入流程未開始）
+### 階段 3：預約管理即時讀取／單筆建立切片
+- **狀態：** in_progress（讀取與單筆建立完成；其餘寫入流程未開始）
 - 完成 shared booking list schema、有效預約狀態篩選、按入住時間排序與文字搜尋；AuthGate 已將 Firestore `properties/{propertyId}/bookings` listener 注入預約管理頁。真實 listener／資料格式失敗時清空畫面，不顯示 preview booking。
+- 已重新盤點 v3 新增預約的跨 collection 衝突與日期／金額規則；確認不可把資料完整性檢查放在 client 或目前單一 entity 的通用 processor。下一個子切片為 MFA + page permission 的專屬 booking transaction callable，以及對應的可重試 operation ID。
+- `bookingCreate` callable、shared booking contract／v3 價格與衝突純函式、頁面權限 helper、房間即時選單與完整新增預約頁已完成。真實寫入在同一 transaction 原子建立 booking、可選訂金 payment、audit 與 operation replay 記錄；UI 在網路重試時重用 UUID。桌機雙欄、手機單欄共用相同欄位／contract，月租房顯示但禁止選擇。尚未實作 edit/cancel/no-show/multi/前置 quote。
 
 ### 階段 1：權威盤點與差距矩陣
 - **狀態：** complete
@@ -105,6 +107,8 @@
 | 更新後 Rules Emulator | `npm run test:rules` | 權威資料 server-only、migration staging default deny | 41/41 | 通過 |
 | DEV Functions / Hosting（promotion 切片） | `bini-transient-dev` | 新 callable 與確認 UI 發布 | 8 Functions；首頁及 live bundle HTTP 200 | 通過 |
 | 預約管理讀取切片 | shared contract、live UI、既有 mobile shell | 有效狀態、排序、搜尋、identity／schema fail-closed | 18/18 聚焦；完整 114/114 | 通過 |
+| 預約建立切片 | shared quote/conflict、MFA/page access、UI gateway/retry | v3 多日計價、衝突、權限、operation retry、品牌 icon 關聯 | 27/27 聚焦；完整 125/125；Rules 41/41 | 通過 |
+| DEV Functions / Hosting（預約建立切片） | `bini-transient-dev` | `bookingCreate` callable 與最新版 PWA bundle | 9 Functions 均為 asia-east1；`bookingCreate` 為 Node.js 22／512 MiB；首頁、manifest、favicon、PWA 192 icon 及含 `bookingCreate` 的 live bundle 均 HTTP 200 | 通過 |
 
 ## 錯誤日誌
 | 時間戳記 | 錯誤 | 嘗試次數 | 解決方案 |
@@ -113,6 +117,8 @@
 | 2026-09-12 | PowerShell alpha 檢查輸出發生整數字串串接錯誤 | 1 | 改用 `-f` 格式化字串，驗證通過 |
 | 2026-09-12 | 匯入 UI 測試以說明區既有檔名作等待條件，導致過早查詢 checkbox | 1 | 改等待匯入按鈕出現後再操作 |
 | 2026-09-12 | `computer-use` Windows 視覺服務未配置（`Trusted RPC service is not configured: sky`） | 1 | 停止 UI 自動化，改以線上 HTTP、manifest、圖片 metadata 與契約測試驗證 |
+| 2026-09-12 | Firestore Emulator 的 8080 埠被先前測試暫時占用 | 1 | 先確認監聽程序已自行結束，再重跑 Rules，41/41 通過 |
+| 2026-09-12 | PowerShell 將未加引號的 Firebase `--only` 逗號分隔值拆成多個引數，首次僅部署 Function | 1 | 保持同一 DEV target，以明確 `--only "hosting"` 單獨發布 Hosting；線上 bundle 驗證通過 |
 | 2026-09-12 | room projection 接入 App 時觸發 `exactOptionalPropertyTypes`，明確 `undefined` 不符合原可選欄位 | 1 | ViewModel 可選顯示欄位明確加入 `| undefined`，不改動 domain 資料契約 |
 | 2026-09-12 | listener 中斷 UI 測試的連續 microtasks 被 React 批次合併，無法觀察中間成功畫面 | 1 | 改為由測試分階段觸發 gateway callbacks，分別驗證顯示與 fail-closed 清除 |
 | 2026-09-12 | 讀取舊 processor 檔案時使用了不存在的 `process-operation.ts` 路徑 | 1 | 改讀取實際的 `processor/core.ts`，維持既有 processor 架構不變 |
@@ -121,6 +127,7 @@
 | 2026-09-12 | Windows `firebase` 解析為 `firebase.ps1`，不能直接供 `Start-Process -FilePath` 啟動 | 1 | 不視為部署成功；改由隱藏 `cmd.exe` 執行同一個精準 DEV-only deploy 指令並保留日誌 |
 | 2026-09-12 | 未指定 Firebase multi-codebase 名稱的 `--only functions:<name>` 篩選找不到任何函式 | 1 | 讀取 `firebase.json` 後確認 codebase 為 `operations`；改用 `functions:operations:<name>`，仍不使用 `--force` |
 | 2026-09-12 | Firebase Functions 成功建立／更新後詢問 Artifact Registry image cleanup 保留天數 | 1 | 此為額外雲端刪除／成本設定且未獲指定；在三支 function operation 成功後停止提示，不設定 cleanup policy |
+| 2026-09-12 | 預約報價測試把 timestamp 傳給日期鍵函式 | 1 | 修正為先標準化 Asia/Taipei `YYYY-MM-DD`；加入跨時區／假日區塊回歸測試後通過 |
 
 ## 五問重啟檢查
 | 問題 | 答案 |

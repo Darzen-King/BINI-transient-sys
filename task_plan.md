@@ -13,7 +13,7 @@
 - CHANGELOG 與 Claude Code 交接文件持續同步；只部署 DEV，未經指示不得部署 PROD。
 
 ## 目前階段
-階段 2
+階段 3
 
 ## 各階段
 
@@ -38,9 +38,11 @@
   - [x] property-scoped 即時讀取、v3 款項／維修／下一筆預約投影、桌機與手機同源顯示
   - [ ] 館別／房態篩選、快捷操作 routing 與 server-authoritative handlers
 - [ ] 預約建立／修改／取消與下一筆有效預約
+  - [x] 單筆建立：MFA＋頁面權限、跨 collection transaction、v3 計價、訂金與 operation ID retry
+  - [ ] 修改、取消、No-show、多時段、送出前 quote／availability
 - [ ] 入住、延住、付款、退房與退款
 - [ ] 房務清潔與維修狀態
-- **狀態：** pending
+- **狀態：** in_progress
 
 ### 階段 4：管理與報表流程
 - [ ] 房間、房價、館別與假日管理

@@ -61,6 +61,10 @@
 - promotion 不會覆寫現有營運資料；相同 batch 的完整相同文件可重試續作，其他 collision fail closed。成功狀態與完成 audit 在同一 transaction 寫入；批次另保留嘗試／失敗 metadata。尚未對真實 Dropbox JSON 執行，也尚無 export/restore drill，不能視為切換完成。
 - promotion Functions 與 Hosting 已部署至 DEV；live bundle `index-CQUT3I8c.js` 含 `adminPromotePreparedV3Backup`、`PROMOTE DEV` 與 BINI logo，首頁 HTTP 200。Functions 部署完成後 Firebase 詢問 Artifact Registry image cleanup policy；因其涉及額外刪除／成本策略且未獲指定，已在三個 function operation 成功後停止提示，沒有設定該 policy。
 - v3 預約管理只顯示 `已預約`；`已取消`、`No-show`、`已入住` 都不得回到清單。cloud booking list 已以 shared schema 驗證 document identity／日期／整數金額，再由 AuthGate 注入 Firestore listener；資料錯誤或 listener 失敗時 fail closed。
+- v3 新增預約的寫入規則同時依賴房間狀態、有效預約、active stay、未完成維修排程、日期邊界與金額／折扣。現有通用 operation processor 只以單一 entity version 交易，無法原子鎖定這些跨 collection 的衝突來源；booking create/edit/cancel 必須改採專屬 server transaction callable，並以每次操作 ID 保持冪等。
+- `bookingCreate` 已採專屬 callable 而非通用 processor：它先驗證 email＋TOTP MFA、active profile 與 `bookings_new` 細粒度頁面權限，再於單一 transaction 查詢同房 rooms／bookings／stays／maintenanceSchedules／holidays。重試時以 request fingerprint 拒絕同 operation ID 的不同 payload，並回傳原結果，不會重複建立預約、訂金或 audit。Web 表單亦會在失敗重送時保留 operation ID。
+- DEV 部署後，`bookingCreate` 與既有八支 Functions 都列於 `asia-east1`；其規格為 callable、Node.js 22、512 MiB。Hosting 的最新 `index-joCnTi8P.js` 含 `bookingCreate`，首頁、manifest、favicon 與 PWA 192 icon 均回應 HTTP 200。實際營運寫入 smoke test 仍須待管理員完成 MFA 並匯入真實測試房間後，以 UI 建立一筆可取消的測試預約驗收。
+- 單機 `icon.ico` 與雲端 `favicon.ico` 的 SHA-256 已加入契約測試鎖定為同一檔案；行動安裝圖示維持由專案 `Transient icon.png` 清背後產生的透明來源、192／512／maskable 與 Apple Touch Icon，不會退回臨時機器人圖示。
 
 ## 技術決策
 | 決策 | 理由 |

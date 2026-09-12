@@ -11,7 +11,7 @@ import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { hasVerifiedMfaClaims, roleForProperty } from './staff-access.js';
+import { allowedPagesForProperty, hasPagePermission, hasVerifiedMfaClaims, roleForProperty } from './staff-access.js';
 
 const callableOptions = { region: 'asia-east1' } as const;
 
@@ -34,6 +34,23 @@ export async function requirePropertyAdmin(
   return auth.uid;
 }
 
+/** MFA, active-property membership and the administrator-configured page allowlist. */
+export async function requirePropertyPage(
+  auth: { uid: string; token: unknown } | undefined,
+  propertyId: string,
+  pageId: CloudPageId,
+): Promise<string> {
+  if (!auth) throw new HttpsError('unauthenticated', '請先登入。');
+  if (!hasVerifiedMfaClaims(auth.token)) {
+    throw new HttpsError('permission-denied', '必須完成電子郵件驗證與 MFA 登入。');
+  }
+  const profile = await getFirestore().doc(`users/${auth.uid}`).get();
+  if (!hasPagePermission(profile.data(), propertyId, pageId)) {
+    throw new HttpsError('permission-denied', '此帳號沒有此頁面的操作權限。');
+  }
+  return auth.uid;
+}
+
 export async function writeAudit(
   propertyId: string,
   actorUid: string,
@@ -48,13 +65,6 @@ export async function writeAudit(
     details,
     createdAt: FieldValue.serverTimestamp(),
   });
-}
-
-function allowedPagesForProperty(profile: Record<string, unknown>, propertyId: string): CloudPageId[] {
-  const source = profile.allowedPages;
-  if (!source || typeof source !== 'object' || Array.isArray(source)) return [];
-  const pages = (source as Record<string, unknown>)[propertyId];
-  return Array.isArray(pages) ? pages.filter((page): page is CloudPageId => typeof page === 'string') : [];
 }
 
 function configuredRoleForProperty(profile: Record<string, unknown>, propertyId: string) {

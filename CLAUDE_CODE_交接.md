@@ -37,7 +37,7 @@
 - 帳號管理 callables：`adminListStaff`、`adminCreateStaff`、`adminUpdateStaff`、`adminSetStaffPassword`；server 端再次驗證 MFA + property admin。
 - 密碼只送 Firebase Auth，不寫 Firestore/audit；重設後 revoke refresh tokens。管理員不能停用自己或移除自己的 admin 身分。
 - `bookingCreate` 是第一個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`bookings_new` page allowlist。它在單一 transaction 驗證 room、有效 booking、active stay、maintenance schedule、月租限制及 holidays，伺服器重算 v3 block-ceiling 報價，原子建立 booking／可選 deposit payment／audit／operation record；相同 UUID 加相同 fingerprint 只回傳原結果。其餘預約寫入與入住／退房／一般付款等仍未雲端化，不可誤認為已可營運。
-- `bookingCancel` 是第二個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`bookings` page allowlist。它在單一 transaction 驗證 property／booking identity／status／version，只允許 `已預約` 改為 `已取消`，並原子寫入 audit 與 operation record；相同 UUID 加相同 fingerprint 只回傳原結果。v3 取消不直接異動 payment、stay 或 room；No-show 提醒仍未接。
+- `bookingCancel` 是第二個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`bookings` page allowlist。它在單一 transaction 驗證 property／booking identity／status／version，只允許 `已預約` 改為 `已取消`，並原子寫入 audit 與 operation record；相同 UUID 加相同 fingerprint 只回傳原結果。`cancellationReason` 僅允許 `manual`／`no_show`；後者寫入 `booking.no_show` audit，且只有 No-show 才進 fingerprint，保留已發布手動取消的重送相容性。v3 取消不直接異動 payment、stay 或 room。
 - `bookingUpdate` 是第三個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`bookings` page allowlist。它在單一 transaction 驗證 booking identity／status／version、目標 room、同房有效 booking（排除自身）、active stay、maintenance schedule 與 holidays；伺服器重算 v3 block-ceiling 報價後只更新 booking／version／audit／operation record，既有 payment 不變。相同 UUID 加相同 fingerprint 只回傳原結果。
 - `packages/shared/src/migration/v3-transform.ts` 已完成 12 個權威 v3 table 的白名單 typed transformer：穩定 legacy ID、`property-main` 補值、property-scoped target path、Asia/Taipei 時間、SQLite boolean、整數 NTS、狀態、FK 與重複 active stay 檢查。`active_stays` 統一寫入規格中的 `stays` collection；真實備份仍待操作員從 Dropbox 下載後選檔。
 
@@ -49,8 +49,9 @@
 - 品牌資產：登入／MFA／桌機頂部改用 `/bini-blooms-logo.png`；PWA 使用 `/pwa-192.png`、`/pwa-512.png` 與獨立 `/pwa-512-maskable.png`，另提供 Apple touch icon 與 favicon。`manifest.webmanifest`、`index.html`、`sw.js` 均已更新，舊 `/bini-mark.svg` 已移除。
 - `AccountManagement.tsx`：admin 專用手機卡片與 bottom sheet，可新增、啟停、選角色、勾分頁與重設密碼。
 - `App.tsx`：桌機依 v3 順序顯示 Prototype Hub＋17 個權限分頁的頂部導覽；手機為今日、預約、房務、款項、更多，且「更多」可到達全部低頻功能；沒有雲端備份，使用者管理只對 admin 顯示。
-- `bookings/BookingCreatePage.tsx`：新增預約已接真實 Firebase callable；房間選項由 property-scoped listener 驗證後提供，月租房不可選；自動／手動計價、天數、折扣與選填訂金共用桌機雙欄／手機單欄表單。失敗重送須維持同一 operation ID，不能重新產生 UUID；目前沒有 edit/no-show/multi 與前置 quote／availability UI。
+- `bookings/BookingCreatePage.tsx`：新增預約已接真實 Firebase callable；房間選項由 property-scoped listener 驗證後提供，月租房不可選；自動／手動計價、天數、折扣與選填訂金共用桌機雙欄／手機單欄表單。失敗重送須維持同一 operation ID，不能重新產生 UUID；目前沒有 multi 與前置 quote／availability UI。
 - `bookings/booking-cancel.ts` + `App.tsx` 預約明細：預約清單點擊後在桌機 dialog／手機 bottom sheet 顯示相同明細；取消先二次確認再呼叫 callable，失敗重送保持同 UUID。成功後 Firestore 即時清單與房態 projection 自行移除取消預約；預覽模式明確不寫入。
+- `bookings/booking-soon.ts` + `BookingSoonBanner.tsx`：全域 listener 只投影嚴格位於未來 15 分鐘內的有效預約並每 60 秒重算。保留預約僅存 sessionStorage；桌機／手機共用提醒卡與二次確認 UI，標記 No-show 後沿用 `bookingCancel`、保留 retry UUID 並由 audit 區分。尚未搬移提示音。
 - `bookings/BookingEditPage.tsx` + `booking-update.ts`：從預約明細進入修改；房間／住客／電話／入住／方案／天數／折扣／自動或手動金額均預填，桌機雙欄、手機單欄共用。儲存會維持 operation UUID；成功後由即時清單反映結果。既有訂金不能在此頁修改，送出前 quote／availability 顯示仍待補。
 - `styles.css`：產品／domain 版面樣式；基礎 token 已移到 design system。維持 44px target、safe-area、320／375／430px 單欄、768px 三欄、>=1100px v3 式桌機頂部導覽與三欄房卡，無水平溢位。
 - 「今日房態」以單一 room view model 同步輸出兩種 view：桌機卡片直接展開 v3 詳細欄位與快捷操作；手機卡片只保留房號／狀態／摘要，點擊後於詳細面板顯示完整欄位與操作。後續接 Firestore 時不得維護兩份資料邏輯。
@@ -65,7 +66,7 @@
 ### 驗證與部署結果
 
 ```text
-npm test                       131/131 passed
+npm test                       135/135 passed
 npm run test:deploy-guard       6/6 passed
 npm run test:rules             41/41 passed（Firestore Emulator）
 npm run typecheck              passed
@@ -77,7 +78,7 @@ DEV Functions                  11/11 listed, asia-east1, nodejs22
 DEV bookingCreate              callable, 512 MiB, nodejs22
 DEV bookingCancel              callable, 512 MiB, nodejs22
 DEV bookingUpdate              callable, 512 MiB, nodejs22
-DEV Hosting                    index-C8Qh8QqT.js live; bundle contains three booking callables
+DEV Hosting                    index-Bdoo7KvG.js live; bundle contains three booking callables and BookingSoon UI
 DEV HTTP smoke                 home/manifest/favicon/PWA 192 icon = 200
 ```
 

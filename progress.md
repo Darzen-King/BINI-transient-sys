@@ -11,13 +11,14 @@
   - 只讀確認 DEV 的預建 `properties/property-main` 根設定存在；修正 promotion，使它僅保留既有 cloud 設定並一次附加 `legacyV3Import`，所有其他權威文件仍維持 create-only。完成狀態與成功 audit 改在同一 transaction 寫入，避免資料已成功但 audit 失敗時誤回報失敗。
   - Functions 的 stage/prepare/promotion 三支 callable 已精準部署至 DEV `operations` codebase；Hosting 已發布 `index-CQUT3I8c.js`。Functions list 確認第 8 支 callable 位於 `asia-east1`；root-setting preserve 修正後，`adminPromotePreparedV3Backup` 已再次部署並由 `gcloud functions describe` 驗證為 `ACTIVE`、Node.js 22、1 GiB、540 秒；未執行任何真實 Dropbox JSON promotion。
 
-### 階段 3：預約管理即時讀取／建立／取消／修改切片
-- **狀態：** in_progress（讀取、單筆建立、取消與修改完成；其餘寫入流程未開始）
+### 階段 3：預約管理即時讀取／建立／取消／修改／No-show 切片
+- **狀態：** in_progress（讀取、單筆建立、取消、修改與 No-show 人工標記完成；其餘寫入流程未開始）
 - 完成 shared booking list schema、有效預約狀態篩選、按入住時間排序與文字搜尋；AuthGate 已將 Firestore `properties/{propertyId}/bookings` listener 注入預約管理頁。真實 listener／資料格式失敗時清空畫面，不顯示 preview booking。
 - 已重新盤點 v3 新增預約的跨 collection 衝突與日期／金額規則；確認不可把資料完整性檢查放在 client 或目前單一 entity 的通用 processor。下一個子切片為 MFA + page permission 的專屬 booking transaction callable，以及對應的可重試 operation ID。
 - `bookingCreate` callable、shared booking contract／v3 價格與衝突純函式、頁面權限 helper、房間即時選單與完整新增預約頁已完成。真實寫入在同一 transaction 原子建立 booking、可選訂金 payment、audit 與 operation replay 記錄；UI 在網路重試時重用 UUID。桌機雙欄、手機單欄共用相同欄位／contract，月租房顯示但禁止選擇。尚未實作 edit/no-show/multi/前置 quote。
-- `bookingCancel` callable 與預約明細 dialog/bottom sheet 已完成：僅具 `bookings` 頁面權限的 MFA 使用者可取消仍為 `已預約` 的文件，transaction 原子更新狀態／version／audit／operation replay；UI 有二次確認且網路重送維持 UUID。v3 No-show 通知、多時段與送出前 quote 仍未實作。
-- `bookingUpdate` callable 與預填修改表單已完成：僅具 `bookings` 頁面權限的 MFA 使用者可更新仍為 `已預約` 的文件；server 排除自身後重算 v3 計價並檢查 booking／stay／maintenance，transaction 只更新 booking、version、audit 與 operation replay，不動既有 payment。桌機雙欄／手機單欄、重送 UUID 都共用同一 contract。v3 No-show 通知、多時段與送出前 quote 仍未實作。
+- `bookingCancel` callable 與預約明細 dialog/bottom sheet 已完成：僅具 `bookings` 頁面權限的 MFA 使用者可取消仍為 `已預約` 的文件，transaction 原子更新狀態／version／audit／operation replay；UI 有二次確認且網路重送維持 UUID。
+- `bookingUpdate` callable 與預填修改表單已完成：僅具 `bookings` 頁面權限的 MFA 使用者可更新仍為 `已預約` 的文件；server 排除自身後重算 v3 計價並檢查 booking／stay／maintenance，transaction 只更新 booking、version、audit／operation replay，不動既有 payment。桌機雙欄／手機單欄、重送 UUID 都共用同一 contract。
+- `BookingSoonBanner` + `booking-soon.ts` 已接 property-scoped Firestore listener：只投影仍為 `已預約` 且嚴格位於未來 15 分鐘內的預約，每 60 秒重新計算；保留預約只存於本 session。標記 No-show 會經二次確認，以既有 `bookingCancel` 交易寫入 `booking.no_show` audit，且失敗重送維持 UUID；不異動 payment、stay 或 room。尚未搬移提示音；多時段與送出前 quote／availability 仍待實作。
 
 ### 階段 1：權威盤點與差距矩陣
 - **狀態：** complete
@@ -109,8 +110,8 @@
 | 更新後 Rules Emulator | `npm run test:rules` | 權威資料 server-only、migration staging default deny | 41/41 | 通過 |
 | DEV Functions / Hosting（promotion 切片） | `bini-transient-dev` | 新 callable 與確認 UI 發布 | 8 Functions；首頁及 live bundle HTTP 200 | 通過 |
 | 預約管理讀取切片 | shared contract、live UI、既有 mobile shell | 有效狀態、排序、搜尋、identity／schema fail-closed | 18/18 聚焦；完整 114/114 | 通過 |
-| 預約建立／取消／修改切片 | shared quote/conflict、MFA/page access、UI gateway/retry | v3 多日計價、衝突、權限、operation retry、取消確認、預填修改與品牌 icon 關聯 | 建立／取消／修改聚焦測試通過；完整 131/131；Rules 41/41 | 通過 |
-| DEV Functions / Hosting（預約建立／取消／修改切片） | `bini-transient-dev` | `bookingCreate`／`bookingCancel`／`bookingUpdate` callable 與最新版 PWA bundle | 11 Functions 均為 asia-east1；三個 booking callable 均為 Node.js 22／512 MiB；首頁、manifest、favicon、PWA 192 icon 及含三個 callable 的 live bundle 均 HTTP 200 | 通過 |
+| 預約建立／取消／修改／No-show 切片 | shared quote/conflict、MFA/page access、UI gateway/retry | v3 多日計價、衝突、權限、operation retry、取消確認、預填修改、15 分鐘 No-show 視覺提醒與品牌 icon 關聯 | 建立／取消／修改／No-show 聚焦測試通過；完整 135/135；Rules 41/41 | 通過 |
+| DEV Functions / Hosting（預約建立／取消／修改／No-show 切片） | `bini-transient-dev` | `bookingCreate`／`bookingCancel`／`bookingUpdate` callable 與 No-show 最新 PWA bundle | 11 Functions 均為 asia-east1；`bookingCancel` 為 ACTIVE、Node.js 22／512 MiB；首頁、manifest、favicon、PWA 192 icon 與 `index-Bdoo7KvG.js` 均 HTTP 200，bundle 含三個 booking callable | 通過 |
 
 ## 錯誤日誌
 | 時間戳記 | 錯誤 | 嘗試次數 | 解決方案 |

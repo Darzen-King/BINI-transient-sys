@@ -4,12 +4,13 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { BookingListItem } from '@bini/cloud-shared';
+import type { BookingListItem, BookingSoonItem } from '@bini/cloud-shared';
 import { App } from '../src/App.js';
 import type { BookingCancelGateway } from '../src/bookings/booking-cancel.js';
 import type { BookingListGateway } from '../src/bookings/booking-list.js';
 import type { BookingUpdateGateway } from '../src/bookings/booking-update.js';
 import type { BookingRoomGateway } from '../src/rooms/booking-room-options.js';
+import type { BookingSoonGateway } from '../src/bookings/booking-soon.js';
 
 afterEach(cleanup);
 
@@ -40,6 +41,15 @@ function roomGateway(): BookingRoomGateway {
   return {
     subscribe(_propertyId, onValue) {
       queueMicrotask(() => onValue([{ roomId: '203', status: '可入住' }]));
+      return () => undefined;
+    },
+  };
+}
+
+function soonGateway(value: BookingSoonItem[]): BookingSoonGateway {
+  return {
+    subscribe(_propertyId, onValue) {
+      queueMicrotask(() => onValue(value));
       return () => undefined;
     },
   };
@@ -140,5 +150,37 @@ describe('live booking list UI', () => {
 
     await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
     expect(update.mock.calls[1]?.[0].operationId).toBe(update.mock.calls[0]?.[0].operationId);
+  });
+
+  it('marks a soon-arrival as no-show through the guarded cancellation gateway', async () => {
+    const cancel = vi.fn().mockResolvedValue({ status: 'cancelled', bookingId: 'RSV-soon-203', cancelledAt: '2026-09-14T05:00:00.000Z' });
+    render(<App bookingCancelGateway={{ cancel } satisfies BookingCancelGateway} bookingSoonGateway={soonGateway([
+      { bookingId: 'RSV-soon-203', roomId: '203', guestName: 'Soon Guest', checkInAt: '2026-09-14T05:10:00.000Z', minutesUntil: 10 },
+    ])} />);
+
+    expect(await screen.findByText('即將入住')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '標記 No-show' }));
+    fireEvent.click(await screen.findByRole('button', { name: '確認標記 No-show' }));
+    await waitFor(() => expect(cancel).toHaveBeenCalledWith(expect.objectContaining({
+      propertyId: 'property-main', bookingId: 'RSV-soon-203', cancellationReason: 'no_show', operationId: expect.any(String),
+    })));
+    expect(await screen.findByText('預約提醒已處理')).toBeInTheDocument();
+  });
+
+  it('reuses the no-show operation id after a temporary failure', async () => {
+    const cancel = vi.fn()
+      .mockRejectedValueOnce(new Error('temporary network failure'))
+      .mockResolvedValueOnce({ status: 'cancelled', bookingId: 'RSV-soon-retry', cancelledAt: '2026-09-14T05:00:00.000Z' });
+    render(<App bookingCancelGateway={{ cancel } satisfies BookingCancelGateway} bookingSoonGateway={soonGateway([
+      { bookingId: 'RSV-soon-retry', roomId: '205', guestName: 'Retry Guest', checkInAt: '2026-09-14T05:10:00.000Z', minutesUntil: 10 },
+    ])} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '標記 No-show' }));
+    fireEvent.click(screen.getByRole('button', { name: '確認標記 No-show' }));
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: '確認標記 No-show' }));
+
+    await waitFor(() => expect(cancel).toHaveBeenCalledTimes(2));
+    expect(cancel.mock.calls[1]?.[0].operationId).toBe(cancel.mock.calls[0]?.[0].operationId);
   });
 });

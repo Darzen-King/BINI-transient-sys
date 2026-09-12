@@ -68,6 +68,7 @@
 - `bookingCancel` 已發布至 DEV：MFA／`bookings` 頁面權限通過後，transaction 會驗證 property、booking ID、受支援 status 與 version，僅將 `已預約` 改為 `已取消`，同時寫入可重播 operation 與 audit。live bundle `index-C8hgkLWM.js` 同時含 `bookingCreate`／`bookingCancel`，10 支 Functions 均在 `asia-east1`；實際資料寫入 smoke test 仍須由完成 MFA 的管理員，在匯入測試房間後自行建立並取消一筆測試預約。
 - v3 修改預約以 `allow_past=True` 驗證時間，從入住／方案／天數重新推導退房與 block-ceiling 報價（僅在自動金額模式），再排除自身檢查 booking、stay 與未完成維修衝突。它只更新 booking 欄位、不調整既有訂金 payment；雲端 update transaction 必須保留此付款不變與同 booking 排除規則。
 - `bookingUpdate` 已發布至 DEV：它使用 `booking.update` fingerprint／operation record，僅在 `已預約` 狀態下更新 booking 的房間、旅客、時間、計價與 version，並保留 payment。live bundle `index-C8Qh8QqT.js` 含建立／取消／修改三個 booking callable，11 支 Functions 均在 `asia-east1`；實際 MFA 寫入 smoke test 仍需在有測試資料後完成。
+- v3 的即將入住只應提示仍為 `已預約`、嚴格晚於目前時間且不超過未來 15 分鐘的 booking；「保留」不能改寫資料，而 No-show 必須由操作員二次確認。雲端以 property-scoped listener 加每 60 秒重算投影，並沿用 `bookingCancel` transaction，以 `cancellationReason=no_show` 寫入 `booking.no_show` audit；手動取消既有 operation fingerprint 不變，避免舊 retry 失效。提示音尚未遷移。
 - 單機 `icon.ico` 與雲端 `favicon.ico` 的 SHA-256 已加入契約測試鎖定為同一檔案；行動安裝圖示維持由專案 `Transient icon.png` 清背後產生的透明來源、192／512／maskable 與 Apple Touch Icon，不會退回臨時機器人圖示。
 
 ## 技術決策

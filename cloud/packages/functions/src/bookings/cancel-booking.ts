@@ -37,12 +37,15 @@ function requiredVersion(data: FirestoreRecord, label: string): number {
 }
 
 function fingerprint(input: BookingCancelInput): string {
-  return createHash('sha256').update(JSON.stringify({
+  const payload: Record<string, unknown> = {
     operationType: 'booking.cancel',
     propertyId: input.propertyId,
     bookingId: input.bookingId,
     operationId: input.operationId,
-  })).digest('hex');
+  };
+  // Preserve the pre-No-show manual-cancel fingerprint for in-flight retries.
+  if (input.cancellationReason === 'no_show') payload.cancellationReason = 'no_show';
+  return createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 }
 
 function replayResult(operation: FirestoreRecord, actorUid: string, requestFingerprint: string): BookingCancelResult {
@@ -65,6 +68,7 @@ export const bookingCancel = onCall(callableOptions, async (request): Promise<Bo
   const parsed = bookingCancelInputSchema.safeParse(request.data);
   if (!parsed.success) throw new HttpsError('invalid-argument', '取消預約資料格式不正確。');
   const input = parsed.data;
+  const cancellationReason = input.cancellationReason ?? 'manual';
   const actorUid = await requirePropertyPage(request.auth, input.propertyId, 'bookings');
   const database = getFirestore();
   const propertyPath = `properties/${input.propertyId}`;
@@ -102,7 +106,7 @@ export const bookingCancel = onCall(callableOptions, async (request): Promise<Bo
     transaction.update(bookingRef, {
       status: '已取消',
       version: requiredVersion(booking, label) + 1,
-      cancellationReason: 'manual',
+      cancellationReason,
       cancelledAt: occurredAt,
       cancelledByUid: actorUid,
       updatedAt: occurredAt,
@@ -117,10 +121,10 @@ export const bookingCancel = onCall(callableOptions, async (request): Promise<Bo
     });
     transaction.create(database.doc(`${propertyPath}/auditLogs/booking-cancel-${input.operationId}`), {
       actorUid,
-      action: 'booking.cancel',
+      action: cancellationReason === 'no_show' ? 'booking.no_show' : 'booking.cancel',
       targetId: input.bookingId,
       targetType: 'booking',
-      details: { operationId: input.operationId, previousStatus: currentStatus },
+      details: { operationId: input.operationId, previousStatus: currentStatus, cancellationReason },
       createdAt: occurredAt,
     });
     return result;

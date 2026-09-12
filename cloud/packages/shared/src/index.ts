@@ -4,6 +4,7 @@ export * from './contracts/booking-operations.js';
 export * from './domain/room-overview.js';
 export * from './domain/booking-list.js';
 export * from './domain/booking-room-options.js';
+export * from './domain/booking-soon.js';
 export * from './migration/v3-mapping.js';
 export * from './migration/v3-backup.js';
 export * from './migration/v3-transform.js';

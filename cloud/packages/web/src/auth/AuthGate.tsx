@@ -27,6 +27,7 @@ import { createBookingListGateway } from '../bookings/booking-list.js';
 import { createBookingCancelGateway } from '../bookings/booking-cancel.js';
 import { createBookingCreateGateway } from '../bookings/booking-create.js';
 import { createBookingUpdateGateway } from '../bookings/booking-update.js';
+import { createBookingSoonGateway } from '../bookings/booking-soon.js';
 import { createRoomOverviewGateway } from '../rooms/room-overview.js';
 import { createBookingRoomGateway } from '../rooms/booking-room-options.js';
 import type { StaffSession } from './session.js';
@@ -85,6 +86,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
   const bookingCancelGateway = useMemo(() => createBookingCancelGateway(client.functions), [client.functions]);
   const bookingCreateGateway = useMemo(() => createBookingCreateGateway(client.functions), [client.functions]);
   const bookingUpdateGateway = useMemo(() => createBookingUpdateGateway(client.functions), [client.functions]);
+  const bookingSoonGateway = useMemo(() => createBookingSoonGateway(client.db), [client.db]);
   const bookingRoomGateway = useMemo(() => createBookingRoomGateway(client.db), [client.db]);
   const roomOverviewGateway = useMemo(() => createRoomOverviewGateway(client.db), [client.db]);
 
@@ -214,6 +216,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
       bookingCancelGateway={bookingCancelGateway}
       bookingCreateGateway={bookingCreateGateway}
       bookingUpdateGateway={bookingUpdateGateway}
+      bookingSoonGateway={bookingSoonGateway}
       bookingRoomGateway={bookingRoomGateway}
       roomOverviewGateway={roomOverviewGateway}
       onLogout={() => signOut(client.auth)}

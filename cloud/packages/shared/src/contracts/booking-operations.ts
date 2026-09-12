@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const BOOKING_PLANS = ['12hrs', '24hrs'] as const;
 export const BOOKING_PAYMENT_TYPES = ['cash', 'transfer', 'card', 'other'] as const;
 export const BOOKING_STATUSES = ['已預約', '已取消', 'No-show', '已入住'] as const;
+export const BOOKING_CANCELLATION_REASONS = ['manual', 'no_show'] as const;
 
 export type BookingPlan = (typeof BOOKING_PLANS)[number];
 export type BookingPaymentType = (typeof BOOKING_PAYMENT_TYPES)[number];
@@ -116,6 +117,7 @@ export const bookingCancelInputSchema = z.object({
   propertyId: propertyIdSchema,
   operationId: operationIdSchema,
   bookingId: bookingIdSchema,
+  cancellationReason: z.enum(BOOKING_CANCELLATION_REASONS).optional(),
 }).strict();
 
 export type BookingCancelInput = z.infer<typeof bookingCancelInputSchema>;

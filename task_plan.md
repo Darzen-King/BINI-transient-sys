@@ -41,7 +41,8 @@
   - [x] 單筆建立：MFA＋頁面權限、跨 collection transaction、v3 計價、訂金與 operation ID retry
   - [x] 取消：MFA＋`bookings` 頁面權限、僅有效預約、transaction／audit／operation ID retry、桌機／手機二次確認
   - [x] 修改：MFA＋`bookings` 頁面權限、self-excluded conflict／v3 計價、payment 保留、transaction／audit／operation ID retry、桌機／手機預填表單
-  - [ ] No-show、多時段、送出前 quote／availability
+  - [x] No-show：15 分鐘內即時提醒、工作階段保留、人工二次確認標記與 audit／operation retry
+  - [ ] 多時段、送出前 quote／availability、提示音
 - [ ] 入住、延住、付款、退房與退款
 - [ ] 房務清潔與維修狀態
 - **狀態：** in_progress

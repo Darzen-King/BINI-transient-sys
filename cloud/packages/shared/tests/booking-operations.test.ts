@@ -77,7 +77,8 @@ describe('booking cancellation contract', () => {
       propertyId: 'property-main',
       bookingId: 'RSV-260914-ABC12345',
       operationId: '6c2b6dc7-5283-4c08-a6c8-6b7865ed9cb8',
-    })).toMatchObject({ bookingId: 'RSV-260914-ABC12345' });
+      cancellationReason: 'no_show',
+    })).toMatchObject({ bookingId: 'RSV-260914-ABC12345', cancellationReason: 'no_show' });
     expect(() => bookingCancelInputSchema.parse({
       propertyId: 'property-main',
       bookingId: 'RSV-260914-ABC12345',

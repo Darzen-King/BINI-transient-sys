@@ -13,7 +13,8 @@
 - 「今日房態」已由展示陣列改為 property-scoped Firestore 即時投影：監聽 rooms、bookings、stays、payments、maintenanceSchedules，共用 v3 active-stay 款項範圍、七種房態與維修排程覆蓋；下一筆預約只取 `已預約` 且晚於目前時間的最早資料，並每分鐘重算，避免過期時間殘留。真實登入失敗時 fail closed，不回退假房間；快捷操作的 server handlers 仍待實作。
 - 「預約管理」已改為 property-scoped Firestore 即時清單：保留 v3 僅顯示有效 `已預約`、依入住時間排序與房號／旅客／預約編號／電話搜尋的規則。真實登入的讀取失敗或資料格式不符時 fail closed，不會顯示展示預約。
 - 「新增預約」已接入第一個正式 PMS 寫入閉環：`bookingCreate` 只允許完成 email 驗證與 TOTP MFA、且被管理員授權 `bookings_new` 頁面的帳號呼叫。它在同一筆 Firestore transaction 內驗證房間、同房有效預約、在住房、未完成維修排程與月租房限制，伺服器端重算 v3 台灣假日／12 小時區塊／多日／折扣計價，並可原子建立訂金付款、audit 與可重試 operation 紀錄；client 不能直接寫任何權威 collection。桌機提供完整欄位，手機以單欄觸控表單呈現。No-show、多時段與送出前 availability／quote 顯示仍待實作。
-- 「預約管理」的單筆取消已接入 `bookingCancel`：只有完成 email 驗證、TOTP MFA 且有 `bookings` 頁面權限的帳號可呼叫；server transaction 僅允許把 `已預約` 改為 `已取消`，原子增加版本、寫入 audit 與可重試 operation。它不會碰付款、stay 或房間快取；清單與房態會由有效預約投影自動排除。桌機以預約明細呈現，手機以同一個 bottom sheet 呈現，兩者皆有二次確認；No-show 15 分鐘提醒仍待實作。
+- 「即將入住」已接入 property-scoped Firestore 即時提醒：只顯示仍為 `已預約`、且嚴格位於未來 15 分鐘內的預約，並每 60 秒重新計算。桌機與手機共用同一份提醒資料；「保留預約」僅在目前瀏覽器工作階段隱藏，「標記 No-show」必須二次確認並重用 `bookingCancel` 的受 MFA／`bookings` 權限保護 transaction，將狀態改為 `已取消`、寫入 `booking.no_show` audit 與可重試 operation，不異動付款、stay 或房間。提示音尚未搬移。
+- 上述提醒與 No-show 標記已發布至 DEV：既有 `bookingCancel` 已更新為 `ACTIVE`、Node.js 22／512 MiB；最新 Hosting bundle `index-Bdoo7KvG.js` 已上線。未執行任何實際資料寫入，營運寫入 smoke 仍須在管理員完成 MFA 並建立／匯入測試資料後進行。
 - 「修改預約」已接入 `bookingUpdate`：仍要求 MFA 與 `bookings` 權限，會排除自身後重新檢查目標房間的有效預約、在住房與未完成維修，伺服器端依 v3 規則推導退房與自動／手動金額。transaction 只更新 booking、version、audit 與 operation；既有訂金付款不會被這個流程改動。預約明細可進入完整預填表單，桌機雙欄、手機單欄共用同一個 contract。
 - 新增 admin/MFA 限定「初始資料導入」：接受單機版 Dropbox `bini_blooms_backup.json`（schema 3.5），本機預覽 12 表筆數並先移除舊使用者／密碼、彙總報表、未知欄位、備份設定及 `rooms.next_booking`，再由 `adminStageV3Backup` 驗證 SHA-256 並以穩定 ID 寫入 default-deny staging；新增 `adminPrepareV3Backup` 將 12 類資料轉為 property-scoped typed documents，檢查日期、整數 NTS、狀態、外鍵與重複 active stay，並回傳逐表對帳報告。
 - 新增一次性 DEV 正式匯入 promotion：對帳通過後，管理員必須輸入該批次專屬確認字串，`adminPromotePreparedV3Backup` 才會重新檢查館別、checksum、轉換版本、逐表筆數、prepared 文件路徑與 migration metadata。除已存在的雲端館別根設定外，系統只會建立不存在的文件；根設定會保留 `name`／`active`／`currency`／`timezone`，並一次性附加 legacy property 資料，其餘既有資料一律拒絕覆寫。中斷後只能以相同批次、完全相同的文件安全續作，並與成功狀態原子寫入批次／audit 記錄。此版本僅提供程式與 DEV 部署能力，尚未對任何真實 Dropbox 備份執行 promotion，匯入後的復原演練仍待完成。
@@ -30,8 +31,8 @@
 - DEV Firestore 已建立於 `asia-east1`；Rules、indexes、十一個 Node.js 22 Functions 與 Hosting 已部署至 `bini-transient-dev`，PROD `bini-transient` 未部署、未修改。
 - 修正 Hosting 空白頁：workspace Vite 明確由 `cloud/.env.local` 讀取 DEV 設定；新增 bundle guard，缺設定、placeholder 或非 DEV project 時禁止部署。
 - DEV 預覽：`https://bini-transient-dev.web.app`。實際手機瀏覽器確認登入卡正常、無目前版本 console error，且頁面沒有註冊或外部備份入口。
-- 驗證：131 項 Vitest、6 項 DEV 部署防護與 41 項 Firestore Rules Emulator 測試通過；typecheck、lint、production build、Functions/Hosting package guard 均通過。DEV live function list 確認十一個 Functions 全位於 `asia-east1`，其中 `bookingCreate`、`bookingCancel`、`bookingUpdate` 均為 Node.js 22／512 MiB；首頁、最新線上 bundle、manifest、favicon、Apple/PWA icons 與 BINI logo 均 HTTP 200，線上 bundle 已包含三個 booking callable 且不再引用舊機器人 SVG。瀏覽器版面契約涵蓋 320／375／430／768／1100px；未登入 UI preview 未進 production build。
-- 限制：目前只有 `bookingCreate`、`bookingCancel`、`bookingUpdate` 完成預約建立／取消／修改閉環；首次資料 promotion 僅為一次性 migration callable。No-show／多時段、入住、延住、退房、一般付款、房務、維修、報表等尚未接入正式 domain handlers，不可作為正式營運版。
+- 驗證：135 項 Vitest、6 項 DEV 部署防護與 41 項 Firestore Rules Emulator 測試通過；typecheck、lint、production build、Functions/Hosting package guard 均通過。DEV live function list 確認十一個 Functions 全位於 `asia-east1`，其中 `bookingCreate`、`bookingCancel`、`bookingUpdate` 均為 Node.js 22／512 MiB；首頁、最新線上 bundle、manifest、favicon、Apple/PWA icons 與 BINI logo 均 HTTP 200，線上 bundle 已包含三個 booking callable 且不再引用舊機器人 SVG。瀏覽器版面契約涵蓋 320／375／430／768／1100px；未登入 UI preview 未進 production build。
+- 限制：目前已完成單筆建立、修改、取消與 15 分鐘 No-show 視覺提醒／人工標記；首次資料 promotion 僅為一次性 migration callable。提醒提示音、多時段、入住、延住、退房、一般付款、房務、維修、報表等尚未接入正式 domain handlers，不可作為正式營運版。
 
 ---
 

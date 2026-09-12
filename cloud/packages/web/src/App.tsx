@@ -19,6 +19,8 @@ import { InitialDataImport } from './migration/InitialDataImport.js';
 import type { DataImportGateway } from './migration/data-import.js';
 import type { BookingListGateway } from './bookings/booking-list.js';
 import type { BookingCancelGateway } from './bookings/booking-cancel.js';
+import { BookingSoonBanner } from './bookings/BookingSoonBanner.js';
+import type { BookingSoonGateway } from './bookings/booking-soon.js';
 import type { BookingUpdateGateway } from './bookings/booking-update.js';
 import { BookingCreatePage } from './bookings/BookingCreatePage.js';
 import { BookingEditPage } from './bookings/BookingEditPage.js';
@@ -604,6 +606,7 @@ export function App({
   dataImportGateway,
   bookingListGateway,
   bookingCancelGateway,
+  bookingSoonGateway,
   bookingUpdateGateway,
   bookingCreateGateway,
   bookingRoomGateway,
@@ -616,6 +619,7 @@ export function App({
   dataImportGateway?: DataImportGateway;
   bookingListGateway?: BookingListGateway;
   bookingCancelGateway?: BookingCancelGateway;
+  bookingSoonGateway?: BookingSoonGateway;
   bookingUpdateGateway?: BookingUpdateGateway;
   bookingCreateGateway?: BookingCreateGateway;
   bookingRoomGateway?: BookingRoomGateway;
@@ -673,6 +677,8 @@ export function App({
         <Notice className="foundation-banner" title={text('DEV 開發中 · 尚不可作為正式營運系統', 'DEV in progress · Not for live operations')}>
           <small>{text('登入與帳號管理已接 Firebase；其餘 PMS 模組將依全功能對照矩陣逐項接入。', 'Authentication and account management use Firebase; remaining PMS modules are being connected against the parity matrix.')}</small>
         </Notice>
+
+        {session.allowedPages.includes('bookings') ? <BookingSoonBanner cancelGateway={bookingCancelGateway} gateway={bookingSoonGateway} propertyId={session.propertyId} /> : null}
 
         <main className="page-content"><ActiveView
           view={view}

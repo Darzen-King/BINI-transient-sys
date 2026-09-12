@@ -26,7 +26,7 @@
   - `housekeepingUpdate` callable 與清潔管理頁已完成：即時列出待清潔與清潔中的房間，嚴格限制待清潔 → 清潔中 → 可入住；MFA＋`housekeeping` 權限 transaction 會同步 room version、audit 與 operation replay。DEV 函式已 ACTIVE（asia-east1、Node.js 22、512 MiB）。
   - `maintenanceScheduleCreate`／`maintenanceScheduleAction` callable 與維修管理頁已完成：即時讀取排程，建立時驗證起訖時間、房間與同房有效預約衝突；可標記完成或刪除排程，所有動作均寫入 audit 與 operation replay。兩支 DEV 函式皆為 ACTIVE（asia-east1、Node.js 22、512 MiB）。
   - 唯讀確認 DEV `properties/property-main/rooms` 為 0 筆，這會使所有房間選取功能無可用房號；不建立假資料。房態空白時，admin 現可直達一次性 Dropbox 初始資料導入，仍須由操作員提供原始 `bini_blooms_backup.json` 走完對帳與確認 promotion。
-  - 使用者暫存真實 Dropbox 批次後，唯讀查到狀態為 `blocked`（1,584 source／1,548 prepared），並定位 v3 合法 `renewed` 月租、零長度歷史 stay log 與小數 hourly rate 相容性缺陷。轉換版本提升至 2、`adminPrepareV3Backup` 已部署 ACTIVE；同批次可重新 prepare，未執行 promotion。
+  - 使用者暫存真實 Dropbox 批次後，唯讀查到狀態為 `blocked`（1,584 source／1,548 prepared），並定位 v3 合法 `renewed` 月租、free-cancel 歷史 stay log（取消早於原訂入住）與小數 hourly rate 相容性缺陷。轉換版本提升至 3、`adminPrepareV3Backup` 已部署 ACTIVE；同批次可重新 prepare，未執行 promotion。
 
 ### 階段 1：權威盤點與差距矩陣
 - **狀態：** complete

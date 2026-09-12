@@ -102,6 +102,30 @@ describe('v3 migration transformation and reconciliation', () => {
     expect(result.documents.find((document) => document.sourceTable === 'active_stays')?.data.hourlyRateNts).toBe(83);
   });
 
+  it('normalizes v3 free-cancel logs recorded before their planned check-in', () => {
+    const backup = JSON.parse(fullBackup()) as { stay_logs: Array<Record<string, unknown>> };
+    backup.stay_logs[0] = {
+      ...backup.stay_logs[0],
+      checkin_time: '2026-09-02 15:00',
+      checkout_time: '2026-09-02 14:42',
+      created_at: '2026-09-02 14:42',
+      total_charged: 0,
+      free_cancel: 1,
+    };
+
+    const inspection = inspectV3BackupText(JSON.stringify(backup));
+    const result = prepareV3Migration(buildV3StagingRows(inspection, 'property-main'), { importedAt, checksumSha256 });
+    const stayLog = result.documents.find((document) => document.sourceTable === 'stay_logs');
+
+    expect(result.report.valid).toBe(true);
+    expect(stayLog?.data).toMatchObject({
+      checkInAt: '2026-09-02T14:42:00+08:00',
+      checkOutAt: '2026-09-02T14:42:00+08:00',
+      scheduledCheckInAt: '2026-09-02T15:00:00+08:00',
+      freeCancel: true,
+    });
+  });
+
   it('blocks orphan room and booking references', () => {
     const result = prepare({
       payments: [{ id: 4, booking_id: 'MISSING', room_id: '999', guest: 'Guest', payment_type: 'cash', amount: 500, is_deposit: 0, is_refund: 0, payment_status: 'paid', note: null, created_at: '2026-09-11 14:30', created_by: 'admin', invoice_no: null, external_txn_id: null, accounting_exported_at: null }],

@@ -26,9 +26,9 @@ const MAINTENANCE_STATUSES = new Set(['scheduled', 'in_progress', 'done']);
 const MONTHLY_STATUSES = new Set(['active', 'ended', 'renewed']);
 
 // Bumped after adding verified compatibility for real v3 renewal, historical
-// zero-duration log, and decimal display-rate records. Existing blocked batches
+// free-cancel logs, and decimal display-rate records. Existing blocked batches
 // are therefore safely re-prepared instead of reusing their obsolete report.
-export const V3_MIGRATION_TRANSFORM_VERSION = 2 as const;
+export const V3_MIGRATION_TRANSFORM_VERSION = 3 as const;
 
 export const v3BackupPrepareInputSchema = z.object({
   propertyId: z.string().trim().min(1).max(128).regex(/^[^/]+$/),
@@ -254,8 +254,13 @@ function transformStay(legacy: JsonRecord, metadata: JsonRecord): JsonRecord {
 }
 
 function transformStayLog(legacy: JsonRecord, metadata: JsonRecord): JsonRecord {
-  const checkInAt = nullableDateTime(legacy, 'checkin_time');
+  let checkInAt = nullableDateTime(legacy, 'checkin_time');
   const checkOutAt = nullableDateTime(legacy, 'checkout_time');
+  const freeCancel = legacyBoolean(legacy.free_cancel);
+  const createdAt = requiredDateTime(legacy, 'created_at');
+  const cancelledBeforeCheckIn = Boolean(freeCancel && checkInAt && checkOutAt && Date.parse(checkOutAt) < Date.parse(checkInAt));
+  const scheduledCheckInAt = cancelledBeforeCheckIn ? checkInAt : null;
+  if (cancelledBeforeCheckIn) checkInAt = checkOutAt;
   assertNonDecreasingRange(checkInAt, checkOutAt, 'stay log');
   return {
     ...metadata,
@@ -264,14 +269,15 @@ function transformStayLog(legacy: JsonRecord, metadata: JsonRecord): JsonRecord 
     plan: nullableString(legacy, 'plan', 64),
     checkInAt,
     checkOutAt,
+    scheduledCheckInAt,
     baseRentNts: legacyNtsAmount(legacy.base_rent),
     extensionFeeNts: legacyNtsAmount(legacy.extension_fee),
     extraFeeNts: legacyNtsAmount(legacy.extra_fee),
     totalChargedNts: legacyNtsAmount(legacy.total_charged),
-    freeCancel: legacyBoolean(legacy.free_cancel),
+    freeCancel,
     transferred: legacyBoolean(legacy.transferred),
     newRoomId: nullableString(legacy, 'new_room', 128),
-    createdAt: requiredDateTime(legacy, 'created_at'),
+    createdAt,
   };
 }
 

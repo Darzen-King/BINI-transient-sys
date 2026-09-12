@@ -38,6 +38,8 @@ import type { StayCheckoutGateway } from './stays/stay-checkout.js';
 import { PaymentsPage } from './payments/PaymentsPage.js';
 import type { PaymentCreateGateway } from './payments/payment-create.js';
 import type { PaymentListGateway } from './payments/payment-list.js';
+import { HousekeepingPage } from './housekeeping/HousekeepingPage.js';
+import type { HousekeepingGateway } from './housekeeping/housekeeping-gateway.js';
 
 type UtilityViewId = 'hub' | 'initial_import';
 type ViewId = 'today' | 'more' | 'accounts' | UtilityViewId | CloudPageId;
@@ -506,19 +508,6 @@ function BookingsView({ canCreate, canCancel, onOpenBookingCreate, propertyId, g
   );
 }
 
-function HousekeepingView() {
-  const { text } = useLocale();
-  return (
-    <ShellSection title={text('房務工作', 'Housekeeping')} hint={text('1 項待處理', '1 pending')}>
-      <div className="priority-card">
-        <Badge tone="warning">{text('優先清潔', 'Priority')}</Badge><strong>{text('203 房', 'Room 203')}</strong><p>{text('下一組客人預計 17:00 入住', 'Next guest arrives at 17:00')}</p>
-        <Button block>{text('開始清潔', 'Start cleaning')}</Button>
-      </div>
-      <div className="empty-card">{text('目前沒有其他待清潔房間', 'No other rooms are waiting for cleaning')}</div>
-    </ShellSection>
-  );
-}
-
 function MoreView({ isAdmin, allowedPages, onOpenPage, onLogout }: {
   isAdmin: boolean;
   allowedPages: CloudPageId[];
@@ -563,7 +552,7 @@ function FoundationPage({ pageId, isAdmin, onOpenInitialImport }: {
   );
 }
 
-function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingCreateGateway, bookingRoomGateway, roomOverviewGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, activeStaysGateway, holidayCalendarGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
+function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingCreateGateway, bookingRoomGateway, roomOverviewGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, housekeepingGateway, activeStaysGateway, holidayCalendarGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
   view: ViewId;
   onAction: (action: string) => void;
   session: StaffSession;
@@ -580,6 +569,7 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   stayCheckoutGateway: StayCheckoutGateway | undefined;
   paymentCreateGateway: PaymentCreateGateway | undefined;
   paymentListGateway: PaymentListGateway | undefined;
+  housekeepingGateway: HousekeepingGateway | undefined;
   activeStaysGateway: ActiveStaysGateway | undefined;
   holidayCalendarGateway: HolidayCalendarGateway | undefined;
   onOpenBookingCreate: () => void;
@@ -591,7 +581,7 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   if (view === 'checkin') return <StayCheckInPage bookingGateway={bookingListGateway} gateway={stayCheckInGateway} onBack={() => onOpenPage('rooms')} roomGateway={bookingRoomGateway} session={session} />;
   if (view === 'extend') return <StayExtendPage gateway={stayExtendGateway} holidayGateway={holidayCalendarGateway} onBack={() => onOpenPage('rooms')} session={session} staysGateway={activeStaysGateway} />;
   if (view === 'checkout') return <StayCheckoutPage gateway={stayCheckoutGateway} onBack={() => onOpenPage('rooms')} session={session} staysGateway={activeStaysGateway} />;
-  if (view === 'housekeeping') return <HousekeepingView />;
+  if (view === 'housekeeping') return <HousekeepingPage gateway={housekeepingGateway} session={session} />;
   if (view === 'payments') return <PaymentsPage createGateway={paymentCreateGateway} listGateway={paymentListGateway} session={session} staysGateway={activeStaysGateway} />;
   if (view === 'accounts' || view === 'users') return <AccountManagement session={session} gateway={accountGateway} />;
   if (view === 'initial_import') return <InitialDataImport session={session} gateway={dataImportGateway} />;
@@ -633,6 +623,7 @@ export function App({
   stayCheckoutGateway,
   paymentCreateGateway,
   paymentListGateway,
+  housekeepingGateway,
   activeStaysGateway,
   holidayCalendarGateway,
   onLogout,
@@ -653,6 +644,7 @@ export function App({
   stayCheckoutGateway?: StayCheckoutGateway;
   paymentCreateGateway?: PaymentCreateGateway;
   paymentListGateway?: PaymentListGateway;
+  housekeepingGateway?: HousekeepingGateway;
   activeStaysGateway?: ActiveStaysGateway;
   holidayCalendarGateway?: HolidayCalendarGateway;
   onLogout?: () => void | Promise<void>;
@@ -728,6 +720,7 @@ export function App({
           stayCheckoutGateway={stayCheckoutGateway}
           paymentCreateGateway={paymentCreateGateway}
           paymentListGateway={paymentListGateway}
+          housekeepingGateway={housekeepingGateway}
           activeStaysGateway={activeStaysGateway}
           holidayCalendarGateway={holidayCalendarGateway}
           onOpenBookingCreate={() => setView('bookings_new')}

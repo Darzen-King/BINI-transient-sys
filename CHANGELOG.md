@@ -20,6 +20,7 @@
 - 「延住處理」已接入 `stayExtend`：具 MFA 與 `extend` 頁面權限的帳號可選取即時在住房，查看原／目前／新退房、目前與累計延住費、應收與逐區塊預覽。延住費完全沿用 v3 的入住時間軸與 12 小時封頂規則，因此 12 小時延至 24 小時只收該時段差額，不會重新計算為新的一段住宿。送出時會在同一 Firestore transaction 再次檢查房間、未來有效預約與未完成維修，若撞期即拒絕且不寫入任何資料；成功後原子更新 stay／room、audit 與可重試 operation。單機版「先寫入、僅顯示撞期警告」的行為刻意提升為雲端 fail-closed，避免跨裝置超賣。
 - 「退房辦理」已接入 `stayCheckout`：具 MFA 與 `checkout` 頁面權限的帳號可選取在住房、填寫雜費與選填逾時費調整，並以二次確認送出。伺服器以自身時間計算 15 分鐘免費取消、15 分鐘退房緩衝、半小時進位的逾時費，免費取消時建立符合 stay scope 的押金退款；同一 transaction 建立 stay log／退款／audit、房間轉待清潔並刪除 active stay。人工逾時調整保留系統與實收金額供 audit 比對。
 - 「付款管理」已接入第一個正式一般收款切片：即時讀取付款紀錄與在住房，提供 v3 同等的當日實收／退款／淨額／待收與付款方式摘要，並可選擇在住房建立一般收款。`paymentCreate` 需 MFA 與 `payments` 頁面權限，會在單一 transaction 驗證 stay／room identity 與可收款房態，原子建立 payment、audit 與可重試 operation；client 不可直接寫帳務。退款、訂金調整、手動例外收款、刪除、日結與 CSV 匯出仍待獨立 transaction／報表切片完成。
+- 「清潔管理」已接入 `housekeepingUpdate`：即時列出待清潔與清潔中的房間，並只接受 v3 的待清潔 → 清潔中 → 可入住單向流程。MFA 與 `housekeeping` 頁面權限在 transaction 內重新驗證，成功後原子更新房態、version、audit 與可重試 operation；手機與桌機共用觸控友善的房務卡片。
 - 新增 admin/MFA 限定「初始資料導入」：接受單機版 Dropbox `bini_blooms_backup.json`（schema 3.5），本機預覽 12 表筆數並先移除舊使用者／密碼、彙總報表、未知欄位、備份設定及 `rooms.next_booking`，再由 `adminStageV3Backup` 驗證 SHA-256 並以穩定 ID 寫入 default-deny staging；新增 `adminPrepareV3Backup` 將 12 類資料轉為 property-scoped typed documents，檢查日期、整數 NTS、狀態、外鍵與重複 active stay，並回傳逐表對帳報告。
 - 新增一次性 DEV 正式匯入 promotion：對帳通過後，管理員必須輸入該批次專屬確認字串，`adminPromotePreparedV3Backup` 才會重新檢查館別、checksum、轉換版本、逐表筆數、prepared 文件路徑與 migration metadata。除已存在的雲端館別根設定外，系統只會建立不存在的文件；根設定會保留 `name`／`active`／`currency`／`timezone`，並一次性附加 legacy property 資料，其餘既有資料一律拒絕覆寫。中斷後只能以相同批次、完全相同的文件安全續作，並與成功狀態原子寫入批次／audit 記錄。此版本僅提供程式與 DEV 部署能力，尚未對任何真實 Dropbox 備份執行 promotion，匯入後的復原演練仍待完成。
 - 將程式品牌改為專案既有 BINI Blooms 橫式 logo，移除臨時機器人 SVG；使用專案房屋圖檔建立真正透明的 192／512 PWA icon、獨立 maskable icon、Apple touch icon 與 favicon，並更新 manifest 及 Service Worker cache，供手機「加入主畫面」顯示正確 App 圖示。
@@ -32,7 +33,7 @@
 - 強制 email 驗證與 TOTP MFA；未完成 MFA、停權、跨館別與非 admin 的帳號管理請求均拒絕。首位 DEV admin `biniblooms250808@gmail.com` 已由 server-side bootstrap 建立並寄出一次性密碼設定信。
 - 所有權威資料維持 server-only write；客戶端只能建立 append-only operation request，處理器具 idempotency、版本衝突偵測與 audit log。
 - 手機版採專用資訊架構：底部五分頁、快捷操作、房態卡與 bottom sheet；使用 44px 觸控目標、safe-area、房態語意色及窄螢幕無水平溢位，桌面寬度切換為 v3 頂部導覽。
-- DEV Firestore 已建立於 `asia-east1`；Rules、indexes、十五個 Node.js 22 Functions 與 Hosting 已部署至 `bini-transient-dev`，PROD `bini-transient` 未部署、未修改。
+- DEV Firestore 已建立於 `asia-east1`；Rules、indexes、十六個 Node.js 22 Functions 與 Hosting 已部署至 `bini-transient-dev`，PROD `bini-transient` 未部署、未修改。
 - 修正 Hosting 空白頁：workspace Vite 明確由 `cloud/.env.local` 讀取 DEV 設定；新增 bundle guard，缺設定、placeholder 或非 DEV project 時禁止部署。
 - DEV 預覽：`https://bini-transient-dev.web.app`。實際手機瀏覽器確認登入卡正常、無目前版本 console error，且頁面沒有註冊或外部備份入口。
 - 驗證：145 項 Vitest、6 項 DEV 部署防護、typecheck、lint 與 production build 通過；Rules Emulator 最近完整結果為 41/41（本次未改 Rules）。DEV live function list 確認十五個 Functions 全位於 `asia-east1`，其中新增的 `paymentCreate` 為 Node.js 22／512 MiB、ACTIVE。首頁與最新線上 bundle `index-DfdlN6xD.js` 均 HTTP 200，bundle 已包含付款頁與 `paymentCreate`。瀏覽器版面契約涵蓋 320／375／430／768／1100px；未登入 UI preview 未進 production build。

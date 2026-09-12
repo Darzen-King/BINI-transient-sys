@@ -24,6 +24,7 @@ export { stayCheckIn } from './stays/check-in.js';
 export { stayExtend } from './stays/extend.js';
 export { stayCheckout } from './stays/checkout.js';
 export { paymentCreate } from './payments/create-payment.js';
+export { housekeepingUpdate } from './housekeeping/update-housekeeping.js';
 
 if (getApps().length === 0) initializeApp();
 

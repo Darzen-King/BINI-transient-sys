@@ -79,8 +79,8 @@ describe('mobile-first PMS shell', () => {
     render(<App />);
 
     fireEvent.click(screen.getByRole('button', { name: '房務' }));
-    expect(screen.getByRole('heading', { name: '房務工作' })).toBeInTheDocument();
-    expect(screen.getByText('優先清潔')).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { name: '清潔管理' }).length).toBeGreaterThan(0);
+    expect(screen.getByText('房務資料尚未就緒')).toBeInTheDocument();
   });
 
   it('renders the header date from the client clock instead of a frozen prototype date', () => {

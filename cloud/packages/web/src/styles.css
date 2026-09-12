@@ -321,6 +321,15 @@ h1, h2, p { margin-top: 0; }
 .payment-history-list article strong, .payment-history-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .payment-amount { color: var(--bds-color-green-700); font-variant-numeric: tabular-nums; }
 .payment-amount.refund { color: var(--danger); }
+.housekeeping-summary { display: flex; align-items: baseline; padding: 12px 14px; margin: 14px 0; border-radius: var(--bds-radius-md); background: var(--bds-color-feedback-warning-bg); color: var(--bds-color-feedback-warning); gap: 6px; }
+.housekeeping-summary strong { color: var(--brand-dark); font-size: 24px; }
+.housekeeping-list { display: grid; overflow: hidden; border: 1px solid var(--line); border-radius: var(--bds-radius-md); }
+.housekeeping-list article { display: flex; align-items: center; justify-content: space-between; padding: 13px; gap: 12px; }
+.housekeeping-list article + article { border-top: 1px solid var(--line); }
+.housekeeping-list article > div { display: grid; min-width: 0; gap: 4px; }
+.housekeeping-list article > div:last-child { justify-items: end; }
+.housekeeping-list article strong { color: var(--brand-dark); font-size: 20px; }
+.housekeeping-list article span, .housekeeping-list article small { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 
 .booking-detail-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
 .booking-detail-list > div { padding: 11px; border: 1px solid var(--line); border-radius: var(--bds-radius-md); }

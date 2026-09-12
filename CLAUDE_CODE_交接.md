@@ -8,7 +8,7 @@
 - Firebase：DEV `bini-transient-dev`；PROD `bini-transient`（顯示名稱 `BINI-Transient`）。只部署 DEV，PROD 未部署、未修改。
 - DEV Firestore `(default)`：`asia-east1`、Native mode、Standard edition、delete protection。
 - Identity Platform：email/password、email enumeration protection、關閉公開註冊／自助刪除、TOTP MFA 強制流程。
-- DEV Hosting、Firestore Rules/indexes、十五個 Node.js 22 Functions 已部署；網址：`https://bini-transient-dev.web.app`。
+- DEV Hosting、Firestore Rules/indexes、十六個 Node.js 22 Functions 已部署；網址：`https://bini-transient-dev.web.app`。
 - 首位 admin `biniblooms250808@gmail.com` 已以 server-side bootstrap 建立，`emailVerified=true`、active、`property-main/admin`、17 個頁面權限、`mfaRequired=true`，並已寄出繁中一次性密碼設定信。
 - 實際 Web SDK 設定與 alias 保存在 Git 忽略的 `cloud/.env.local`、`cloud/.firebaserc`；禁止提交或輸出內容。
 
@@ -43,6 +43,7 @@
 - `stayExtend` 是第五個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`extend` page allowlist。它以入住時間軸重現 v3 `extension_fee_between`，確保 12h→24h 只收該時段差額；在單一 transaction 驗證 stay／room identity、可延住房態、未來 `已預約` 與未完成 maintenance。撞期時完全拒絕寫入（刻意取代 v3 的寫後警告），成功才同步 `stays`／`rooms`／audit／`stayOperations` replay；舊匯入 stay 沒有 `stayId` 時以 document ID 相容識別。
 - `stayCheckout` 是第六個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`checkout` page allowlist。伺服器以自身時間執行 v3 的免費取消、退房緩衝、半小時進位逾時計價及選填人工調整；同一 transaction 建立 stay log、免費取消退款、audit、房間待清潔並刪除 active stay。退款只涵蓋同房且同 booking 或入住後的未退款押金，避免誤退其他住宿款項。
 - `paymentCreate` 是第七個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`payments` page allowlist。它只接受目前 active stay 的一般收款，在同一 transaction 驗證 property／stay／room identity 和 `使用中`／`即將退房` 房態，原子建立 payment、audit 與 `paymentOperations` UUID fingerprint replay；client 不可直接寫 payment。退款、訂金調整、手動例外、刪除、日結與 CSV 必須保持為後續獨立且可稽核的切片。
+- `housekeepingUpdate` 是第八個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`housekeeping` page allowlist。它只允許 `待清潔 → 清潔中 → 可入住`，拒絕跳級與任意房態覆寫；同一 transaction 更新 room version、audit 與 `housekeepingOperations` UUID replay。
 - `packages/shared/src/migration/v3-transform.ts` 已完成 12 個權威 v3 table 的白名單 typed transformer：穩定 legacy ID、`property-main` 補值、property-scoped target path、Asia/Taipei 時間、SQLite boolean、整數 NTS、狀態、FK 與重複 active stay 檢查。`active_stays` 統一寫入規格中的 `stays` collection；真實備份仍待操作員從 Dropbox 下載後選檔。
 
 ### 手機 UI 與登入

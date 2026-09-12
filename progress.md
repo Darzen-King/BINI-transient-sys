@@ -23,6 +23,7 @@
   - `stayExtend` callable、在住房／假日 listener 與延住頁已完成：選取在住房後可顯示原／目前／新退房、目前／累計延住費、應收與逐區塊預覽。費率用 v3 `extension_fee_between` 的等價純函式，錨定入住時間而非以目前退房重新起算；同一 transaction 驗證 MFA／`extend` 權限、room／stay identity、未來有效 booking 和未完成 maintenance，衝突時 fail closed，成功後同步 stay／room／audit／operation replay。桌機與手機共用表單，房態「延住處理」直接導向該頁。
   - `stayCheckout` callable 與退房頁已完成：伺服器端處理 15 分鐘免費取消、符合範圍的未退款押金退款、15 分鐘退房緩衝、半小時進位的逾時計價與人工調整。單一 transaction 建立 stay log／退款／audit、房間轉待清潔並刪除 active stay；桌機與手機共用帶二次確認的表單，房態快捷直接導向。
   - `paymentCreate` callable 與付款管理頁已完成：即時讀取在住房與付款紀錄，提供當日實收／退款／淨額／待收與各付款方式摘要。收款只允許選擇有效在住房，MFA＋`payments` 頁面權限會在同一 transaction 驗證 stay／room／房態後建立 payment、audit 與可重試 operation；退款、訂金調整、手動例外、刪除與日結仍待獨立切片。
+  - `housekeepingUpdate` callable 與清潔管理頁已完成：即時列出待清潔與清潔中的房間，嚴格限制待清潔 → 清潔中 → 可入住；MFA＋`housekeeping` 權限 transaction 會同步 room version、audit 與 operation replay。DEV 函式已 ACTIVE（asia-east1、Node.js 22、512 MiB）。
 
 ### 階段 1：權威盤點與差距矩陣
 - **狀態：** complete

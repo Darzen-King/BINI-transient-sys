@@ -37,6 +37,7 @@ import { createHolidayCalendarGateway } from '../stays/holiday-calendar.js';
 import { createStayCheckoutGateway } from '../stays/stay-checkout.js';
 import { createPaymentCreateGateway } from '../payments/payment-create.js';
 import { createPaymentListGateway } from '../payments/payment-list.js';
+import { createHousekeepingGateway } from '../housekeeping/housekeeping-gateway.js';
 import type { StaffSession } from './session.js';
 
 type GatePhase = 'loading' | 'login' | 'mfa' | 'verify-email' | 'enroll-mfa' | 'blocked' | 'ready';
@@ -103,6 +104,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
   const stayCheckoutGateway = useMemo(() => createStayCheckoutGateway(client.functions), [client.functions]);
   const paymentCreateGateway = useMemo(() => createPaymentCreateGateway(client.functions), [client.functions]);
   const paymentListGateway = useMemo(() => createPaymentListGateway(client.db), [client.db]);
+  const housekeepingGateway = useMemo(() => createHousekeepingGateway(client.db, client.functions), [client.db, client.functions]);
 
   const evaluateUser = useCallback(async (user: User) => {
     setCurrentUser(user);
@@ -240,6 +242,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
       stayCheckoutGateway={stayCheckoutGateway}
       paymentCreateGateway={paymentCreateGateway}
       paymentListGateway={paymentListGateway}
+      housekeepingGateway={housekeepingGateway}
       onLogout={() => signOut(client.auth)}
     />;
   }

@@ -551,21 +551,22 @@ function MoreView({ isAdmin, allowedPages, onOpenPage, onLogout }: {
   );
 }
 
-function FoundationPage({ pageId, isAdmin, onOpenInitialImport }: {
+function FoundationPage({ pageId, isAdmin, allowedPages, onOpenInitialImport, onOpenPage }: {
   pageId: CloudPageId | 'hub';
   isAdmin: boolean;
+  allowedPages: readonly CloudPageId[];
   onOpenInitialImport: () => void;
+  onOpenPage: (pageId: CloudPageId) => void;
 }) {
   const { locale, text } = useLocale();
   const page = pageId === 'hub' ? null : CLOUD_PAGE_MANIFEST.find((candidate) => candidate.id === pageId);
   const title = pageId === 'hub' ? 'Prototype Hub' : (locale === 'zh-TW' ? page?.labelZhTw : page?.labelEn) ?? pageId;
   return (
     <ShellSection title={title} hint={text('全功能搬移中', 'Full migration in progress')}>
-      <div className="foundation-page">
+      {pageId === 'hub' ? <div className="hub-grid">{pagesAllowedForNavigation(allowedPages).map((item) => <button key={item.id} onClick={() => onOpenPage(item.id)} type="button"><strong>{locale === 'zh-TW' ? item.labelZhTw : item.labelEn}</strong><small>{text('開啟模組', 'Open module')} ›</small></button>)}{isAdmin ? <button onClick={onOpenInitialImport} type="button"><strong>{text('初始資料導入', 'Initial data import')}</strong><small>{text('僅管理員', 'Admin only')} ›</small></button> : null}</div> : <div className="foundation-page">
         <strong>{text('此模組已列入 Firebase v4 完整搬移範圍', 'This module is included in the full Firebase v4 migration')}</strong>
         <p>{text('目前 foundation 尚未接入真實 PMS 資料與 operation handler，因此不標示為完成功能。', 'The foundation is not yet connected to live PMS data or operation handlers, so this module is not marked complete.')}</p>
-        {pageId === 'hub' && isAdmin ? <Button className="import-entry" onClick={onOpenInitialImport}>{text('從 Dropbox 備份進行初始資料導入', 'Start initial import from a Dropbox backup')}</Button> : null}
-      </div>
+      </div>}
     </ShellSection>
   );
 }
@@ -611,7 +612,7 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   if (view === 'initial_import') return <InitialDataImport session={session} gateway={dataImportGateway} />;
   if (view === 'more') return <MoreView isAdmin={session.role === 'admin'} allowedPages={session.allowedPages} onOpenPage={onOpenPage} onLogout={onLogout} />;
   if (view === 'today' || view === 'rooms') return <TodayView canCheckIn={session.allowedPages.includes('checkin')} canCreate={session.allowedPages.includes('bookings_new')} canCheckout={session.allowedPages.includes('checkout')} canExtend={session.allowedPages.includes('extend')} canImport={session.role === 'admin'} onAction={onAction} onOpenBookingCreate={onOpenBookingCreate} onOpenCheckIn={() => onOpenPage('checkin')} onOpenCheckout={() => onOpenPage('checkout')} onOpenExtend={() => onOpenPage('extend')} onOpenInitialImport={() => onOpenPage('initial_import')} propertyId={session.propertyId} roomOverviewGateway={roomOverviewGateway} />;
-  return <FoundationPage pageId={view} isAdmin={session.role === 'admin'} onOpenInitialImport={() => onOpenPage('initial_import')} />;
+  return <FoundationPage allowedPages={session.allowedPages} isAdmin={session.role === 'admin'} onOpenInitialImport={() => onOpenPage('initial_import')} onOpenPage={onOpenPage} pageId={view} />;
 }
 
 export function LoginScreen({ onLogin }: { onLogin: () => void }) {

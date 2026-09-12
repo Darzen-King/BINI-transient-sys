@@ -28,7 +28,7 @@ HTML、JSON、CSS、JS 亦已於現況盤點中以正規化換行後比對一致
 | # | v3 頁面／模板 | v3 主要操作與路由 | Firebase v4 權威資料／operation | 桌機版要求 | 手機版調整 | 現況 |
 |---:|---|---|---|---|---|---|
 | 1 | 登入 `login.html` | 登入、登出、語言切換 | Firebase Auth、email 驗證、TOTP MFA、`staffProfiles` | 保留品牌、語言與簡潔登入流程 | 單欄登入、首次 MFA 與後續驗證器流程 | **已完成** |
-| 2 | Prototype Hub `hub.html` | `/`、原型入口與導覽 | 讀取使用者可見模組；不得成為繞過權限入口 | 保留現有入口位置與可見權限 | 「更多」內卡片式入口 | **待實作** |
+| 2 | Prototype Hub `hub.html` | `/`、原型入口與導覽 | 只讀取目前帳號 `allowedPages`，交由既有 view router 開啟 | 保留原型入口位置與可見權限 | 卡片式入口；不出現未授權頁面 | **完成：Hub 只列出已授權模組，入口沿用既有 page allowlist；admin 額外可進初始資料導入** |
 | 3 | 房間總覽 `rooms.html` | `/rooms`、館別篩選、房態篩選、快速入住／延住／付款／退房、下一筆預約 | `rooms`、`stays`、`bookings`、`payments`、`maintenanceSchedules` 即時 listeners；下一筆預約只由有效未來預約推導 | 保留頂部狀態磚、房態篩選、三欄房卡、金額與快捷按鈕；目前每個 Firebase property 對應一館別 | 1–2 欄房卡、橫向篩選 chips、卡片 action sheet | **部分完成：即時讀取、七種房態篩選、桌機詳細卡與手機 detail sheet 已接；館別切換與付款快捷寫入待實作** |
 | 4 | 甘特圖 `gantt.html` | `/gantt`、兩週預約／在住／維修／月租時間軸 | `rooms`、`bookings`、`stays`、`maintenanceSchedules`、`monthlyRentals` 即時 listeners 的 client projection | 固定房號列、14 日期軸、狀態色與點選詳情 | 橫向日期視窗與可滑動時間列；不縮小整張桌面圖 | **部分完成：即時 14 天視窗、預約／在住／維修／月租色塊及詳細資料已接；館別切換、今日定位控制與房間篩選待實作** |
 | 5 | 付款管理 `payments.html` | `/payments`、新增／刪除付款、選在住房客或手動輸入、日結、CSV 匯出 | `payments` 即時讀取、`paymentCreate` callable；後續 `cashierSessions`、`payment.delete/refund`、`cashier.close` 與伺服器匯出 | 已接當日摘要、付款紀錄與在住房一般收款；手動例外與帳務維護待補 | 同一 responsive 收款表單、摘要卡與付款卡 | **部分完成：MFA＋`payments` 權限的一般收款、即時紀錄／摘要、transaction／audit／operation replay 已接；退款、訂金調整、手動例外、刪除、日結與 CSV 待實作** |

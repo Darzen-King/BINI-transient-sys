@@ -27,6 +27,8 @@ import { BookingEditPage } from './bookings/BookingEditPage.js';
 import type { BookingCreateGateway } from './bookings/booking-create.js';
 import type { RoomOverviewGateway } from './rooms/room-overview.js';
 import type { BookingRoomGateway } from './rooms/booking-room-options.js';
+import { StayCheckInPage } from './stays/StayCheckInPage.js';
+import type { StayCheckInGateway } from './stays/stay-checkin.js';
 
 type UtilityViewId = 'hub' | 'initial_import';
 type ViewId = 'today' | 'more' | 'accounts' | UtilityViewId | CloudPageId;
@@ -233,7 +235,7 @@ function RoomDetails({ room }: { room: RoomViewModel }) {
   );
 }
 
-function RoomActions({ room, onAction }: { room: RoomViewModel; onAction: (action: string) => void }) {
+function RoomActions({ room, onAction, onOpenCheckIn }: { room: RoomViewModel; onAction: (action: string) => void; onOpenCheckIn?: (() => void) | undefined }) {
   const { locale } = useLocale();
   if (room.actions.length === 0) return null;
   return (
@@ -242,7 +244,7 @@ function RoomActions({ room, onAction }: { room: RoomViewModel; onAction: (actio
         <Button
           className={`room-action room-action--${action}`}
           key={action}
-          onClick={() => onAction(`${room.number} · ${actionLabels[action][locale === 'zh-TW' ? 0 : 1]}`)}
+          onClick={() => action === 'checkin' && onOpenCheckIn ? onOpenCheckIn() : onAction(`${room.number} · ${actionLabels[action][locale === 'zh-TW' ? 0 : 1]}`)}
           size="sm"
           variant={action === 'checkin' ? 'primary' : 'outline'}
         >{action === 'payment' ? '💵 ' : ''}{actionLabels[action][locale === 'zh-TW' ? 0 : 1]}</Button>
@@ -255,10 +257,12 @@ function ShellSection({ title, hint, children }: { title: string; hint?: string;
   return <SectionCard hint={hint} title={title}>{children}</SectionCard>;
 }
 
-function TodayView({ canCreate, onAction, onOpenBookingCreate, propertyId, roomOverviewGateway }: {
+function TodayView({ canCreate, canCheckIn, onAction, onOpenBookingCreate, onOpenCheckIn, propertyId, roomOverviewGateway }: {
   canCreate: boolean;
+  canCheckIn: boolean;
   onAction: (action: string) => void;
   onOpenBookingCreate: () => void;
+  onOpenCheckIn: () => void;
   propertyId: string;
   roomOverviewGateway: RoomOverviewGateway | undefined;
 }) {
@@ -302,7 +306,7 @@ function TodayView({ canCreate, onAction, onOpenBookingCreate, propertyId, roomO
 
       <section className="quick-actions" aria-label={text('櫃檯快捷操作', 'Front desk quick actions')}>
         {canCreate ? <Button aria-label={text('新增預約', 'New booking')} className="primary-action" onClick={onOpenBookingCreate}>＋<span>{text('新增預約', 'New booking')}</span></Button> : null}
-        <Button aria-label={text('辦理入住', 'Check in')} onClick={() => onAction(text('辦理入住', 'Check in'))} variant="outline">↘<span>{text('辦理入住', 'Check in')}</span></Button>
+        {canCheckIn ? <Button aria-label={text('辦理入住', 'Check in')} onClick={onOpenCheckIn} variant="outline">↘<span>{text('辦理入住', 'Check in')}</span></Button> : null}
         <Button aria-label={text('辦理退房', 'Check out')} onClick={() => onAction(text('辦理退房', 'Check out'))} variant="outline">↗<span>{text('辦理退房', 'Check out')}</span></Button>
       </section>
 
@@ -326,7 +330,7 @@ function TodayView({ canCreate, onAction, onOpenBookingCreate, propertyId, roomO
                 <span className="mobile-detail-affordance" aria-hidden="true">{text('查看詳細資料', 'View details')} ›</span>
               </button>
               <RoomDetails room={room} />
-              <RoomActions room={room} onAction={onAction} />
+              <RoomActions room={room} onAction={onAction} onOpenCheckIn={canCheckIn ? onOpenCheckIn : undefined} />
             </article>
           ))}
         </div>
@@ -355,7 +359,7 @@ function TodayView({ canCreate, onAction, onOpenBookingCreate, propertyId, roomO
         >
             <Badge className="status-pill">{stateLabel(selectedRoom.state)}</Badge>
             <RoomDetails room={selectedRoom} />
-            <RoomActions room={selectedRoom} onAction={(action) => { setSelectedRoomNumber(null); onAction(action); }} />
+            <RoomActions room={selectedRoom} onAction={(action) => { setSelectedRoomNumber(null); onAction(action); }} onOpenCheckIn={canCheckIn ? () => { setSelectedRoomNumber(null); onOpenCheckIn(); } : undefined} />
         </ResponsiveDialog>
       ) : null}
     </>
@@ -556,7 +560,7 @@ function FoundationPage({ pageId, isAdmin, onOpenInitialImport }: {
   );
 }
 
-function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingCreateGateway, bookingRoomGateway, roomOverviewGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
+function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingCreateGateway, bookingRoomGateway, roomOverviewGateway, stayCheckInGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
   view: ViewId;
   onAction: (action: string) => void;
   session: StaffSession;
@@ -568,18 +572,20 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   bookingCreateGateway: BookingCreateGateway | undefined;
   bookingRoomGateway: BookingRoomGateway | undefined;
   roomOverviewGateway: RoomOverviewGateway | undefined;
+  stayCheckInGateway: StayCheckInGateway | undefined;
   onOpenBookingCreate: () => void;
   onOpenPage: (pageId: CloudPageId | UtilityViewId) => void;
   onLogout: () => void;
 }) {
   if (view === 'bookings') return <BookingsView bookingCancelGateway={bookingCancelGateway} bookingUpdateGateway={bookingUpdateGateway} canCancel={session.allowedPages.includes('bookings')} canCreate={session.allowedPages.includes('bookings_new')} gateway={bookingListGateway} onOpenBookingCreate={onOpenBookingCreate} propertyId={session.propertyId} roomGateway={bookingRoomGateway} session={session} />;
   if (view === 'bookings_new') return <BookingCreatePage gateway={bookingCreateGateway} onViewBookings={() => onOpenPage('bookings')} roomGateway={bookingRoomGateway} session={session} />;
+  if (view === 'checkin') return <StayCheckInPage bookingGateway={bookingListGateway} gateway={stayCheckInGateway} onBack={() => onOpenPage('rooms')} roomGateway={bookingRoomGateway} session={session} />;
   if (view === 'housekeeping') return <HousekeepingView />;
   if (view === 'payments') return <PaymentsView onAction={onAction} />;
   if (view === 'accounts' || view === 'users') return <AccountManagement session={session} gateway={accountGateway} />;
   if (view === 'initial_import') return <InitialDataImport session={session} gateway={dataImportGateway} />;
   if (view === 'more') return <MoreView isAdmin={session.role === 'admin'} allowedPages={session.allowedPages} onOpenPage={onOpenPage} onLogout={onLogout} />;
-  if (view === 'today' || view === 'rooms') return <TodayView canCreate={session.allowedPages.includes('bookings_new')} onAction={onAction} onOpenBookingCreate={onOpenBookingCreate} propertyId={session.propertyId} roomOverviewGateway={roomOverviewGateway} />;
+  if (view === 'today' || view === 'rooms') return <TodayView canCheckIn={session.allowedPages.includes('checkin')} canCreate={session.allowedPages.includes('bookings_new')} onAction={onAction} onOpenBookingCreate={onOpenBookingCreate} onOpenCheckIn={() => onOpenPage('checkin')} propertyId={session.propertyId} roomOverviewGateway={roomOverviewGateway} />;
   return <FoundationPage pageId={view} isAdmin={session.role === 'admin'} onOpenInitialImport={() => onOpenPage('initial_import')} />;
 }
 
@@ -611,6 +617,7 @@ export function App({
   bookingCreateGateway,
   bookingRoomGateway,
   roomOverviewGateway,
+  stayCheckInGateway,
   onLogout,
 }: {
   initialAuthenticated?: boolean;
@@ -624,6 +631,7 @@ export function App({
   bookingCreateGateway?: BookingCreateGateway;
   bookingRoomGateway?: BookingRoomGateway;
   roomOverviewGateway?: RoomOverviewGateway;
+  stayCheckInGateway?: StayCheckInGateway;
   onLogout?: () => void | Promise<void>;
 }) {
   const { locale, text } = useLocale();
@@ -692,6 +700,7 @@ export function App({
           bookingCreateGateway={bookingCreateGateway}
           bookingRoomGateway={bookingRoomGateway}
           roomOverviewGateway={roomOverviewGateway}
+          stayCheckInGateway={stayCheckInGateway}
           onOpenBookingCreate={() => setView('bookings_new')}
           onOpenPage={(pageId) => setView(pageId === 'users' ? 'accounts' : pageId)}
           onLogout={logout}

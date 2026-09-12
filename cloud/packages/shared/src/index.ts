@@ -1,6 +1,7 @@
 export * from './contracts/operation.js';
 export * from './contracts/staff.js';
 export * from './contracts/booking-operations.js';
+export * from './contracts/stay-operations.js';
 export * from './domain/room-overview.js';
 export * from './domain/booking-list.js';
 export * from './domain/booking-room-options.js';

@@ -30,6 +30,7 @@ import { createBookingUpdateGateway } from '../bookings/booking-update.js';
 import { createBookingSoonGateway } from '../bookings/booking-soon.js';
 import { createRoomOverviewGateway } from '../rooms/room-overview.js';
 import { createBookingRoomGateway } from '../rooms/booking-room-options.js';
+import { createStayCheckInGateway } from '../stays/stay-checkin.js';
 import type { StaffSession } from './session.js';
 
 type GatePhase = 'loading' | 'login' | 'mfa' | 'verify-email' | 'enroll-mfa' | 'blocked' | 'ready';
@@ -89,6 +90,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
   const bookingSoonGateway = useMemo(() => createBookingSoonGateway(client.db), [client.db]);
   const bookingRoomGateway = useMemo(() => createBookingRoomGateway(client.db), [client.db]);
   const roomOverviewGateway = useMemo(() => createRoomOverviewGateway(client.db), [client.db]);
+  const stayCheckInGateway = useMemo(() => createStayCheckInGateway(client.functions), [client.functions]);
 
   const evaluateUser = useCallback(async (user: User) => {
     setCurrentUser(user);
@@ -219,6 +221,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
       bookingSoonGateway={bookingSoonGateway}
       bookingRoomGateway={bookingRoomGateway}
       roomOverviewGateway={roomOverviewGateway}
+      stayCheckInGateway={stayCheckInGateway}
       onLogout={() => signOut(client.auth)}
     />;
   }

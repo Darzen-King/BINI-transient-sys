@@ -69,6 +69,8 @@
 - v3 修改預約以 `allow_past=True` 驗證時間，從入住／方案／天數重新推導退房與 block-ceiling 報價（僅在自動金額模式），再排除自身檢查 booking、stay 與未完成維修衝突。它只更新 booking 欄位、不調整既有訂金 payment；雲端 update transaction 必須保留此付款不變與同 booking 排除規則。
 - `bookingUpdate` 已發布至 DEV：它使用 `booking.update` fingerprint／operation record，僅在 `已預約` 狀態下更新 booking 的房間、旅客、時間、計價與 version，並保留 payment。live bundle `index-C8Qh8QqT.js` 含建立／取消／修改三個 booking callable，11 支 Functions 均在 `asia-east1`；實際 MFA 寫入 smoke test 仍需在有測試資料後完成。
 - v3 的即將入住只應提示仍為 `已預約`、嚴格晚於目前時間且不超過未來 15 分鐘的 booking；「保留」不能改寫資料，而 No-show 必須由操作員二次確認。雲端以 property-scoped listener 加每 60 秒重算投影，並沿用 `bookingCancel` transaction，以 `cancellationReason=no_show` 寫入 `booking.no_show` audit；手動取消既有 operation fingerprint 不變，避免舊 retry 失效。提示音尚未遷移。
+- v3 入住可從有效預約帶入或建立 walk-in，會以方案／天數重新推導退房與自動金額，阻擋不可入住房、維修時段與同房有效預約；成功後建立 active stay、房間轉使用中、來源預約轉已入住，並可建立押金及 audit。舊服務會覆蓋既有 active stay，這不符合雲端多裝置安全邊界；Firebase `stayCheckIn` 必須在單一 transaction 將既有 stay 視為衝突而 fail closed，且需把 booking/stay/room/payment/audit/operation 全部鎖定。
+- `stayCheckIn` 已發布至 DEV：MFA＋`checkin` 頁面權限、可入住 room、空 stay query、同房 booking／maintenance conflict、來源 booking identity 與 server quote 都在同一 transaction 驗證；成功後同步 stay／room／booking／可選 payment／audit／operation。最新 Hosting bundle `index-BwgjQ04D.js` 含四個核心 callable，12 支 Functions 均在 `asia-east1`，其中 `stayCheckIn` 為 ACTIVE、Node.js 22、512 MiB；真實資料寫入 smoke 仍須在管理員完成 MFA 並使用匯入或建立的測試資料後執行。
 - 單機 `icon.ico` 與雲端 `favicon.ico` 的 SHA-256 已加入契約測試鎖定為同一檔案；行動安裝圖示維持由專案 `Transient icon.png` 清背後產生的透明來源、192／512／maskable 與 Apple Touch Icon，不會退回臨時機器人圖示。
 
 ## 技術決策

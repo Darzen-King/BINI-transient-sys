@@ -20,6 +20,7 @@ export { adminPromotePreparedV3Backup } from './migration/promote-v3-backup.js';
 export { bookingCreate } from './bookings/create-booking.js';
 export { bookingCancel } from './bookings/cancel-booking.js';
 export { bookingUpdate } from './bookings/update-booking.js';
+export { stayCheckIn } from './stays/check-in.js';
 
 if (getApps().length === 0) initializeApp();
 

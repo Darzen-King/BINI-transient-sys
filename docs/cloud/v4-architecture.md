@@ -31,7 +31,7 @@ PWA（手機／電腦）
 PWA <────────────────── operationResults/{operationId}
 ```
 
-客戶端不能直接寫入 `bookings`、`stays`、`payments` 等權威 collection。一般操作使用 append-only queue；即時預約建立、取消與修改分別使用受 MFA／頁面權限保護的 `bookingCreate`、`bookingCancel`、`bookingUpdate` callable。三者皆以 UUID 作為 idempotency key，並在 Firestore transaction 中重新檢查資料，避免兩台裝置同時操作造成覆寫、雙重訂房、重複取消或覆蓋修改。`bookingCancel` 另接受受限的 `no_show` 原因；全域提醒僅投影未來 15 分鐘的有效預約，人工確認後仍走相同的取消 transaction，寫入不同 audit action，絕不由瀏覽器直接寫入 booking。
+客戶端不能直接寫入 `bookings`、`stays`、`payments` 等權威 collection。一般操作使用 append-only queue；即時預約建立、取消與修改分別使用受 MFA／頁面權限保護的 `bookingCreate`、`bookingCancel`、`bookingUpdate` callable。三者皆以 UUID 作為 idempotency key，並在 Firestore transaction 中重新檢查資料，避免兩台裝置同時操作造成覆寫、雙重訂房、重複取消或覆蓋修改。`bookingCancel` 另接受受限的 `no_show` 原因；全域提醒僅投影未來 15 分鐘的有效預約，人工確認後仍走相同的取消 transaction，寫入不同 audit action，絕不由瀏覽器直接寫入 booking。`stayCheckIn` 則以同一 transaction 建立 active stay、更新房間與來源預約、選填押金、audit 和 idempotent operation；已有 stay 一律拒絕覆蓋。
 
 ## Monorepo 模組
 

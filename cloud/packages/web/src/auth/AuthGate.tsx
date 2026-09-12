@@ -31,6 +31,9 @@ import { createBookingSoonGateway } from '../bookings/booking-soon.js';
 import { createRoomOverviewGateway } from '../rooms/room-overview.js';
 import { createBookingRoomGateway } from '../rooms/booking-room-options.js';
 import { createStayCheckInGateway } from '../stays/stay-checkin.js';
+import { createStayExtendGateway } from '../stays/stay-extend.js';
+import { createActiveStaysGateway } from '../stays/active-stays.js';
+import { createHolidayCalendarGateway } from '../stays/holiday-calendar.js';
 import type { StaffSession } from './session.js';
 
 type GatePhase = 'loading' | 'login' | 'mfa' | 'verify-email' | 'enroll-mfa' | 'blocked' | 'ready';
@@ -91,6 +94,9 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
   const bookingRoomGateway = useMemo(() => createBookingRoomGateway(client.db), [client.db]);
   const roomOverviewGateway = useMemo(() => createRoomOverviewGateway(client.db), [client.db]);
   const stayCheckInGateway = useMemo(() => createStayCheckInGateway(client.functions), [client.functions]);
+  const stayExtendGateway = useMemo(() => createStayExtendGateway(client.functions), [client.functions]);
+  const activeStaysGateway = useMemo(() => createActiveStaysGateway(client.db), [client.db]);
+  const holidayCalendarGateway = useMemo(() => createHolidayCalendarGateway(client.db), [client.db]);
 
   const evaluateUser = useCallback(async (user: User) => {
     setCurrentUser(user);
@@ -222,6 +228,9 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
       bookingRoomGateway={bookingRoomGateway}
       roomOverviewGateway={roomOverviewGateway}
       stayCheckInGateway={stayCheckInGateway}
+      stayExtendGateway={stayExtendGateway}
+      activeStaysGateway={activeStaysGateway}
+      holidayCalendarGateway={holidayCalendarGateway}
       onLogout={() => signOut(client.auth)}
     />;
   }

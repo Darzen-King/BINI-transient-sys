@@ -6,6 +6,7 @@ import {
   bookingUpdateInputSchema,
   findBookingAvailabilityConflict,
   quoteBooking,
+  quoteStayExtension,
 } from '@bini/cloud-shared';
 
 const calendar = { days: new Map<string, boolean>(), coveredYears: new Set<number>() };
@@ -111,5 +112,21 @@ describe('booking update contract', () => {
     });
     expect(quoteBooking(updated, calendar).amountNts).toBe(1_500);
     expect(() => bookingUpdateInputSchema.parse({ ...updated, pricingMode: 'automatic', manualAmountNts: 1_500 })).toThrow(/自動計價/);
+  });
+});
+
+describe('stay extension pricing', () => {
+  it('continues the v3 stay timeline instead of charging a fresh 12-hour block', () => {
+    const quote = quoteStayExtension('2026-09-14T13:00:00+08:00', '2026-09-15T01:00:00+08:00', 12, calendar);
+    expect(quote.extensionFeeNts).toBe(200);
+    expect(quote.fromHours).toBe(12);
+    expect(quote.toHours).toBe(24);
+    expect(quote.breakdown).toEqual([expect.objectContaining({ hours: 12, ceilingNts: 200, feeNts: 200 })]);
+  });
+
+  it('uses the correct subsequent 12-hour block and accepts half-hour extensions', () => {
+    const quote = quoteStayExtension('2026-09-14T13:00:00+08:00', '2026-09-15T13:00:00+08:00', 0.5, calendar);
+    expect(quote.extensionFeeNts).toBe(100);
+    expect(quote.breakdown).toEqual([expect.objectContaining({ hours: 0.5, ceilingNts: 800, feeNts: 100 })]);
   });
 });

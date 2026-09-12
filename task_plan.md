@@ -45,6 +45,7 @@
   - [ ] 多時段、送出前 quote／availability、提示音
 - [ ] 入住、延住、付款、退房與退款
   - [x] 入住：預約帶入與 walk-in、MFA＋`checkin` 權限、room／booking／stay／maintenance／holiday transaction、可選押金與 audit／operation retry
+  - [x] 延住：即時在住房選取、v3 入住時間軸累計計價、MFA＋`extend` 權限、booking／maintenance fail-closed transaction、room／stay／audit／operation retry
 - [ ] 房務清潔與維修狀態
 - **狀態：** in_progress
 

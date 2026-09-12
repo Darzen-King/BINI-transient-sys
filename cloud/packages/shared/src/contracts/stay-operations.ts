@@ -11,6 +11,10 @@ const dateTimeSchema = z.string().trim().min(20).max(64).regex(
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/,
   '日期時間必須是帶時區的 ISO 格式。',
 ).refine((value) => Number.isFinite(Date.parse(value)), '日期時間格式不正確。');
+const extensionHoursSchema = z.number().finite().min(0.5).max(168).refine(
+  (value) => Math.abs((value * 2) - Math.round(value * 2)) < Number.EPSILON,
+  '延住時數必須以半小時為單位。',
+);
 
 /** Server-authoritative v3-compatible check-in: a selected booking or a walk-in. */
 export const stayCheckInInputSchema = z.object({
@@ -52,3 +56,26 @@ export const stayCheckInResultSchema = z.object({
 }).strict();
 
 export type StayCheckInResult = z.infer<typeof stayCheckInResultSchema>;
+
+/** Server-authoritative extension. The stay timeline, not a new booking, is the price anchor. */
+export const stayExtendInputSchema = z.object({
+  propertyId: propertyIdSchema,
+  operationId: operationIdSchema,
+  stayId: z.string().trim().min(1).max(128).regex(/^[^/]+$/),
+  extensionHours: extensionHoursSchema,
+}).strict();
+
+export type StayExtendInput = z.infer<typeof stayExtendInputSchema>;
+
+export const stayExtendResultSchema = z.object({
+  status: z.enum(['extended', 'replayed']),
+  stayId: z.string().min(1).max(128),
+  roomId: roomIdSchema,
+  extensionHours: extensionHoursSchema,
+  checkOutAt: dateTimeSchema,
+  incrementalFeeNts: ntsAmountSchema,
+  extensionFeeNts: ntsAmountSchema,
+  totalDueNts: ntsAmountSchema,
+}).strict();
+
+export type StayExtendResult = z.infer<typeof stayExtendResultSchema>;

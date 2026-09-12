@@ -8,7 +8,7 @@
 - Firebase：DEV `bini-transient-dev`；PROD `bini-transient`（顯示名稱 `BINI-Transient`）。只部署 DEV，PROD 未部署、未修改。
 - DEV Firestore `(default)`：`asia-east1`、Native mode、Standard edition、delete protection。
 - Identity Platform：email/password、email enumeration protection、關閉公開註冊／自助刪除、TOTP MFA 強制流程。
-- DEV Hosting、Firestore Rules/indexes、十八個 Node.js 22 Functions 已部署；網址：`https://bini-transient-dev.web.app`。
+- DEV Hosting、Firestore Rules/indexes、二十四個 Node.js 22 Functions 已部署；網址：`https://bini-transient-dev.web.app`。
 - 首位 admin `biniblooms250808@gmail.com` 已以 server-side bootstrap 建立，`emailVerified=true`、active、`property-main/admin`、17 個頁面權限、`mfaRequired=true`，並已寄出繁中一次性密碼設定信。
 - 實際 Web SDK 設定與 alias 保存在 Git 忽略的 `cloud/.env.local`、`cloud/.firebaserc`；禁止提交或輸出內容。
 
@@ -42,7 +42,7 @@
 - `stayCheckIn` 是第四個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`checkin` page allowlist。它支援有效預約帶入或 walk-in，在一筆 transaction 內驗證 room identity／可入住狀態、既有 stay、同房有效 booking／maintenance 衝突與 holidays，建立 stay、房間轉 `使用中`、來源 booking 轉 `已入住`、選填押金、audit 與 `stayOperations` replay 記錄；既有 stay 一律 fail closed，不能沿用 v3 的覆蓋行為。
 - `stayExtend` 是第五個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`extend` page allowlist。它以入住時間軸重現 v3 `extension_fee_between`，確保 12h→24h 只收該時段差額；在單一 transaction 驗證 stay／room identity、可延住房態、未來 `已預約` 與未完成 maintenance。撞期時完全拒絕寫入（刻意取代 v3 的寫後警告），成功才同步 `stays`／`rooms`／audit／`stayOperations` replay；舊匯入 stay 沒有 `stayId` 時以 document ID 相容識別。
 - `stayCheckout` 是第六個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`checkout` page allowlist。伺服器以自身時間執行 v3 的免費取消、退房緩衝、半小時進位逾時計價及選填人工調整；同一 transaction 建立 stay log、免費取消退款、audit、房間待清潔並刪除 active stay。退款只涵蓋同房且同 booking 或入住後的未退款押金，避免誤退其他住宿款項。
-- `paymentCreate` 是第七個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`payments` page allowlist。它只接受目前 active stay 的一般收款，在同一 transaction 驗證 property／stay／room identity 和 `使用中`／`即將退房` 房態，原子建立 payment、audit 與 `paymentOperations` UUID fingerprint replay；client 不可直接寫 payment。退款、訂金調整、手動例外、刪除、日結與 CSV 必須保持為後續獨立且可稽核的切片。
+- `paymentCreate` 是第七個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`payments` page allowlist。它只接受目前 active stay 的一般收款，在同一 transaction 驗證 property／stay／room identity 和 `使用中`／`即將退房` 房態，原子建立 payment、audit 與 `paymentOperations` UUID fingerprint replay；client 不可直接寫 payment。`paymentRefund` 已作為獨立追加式交易發布：原付款不可覆寫／刪除，退款會新增帶 `refundOfPaymentId` 的 payment，transaction 會重查原付款狀態、既有退款累計及剩餘可退額，再寫 audit 與 UUID replay。訂金調整、手動例外、刪除、日結與 CSV 仍須維持為後續獨立且可稽核的切片。
 - `housekeepingUpdate` 是第八個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`housekeeping` page allowlist。它只允許 `待清潔 → 清潔中 → 可入住`，拒絕跳級與任意房態覆寫；同一 transaction 更新 room version、audit 與 `housekeepingOperations` UUID replay。
 - `maintenanceScheduleCreate` 是第九個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`maintenance` page allowlist。它驗證起訖時間、room identity，並在同一 transaction 查核同房 `已預約` 時段；發現重疊即拒絕，否則原子建立 schedule、audit 與 `maintenanceOperations` UUID replay。
 - `maintenanceScheduleAction` 是第十個正式 PMS 寫入 callable：同樣要求 MFA＋`maintenance` 權限，只接受 `complete`／`delete`。它以 transaction 驗證 schedule/property identity，完成時寫入完成者與時間，刪除時移除該 schedule；兩者均寫 audit 並以 `maintenanceOperations` UUID fingerprint 重送，不允許 client 直寫。
@@ -62,7 +62,7 @@
 - `stays/StayCheckInPage.tsx` + `stays/stay-checkin.ts`：桌機／手機共用入住表單；可選有效預約以鎖定來源欄位帶入，或選 walk-in 編輯房間／住客／時間／方案／天數／折扣／手動金額與押金。房間總覽快捷「辦理入住」直接導向該頁；讀取 rooms／bookings 失敗時 fail closed，重送維持 UUID。
 - `stays/StayExtendPage.tsx` + `stays/stay-extend.ts`：桌機／手機共用延住表單；讀取在住房與假日資料後，提供旅客／方案、原／目前／新退房、目前／累計延住費、應收及逐區塊預覽。讀取失敗一律停用送出；提交與重送維持 UUID，房態快捷「延住處理」直接進入該頁。
 - `stays/StayCheckoutPage.tsx` + `stays/stay-checkout.ts`：桌機／手機共用退房表單；可選在住房、輸入雜費與選填逾時費調整，顯示目前應收／延住費並要求二次確認。讀取失敗 fail closed，房態快捷「退房辦理」直接導向此頁。
-- `payments/PaymentsPage.tsx` + `payments/{payment-create,payment-list}.ts`：桌機／手機共用付款頁；即時顯示台北當日實收／退款／淨額／待收、付款方式摘要與歷史紀錄，新增一般收款時只能選取 active stay。讀取失敗或 gateway 不完整時停用送出，不回退展示帳務資料。
+- `payments/PaymentsPage.tsx` + `payments/{payment-create,payment-list}.ts`：桌機／手機共用付款頁；即時顯示台北當日實收／退款／淨額／待收、付款方式摘要與歷史紀錄，新增一般收款時只能選取 active stay。每筆非退款付款可開啟退款 dialog，退款原因必填，client 只呼叫 `paymentRefund`；可退額仍完全由 server transaction 重查。讀取失敗或 gateway 不完整時停用送出，不回退展示帳務資料。
 - `bookings/BookingEditPage.tsx` + `booking-update.ts`：從預約明細進入修改；房間／住客／電話／入住／方案／天數／折扣／自動或手動金額均預填，桌機雙欄、手機單欄共用。儲存會維持 operation UUID；成功後由即時清單反映結果。既有訂金不能在此頁修改，送出前 quote／availability 顯示仍待補。
 - `styles.css`：產品／domain 版面樣式；基礎 token 已移到 design system。維持 44px target、safe-area、320／375／430px 單欄、768px 三欄、>=1100px v3 式桌機頂部導覽與三欄房卡，無水平溢位。
 - 「今日房態」以單一 room view model 同步輸出兩種 view：桌機卡片直接展開 v3 詳細欄位與快捷操作；手機卡片只保留房號／狀態／摘要，點擊後於詳細面板顯示完整欄位與操作。後續接 Firestore 時不得維護兩份資料邏輯。
@@ -99,7 +99,8 @@ DEV bookingUpdate              callable, 512 MiB, nodejs22
 DEV stayCheckIn                callable, ACTIVE, 512 MiB, nodejs22
 DEV stayExtend                 callable, ACTIVE, 512 MiB, nodejs22
 DEV stayCheckout               callable, ACTIVE, 512 MiB, nodejs22
-DEV Hosting                    index-BvF2WUB1.js live; bundle contains six core callables and BookingSoon UI
+DEV paymentRefund              callable, ACTIVE, 512 MiB, nodejs22; 退款保留原付款並以 refundOfPaymentId 關聯
+DEV Hosting                    index-Cn-NyRz2.js live; bundle contains paymentRefund and 帳務完成 markers, with BINI Blooms PMS home response
 DEV HTTP smoke                 home/manifest/favicon/PWA 192 icon = 200
 ```
 
@@ -111,7 +112,7 @@ PowerShell 呼叫 Firebase CLI 時，含逗號的 `--only` 值不可裸寫：它
 
 1. 管理員完成密碼設定後登入，首次綁定 TOTP；正式 pilot 前建立第二位 admin 並演練遺失驗證器恢復。
 2. promotion repository 與批次確認已完成；接續為 promotion 加入 Firestore export／按批次 restore drill，並以匿名化 snapshot 執行一次完整 DEV 匯入驗收。所有權威寫入仍須由 Admin SDK／operation processor 執行，不可由 UI 直寫 Firestore。
-3. room overview 即時讀取、check-in、extend、checkout 與 active-stay 一般收款已完成；接續完成房態／房務／維修 server-authoritative operations，並補付款退款／訂金調整／手動例外／刪除／日結，再依序完成 gantt → bookings 多時段與前置 quote → stays/transfer/monthly → reports/costs/holidays/properties/audit。每個 domain 要有 role matrix、payload schema、idempotency/conflict tests。
+3. room overview 即時讀取、check-in、extend、checkout、active-stay 一般收款與追加式退款已完成；接續完成訂金調整／手動例外／刪除／日結、房務／維修其餘 server-authoritative operations，再依序完成 gantt → bookings 多時段與前置 quote → reports/costs/holidays/properties/audit。每個 domain 要有 role matrix、payload schema、idempotency/conflict tests。
 4. 每個 domain 同步交付 v3 等價桌機頁與完整手機 adaptive view；不得只做靜態畫面或無作用按鈕。
 5. 加入 IndexedDB operation queue、離線／衝突 UI、App Check、預算警示、日誌與 Firestore 匯出／還原演練。
 6. 使用匿名化 v3 snapshot 匯入 DEV，核對筆數、狀態、金額、`property-main` 映射與多裝置衝突。

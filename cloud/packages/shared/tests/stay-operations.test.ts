@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { paymentCreateInputSchema, stayCheckInInputSchema, stayCheckoutInputSchema, stayTransferInputSchema } from '../src/index.js';
+import { paymentCreateInputSchema, paymentRefundInputSchema, stayCheckInInputSchema, stayCheckoutInputSchema, stayTransferInputSchema } from '../src/index.js';
 
 const base = {
   propertyId: 'property-main', operationId: '11111111-1111-4111-8111-111111111111', roomId: '203', bookingId: null,
@@ -39,5 +39,12 @@ describe('normal payment contract', () => {
   it('requires a property-scoped active stay and a positive integer amount', () => {
     expect(paymentCreateInputSchema.parse({ propertyId: 'property-main', operationId: '33333333-3333-4333-8333-333333333333', stayId: 'STY-live-203', amountNts: 800, paymentType: 'cash', note: '補收' })).toMatchObject({ amountNts: 800, paymentType: 'cash' });
     expect(() => paymentCreateInputSchema.parse({ propertyId: 'property-main', operationId: '33333333-3333-4333-8333-333333333333', stayId: 'STY-live-203', amountNts: 0, paymentType: 'cash' })).toThrow();
+  });
+});
+
+describe('payment refund contract', () => {
+  it('requires an auditable source payment, refund method and reason', () => {
+    expect(paymentRefundInputSchema.safeParse({ propertyId: 'property-main', operationId: '55555555-5555-4555-8555-555555555555', paymentId: 'PAY-1', amountNts: 100, paymentType: 'cash', note: '客人取消' }).success).toBe(true);
+    expect(paymentRefundInputSchema.safeParse({ propertyId: 'property-main', operationId: '55555555-5555-4555-8555-555555555555', paymentId: 'PAY-1', amountNts: 100, paymentType: 'cash', note: '' }).success).toBe(false);
   });
 });

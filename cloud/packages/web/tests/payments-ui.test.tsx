@@ -29,7 +29,18 @@ describe('payments UI', () => {
     fireEvent.change(screen.getByLabelText('付款方式'), { target: { value: 'transfer' } });
     fireEvent.click(screen.getByRole('button', { name: '確認收款' }));
     await waitFor(() => expect(create).toHaveBeenCalledWith({ propertyId: 'property-main', operationId: expect.any(String), stayId: 'STY-live-202', amountNts: 1_000, paymentType: 'transfer', note: null }));
-    expect(await screen.findByText('收款完成')).toBeInTheDocument();
+    expect(await screen.findByText('帳務完成')).toBeInTheDocument();
     expect(screen.getByText('付款紀錄')).toBeInTheDocument();
+  });
+
+  it('creates an append-only refund from a paid payment', async () => {
+    const refund = vi.fn().mockResolvedValue({ status: 'refunded', paymentId: 'PAY-old', refundPaymentId: 'PAY-RFD-123', amountNts: 200, createdAt: '2026-09-12T09:00:00.000Z' });
+    render(<App activeStaysGateway={staysGateway} paymentCreateGateway={{ create: vi.fn(), refund } satisfies PaymentCreateGateway} paymentListGateway={listGateway} session={session} />);
+    fireEvent.click(screen.getByRole('link', { name: '付款管理' }));
+    fireEvent.click(await screen.findByRole('button', { name: '退款' }));
+    fireEvent.change(screen.getByLabelText('退款原因'), { target: { value: '旅客取消行程' } });
+    fireEvent.click(screen.getByRole('button', { name: '確認退款' }));
+    await waitFor(() => expect(refund).toHaveBeenCalledWith({ propertyId: 'property-main', operationId: expect.any(String), paymentId: 'PAY-old', amountNts: 200, paymentType: 'cash', note: '旅客取消行程' }));
+    expect(await screen.findByText('帳務完成')).toBeInTheDocument();
   });
 });

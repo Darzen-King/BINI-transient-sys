@@ -29,3 +29,8 @@ export const paymentCreateResultSchema = z.object({
 }).strict();
 
 export type PaymentCreateResult = z.infer<typeof paymentCreateResultSchema>;
+
+export const paymentRefundInputSchema = z.object({ propertyId: propertyIdSchema, operationId: operationIdSchema, paymentId: z.string().trim().min(1).max(128).regex(/^[^/]+$/), amountNts: amountSchema, paymentType: z.enum(BOOKING_PAYMENT_TYPES), note: z.string().trim().min(1).max(2_000) }).strict();
+export type PaymentRefundInput = z.infer<typeof paymentRefundInputSchema>;
+export const paymentRefundResultSchema = z.object({ status: z.enum(['refunded', 'replayed']), paymentId: z.string().min(1).max(128), refundPaymentId: z.string().min(1).max(128), amountNts: amountSchema, createdAt: z.string().datetime() }).strict();
+export type PaymentRefundResult = z.infer<typeof paymentRefundResultSchema>;

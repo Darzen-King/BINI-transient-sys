@@ -104,3 +104,21 @@ export const stayCheckoutResultSchema = z.object({
 }).strict();
 
 export type StayCheckoutResult = z.infer<typeof stayCheckoutResultSchema>;
+
+/** Move an active transient stay to another available room without moving unrelated future bookings. */
+export const stayTransferInputSchema = z.object({
+  propertyId: propertyIdSchema,
+  operationId: operationIdSchema,
+  stayId: z.string().trim().min(1).max(128).regex(/^[^/]+$/),
+  targetRoomId: roomIdSchema,
+}).strict();
+export type StayTransferInput = z.infer<typeof stayTransferInputSchema>;
+
+export const stayTransferResultSchema = z.object({
+  status: z.enum(['transferred', 'replayed']),
+  stayId: z.string().min(1).max(128),
+  previousRoomId: roomIdSchema,
+  targetRoomId: roomIdSchema,
+  transferredAt: dateTimeSchema,
+}).strict();
+export type StayTransferResult = z.infer<typeof stayTransferResultSchema>;

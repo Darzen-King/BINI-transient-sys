@@ -14,6 +14,13 @@ describe('room management domain and contracts', () => {
     expect(items).toEqual([expect.objectContaining({ roomId: '201', monthly: expect.objectContaining({ rentalId: 'MR-live', tenantName: 'Live Tenant', paymentType: 'transfer' }) })]);
   });
 
+  it('joins one active stay to its room and rejects duplicate room occupancy', () => {
+    const rooms = [{ id: '202', data: { roomId: '202', status: '使用中', note: null, maintenanceNote: null, maintenanceDueDate: null } }];
+    const stays = [{ id: 'STY-live', data: { stayId: 'STY-live', roomId: '202', guestName: 'Guest', checkInAt: '2026-09-12T07:00:00.000Z', checkOutAt: '2026-09-14T03:00:00.000Z' } }];
+    expect(buildRoomManagementItems(rooms, [], stays)).toEqual([expect.objectContaining({ activeStay: { stayId: 'STY-live', guestName: 'Guest', checkInAt: '2026-09-12T07:00:00.000Z', checkOutAt: '2026-09-14T03:00:00.000Z' } })]);
+    expect(() => buildRoomManagementItems(rooms, [], [...stays, { id: 'STY-other', data: { ...stays[0].data, stayId: 'STY-other' } }])).toThrow(/multiple active stays/);
+  });
+
   it('requires maintenance details only when setting a maintenance room', () => {
     expect(roomManagementUpdateInputSchema.safeParse({ propertyId: 'property-main', operationId: '00000000-0000-4000-8000-000000000001', roomId: '201', status: '維修中', note: null, maintenanceNote: null, maintenanceDueDate: null }).success).toBe(false);
     expect(roomManagementUpdateInputSchema.safeParse({ propertyId: 'property-main', operationId: '00000000-0000-4000-8000-000000000001', roomId: '201', status: '維修中', note: 'blocked', maintenanceNote: 'air conditioner', maintenanceDueDate: '2026-09-15' }).success).toBe(true);

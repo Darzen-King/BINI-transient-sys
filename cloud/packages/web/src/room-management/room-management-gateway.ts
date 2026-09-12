@@ -1,4 +1,4 @@
-import { buildRoomManagementItems, monthlyRentalCheckoutInputSchema, monthlyRentalOperationResultSchema, monthlyRentalCreateInputSchema, monthlyRentalRenewInputSchema, roomManagementUpdateInputSchema, roomManagementUpdateResultSchema, type MonthlyRentalCheckoutInput, type MonthlyRentalCreateInput, type MonthlyRentalOperationResult, type MonthlyRentalRenewInput, type RoomManagementItem, type RoomManagementUpdateInput, type RoomManagementUpdateResult } from '@bini/cloud-shared';
+import { buildRoomManagementItems, monthlyRentalCheckoutInputSchema, monthlyRentalOperationResultSchema, monthlyRentalCreateInputSchema, monthlyRentalRenewInputSchema, roomManagementUpdateInputSchema, roomManagementUpdateResultSchema, stayTransferInputSchema, stayTransferResultSchema, type MonthlyRentalCheckoutInput, type MonthlyRentalCreateInput, type MonthlyRentalOperationResult, type MonthlyRentalRenewInput, type RoomManagementItem, type RoomManagementUpdateInput, type RoomManagementUpdateResult, type StayTransferInput, type StayTransferResult } from '@bini/cloud-shared';
 import { collection, onSnapshot, type Firestore, type Unsubscribe } from 'firebase/firestore';
 import { httpsCallable, type Functions } from 'firebase/functions';
 
@@ -8,6 +8,7 @@ export interface RoomManagementGateway {
   createMonthly(input: MonthlyRentalCreateInput): Promise<MonthlyRentalOperationResult>;
   renewMonthly(input: MonthlyRentalRenewInput): Promise<MonthlyRentalOperationResult>;
   checkoutMonthly(input: MonthlyRentalCheckoutInput): Promise<MonthlyRentalOperationResult>;
+  transferStay(input: StayTransferInput): Promise<StayTransferResult>;
 }
 
 export function createRoomManagementGateway(database: Firestore, functions: Functions): RoomManagementGateway {
@@ -15,15 +16,18 @@ export function createRoomManagementGateway(database: Firestore, functions: Func
     subscribe(propertyId, onValue, onError) {
       let rooms: Array<{ id: string; data: unknown }> | null = null;
       let rentals: Array<{ id: string; data: unknown }> | null = null;
+      let stays: Array<{ id: string; data: unknown }> | null = null;
       let failed = false;
-      const emit = () => { if (failed || !rooms || !rentals) return; try { onValue(buildRoomManagementItems(rooms, rentals)); } catch (error) { failed = true; onError(error instanceof Error ? error : new Error('房間管理資料格式不正確。')); } };
+      const emit = () => { if (failed || !rooms || !rentals || !stays) return; try { onValue(buildRoomManagementItems(rooms, rentals, stays)); } catch (error) { failed = true; onError(error instanceof Error ? error : new Error('房間管理資料格式不正確。')); } };
       const stopRooms = onSnapshot(collection(database, `properties/${propertyId}/rooms`), (snapshot) => { rooms = snapshot.docs.map((document) => ({ id: document.id, data: document.data() })); emit(); }, (error) => { failed = true; onError(error); });
       const stopRentals = onSnapshot(collection(database, `properties/${propertyId}/monthlyRentals`), (snapshot) => { rentals = snapshot.docs.map((document) => ({ id: document.id, data: document.data() })); emit(); }, (error) => { failed = true; onError(error); });
-      return () => { stopRooms(); stopRentals(); };
+      const stopStays = onSnapshot(collection(database, `properties/${propertyId}/stays`), (snapshot) => { stays = snapshot.docs.map((document) => ({ id: document.id, data: document.data() })); emit(); }, (error) => { failed = true; onError(error); });
+      return () => { stopRooms(); stopRentals(); stopStays(); };
     },
     async update(input) { const call = httpsCallable<RoomManagementUpdateInput, unknown>(functions, 'roomManagementUpdate'); return roomManagementUpdateResultSchema.parse((await call(roomManagementUpdateInputSchema.parse(input))).data); },
     async createMonthly(input) { const call = httpsCallable<MonthlyRentalCreateInput, unknown>(functions, 'monthlyRentalCreate'); return monthlyRentalOperationResultSchema.parse((await call(monthlyRentalCreateInputSchema.parse(input))).data); },
     async renewMonthly(input) { const call = httpsCallable<MonthlyRentalRenewInput, unknown>(functions, 'monthlyRentalRenew'); return monthlyRentalOperationResultSchema.parse((await call(monthlyRentalRenewInputSchema.parse(input))).data); },
     async checkoutMonthly(input) { const call = httpsCallable<MonthlyRentalCheckoutInput, unknown>(functions, 'monthlyRentalCheckout'); return monthlyRentalOperationResultSchema.parse((await call(monthlyRentalCheckoutInputSchema.parse(input))).data); },
+    async transferStay(input) { const call = httpsCallable<StayTransferInput, unknown>(functions, 'stayTransfer'); return stayTransferResultSchema.parse((await call(stayTransferInputSchema.parse(input))).data); },
   };
 }

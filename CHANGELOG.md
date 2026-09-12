@@ -28,7 +28,8 @@
 - 修正真實 v3 備份的匯入相容性：月租續租歷史 `renewed`、免費取消形成的同時刻或早於原訂入住的 stay log，以及小數展示時薪不再錯誤阻擋整批對帳。提前取消會保留原訂入住時間並正規化為零時長歷史紀錄；小數時薪依 v4 既有規則向下取整，權威住宿總額保持原值。轉換版本已提升為 3，使舊版 `blocked` 批次可安全重新對帳；尚未進行正式 promotion。
 - 初始資料導入頁改為顯示 callable 的具體失敗原因，避免將前一次 promotion 的失敗訊息誤判為目前備份格式錯誤；管理員可據同一批次狀態繼續對帳或 promotion。
 - 已完成真實 Dropbox v3 備份批次 `93ba8b3ce620…` 的 Firebase DEV promotion：1,584 筆來源與 prepared 資料完成對帳並 create-only 寫入。驗收確認六間房 `201、202、203、205、206、207`、97 筆預約、3 筆在住房、140 筆歷史住宿、93 筆付款、34 筆月租與 241 筆假日均已存在；auditLogs 為 971 筆，包含此次 migration audit。
-- 「房間管理」已接入真實 Firestore 即時讀取與受保護操作：具 MFA＋`room_management` 權限的使用者可修改一般備註與維修房態（維修說明／預計完成日必填）、建立月租、續租一個月及月租退房。每個操作皆以 UUID 冪等交易更新 room／monthlyRental／必要付款與 append-only audit；月租建立收取租金與押金、續租僅收新一期租金、退租退款不得超過押金且房間會轉為待清潔。桌機直接顯示完整月租／維修資訊；手機點擊房卡後以明細 sheet 操作。入住中的房態仍只允許由入住／退房流程變更，換房 wizard 尚待接入。
+- 「房間管理」已接入真實 Firestore 即時讀取與受保護操作：具 MFA＋`room_management` 權限的使用者可修改一般備註與維修房態（維修說明／預計完成日必填）、建立月租、續租一個月及月租退房。每個操作皆以 UUID 冪等交易更新 room／monthlyRental／必要付款與 append-only audit；月租建立收取租金與押金、續租僅收新一期租金、退租退款不得超過押金且房間會轉為待清潔。桌機直接顯示完整月租／維修資訊；手機點擊房卡後以明細 sheet 操作。入住中的房態仍只允許由入住／退房流程變更。
+- 新增「換房」雲端交易：房間管理即時讀取在住房資料；桌機可直接換房，手機由房卡詳細 sheet 開啟換房表單。`stayTransfer` 要求 MFA＋`room_management` 權限，於單一 transaction 重新檢查來源房態、目標可入住狀態、有效預約及未完成維修排程；成功後同步轉移 active stay／已入住來源預約、將原房設為待清潔，並建立零金額轉房 stay log、audit 與可重試 operation。未關聯的未來預約與付款歷史不會被搬移。
 - 將程式品牌改為專案既有 BINI Blooms 橫式 logo，移除臨時機器人 SVG；使用專案房屋圖檔建立真正透明的 192／512 PWA icon、獨立 maskable icon、Apple touch icon 與 favicon，並更新 manifest 及 Service Worker cache，供手機「加入主畫面」顯示正確 App 圖示。
 - 以 2026-09-09 單機備份副本完成唯讀 dry-run：579,199 bytes／1,589 筆權威候選資料可解析，清理後為 431,817 bytes；5 筆舊使用者已排除，清理後內容不含 password hash/salt。此檔僅作相容性驗證，不作最終搬家來源。
 

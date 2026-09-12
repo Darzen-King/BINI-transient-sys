@@ -8,7 +8,7 @@
 - Firebase：DEV `bini-transient-dev`；PROD `bini-transient`（顯示名稱 `BINI-Transient`）。只部署 DEV，PROD 未部署、未修改。
 - DEV Firestore `(default)`：`asia-east1`、Native mode、Standard edition、delete protection。
 - Identity Platform：email/password、email enumeration protection、關閉公開註冊／自助刪除、TOTP MFA 強制流程。
-- DEV Hosting、Firestore Rules/indexes、十七個 Node.js 22 Functions 已部署；網址：`https://bini-transient-dev.web.app`。
+- DEV Hosting、Firestore Rules/indexes、十八個 Node.js 22 Functions 已部署；網址：`https://bini-transient-dev.web.app`。
 - 首位 admin `biniblooms250808@gmail.com` 已以 server-side bootstrap 建立，`emailVerified=true`、active、`property-main/admin`、17 個頁面權限、`mfaRequired=true`，並已寄出繁中一次性密碼設定信。
 - 實際 Web SDK 設定與 alias 保存在 Git 忽略的 `cloud/.env.local`、`cloud/.firebaserc`；禁止提交或輸出內容。
 
@@ -45,6 +45,7 @@
 - `paymentCreate` 是第七個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`payments` page allowlist。它只接受目前 active stay 的一般收款，在同一 transaction 驗證 property／stay／room identity 和 `使用中`／`即將退房` 房態，原子建立 payment、audit 與 `paymentOperations` UUID fingerprint replay；client 不可直接寫 payment。退款、訂金調整、手動例外、刪除、日結與 CSV 必須保持為後續獨立且可稽核的切片。
 - `housekeepingUpdate` 是第八個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`housekeeping` page allowlist。它只允許 `待清潔 → 清潔中 → 可入住`，拒絕跳級與任意房態覆寫；同一 transaction 更新 room version、audit 與 `housekeepingOperations` UUID replay。
 - `maintenanceScheduleCreate` 是第九個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`maintenance` page allowlist。它驗證起訖時間、room identity，並在同一 transaction 查核同房 `已預約` 時段；發現重疊即拒絕，否則原子建立 schedule、audit 與 `maintenanceOperations` UUID replay。
+- `maintenanceScheduleAction` 是第十個正式 PMS 寫入 callable：同樣要求 MFA＋`maintenance` 權限，只接受 `complete`／`delete`。它以 transaction 驗證 schedule/property identity，完成時寫入完成者與時間，刪除時移除該 schedule；兩者均寫 audit 並以 `maintenanceOperations` UUID fingerprint 重送，不允許 client 直寫。
 - `packages/shared/src/migration/v3-transform.ts` 已完成 12 個權威 v3 table 的白名單 typed transformer：穩定 legacy ID、`property-main` 補值、property-scoped target path、Asia/Taipei 時間、SQLite boolean、整數 NTS、狀態、FK 與重複 active stay 檢查。`active_stays` 統一寫入規格中的 `stays` collection；真實備份仍待操作員從 Dropbox 下載後選檔。
 
 ### 手機 UI 與登入
@@ -54,7 +55,7 @@
 - `AuthGate.tsx`：無註冊入口；email/password → email 驗證 → 首次 TOTP enrollment → 後續 MFA 登入 → profile/role 檢查。
 - 品牌資產：登入／MFA／桌機頂部改用 `/bini-blooms-logo.png`；PWA 使用 `/pwa-192.png`、`/pwa-512.png` 與獨立 `/pwa-512-maskable.png`，另提供 Apple touch icon 與 favicon。`manifest.webmanifest`、`index.html`、`sw.js` 均已更新，舊 `/bini-mark.svg` 已移除。
 - `AccountManagement.tsx`：admin 專用手機卡片與 bottom sheet，可新增、啟停、選角色、勾分頁與重設密碼。
-- `App.tsx`：桌機依 v3 順序顯示 Prototype Hub＋17 個權限分頁的頂部導覽；手機為今日、預約、房務、款項、更多，且「更多」可到達全部低頻功能；沒有雲端備份，使用者管理只對 admin 顯示。
+- `App.tsx`：桌機依 v3 順序顯示 Prototype Hub＋17 個權限分頁的頂部導覽；手機為今日、預約、房務、款項、更多，且「更多」可到達全部低頻功能；沒有雲端備份，使用者管理只對 admin 顯示。若即時房態讀到 0 間房，admin 會看到「開啟初始資料導入」入口；目前 DEV 已唯讀確認 `properties/property-main/rooms` 為 0，未完成真實 Dropbox promotion 前不得用展示房號替代。
 - `bookings/BookingCreatePage.tsx`：新增預約已接真實 Firebase callable；房間選項由 property-scoped listener 驗證後提供，月租房不可選；自動／手動計價、天數、折扣與選填訂金共用桌機雙欄／手機單欄表單。失敗重送須維持同一 operation ID，不能重新產生 UUID；目前沒有 multi 與前置 quote／availability UI。
 - `bookings/booking-cancel.ts` + `App.tsx` 預約明細：預約清單點擊後在桌機 dialog／手機 bottom sheet 顯示相同明細；取消先二次確認再呼叫 callable，失敗重送保持同 UUID。成功後 Firestore 即時清單與房態 projection 自行移除取消預約；預覽模式明確不寫入。
 - `bookings/booking-soon.ts` + `BookingSoonBanner.tsx`：全域 listener 只投影嚴格位於未來 15 分鐘內的有效預約並每 60 秒重算。保留預約僅存 sessionStorage；桌機／手機共用提醒卡與二次確認 UI，標記 No-show 後沿用 `bookingCancel`、保留 retry UUID 並由 audit 區分。尚未搬移提示音。
@@ -69,6 +70,7 @@
 - `domain/booking-list.ts` + `web/src/bookings/booking-list.ts` 已接 property-scoped Firestore 即時預約清單：僅投影 v3 有效 `已預約`、按入住時間排序，支援 booking ID／房號／姓名／電話搜尋。AuthGate 才注入真實 gateway；格式或 listener 失敗時清空清單並顯示錯誤，不能回退展示資料。這只是讀取切片，新增／編輯／取消／No-show 仍未接 transaction handler。
 - `ui-preview.html` 只供本機 Vite 視覺 QA，未列入 Vite production input，Hosting build 不含該檔；不得將免登入預覽公開部署。
 - `InitialDataImport.tsx` + `v3-backup.ts` + `adminStageV3Backup` + `adminPrepareV3Backup` + `adminPromotePreparedV3Backup`：本機選檔預覽、schema 3.5／大小／筆數／重複 ID 檢查；瀏覽器先剔除 users/password、report_summary、未知欄位與 `rooms.next_booking`，Functions 再做 MFA/admin／SHA-256 複驗、default-deny staging、typed transform 與 reconciliation。對帳通過後，UI 要求輸入 `PROMOTE DEV <batch-prefix>`，promotion callable 才會再驗 batch/property/checksum/version/count、每個 prepared path 與 migration metadata；除已驗證的既有雲端館別根設定外，只可 `create` 不存在的資料。既有根設定會保留 `name`／`active`／`currency`／`timezone`，legacy property 只可一次附加至 `legacyV3Import`；其餘既有不同資料 fail closed，相同 batch 的完全相同文件才可續作。成功狀態與完成 audit 在同一 transaction 寫入；批次 metadata 另記錄嘗試／失敗。尚未對真實 Dropbox 檔執行，且 rollback/export restore drill 仍未實作，不能宣稱可正式切換。
+- 已以真實 v3 暫存批次 `93ba8b3ce620…` 找到相容性缺陷：`monthly_rentals.status=renewed` 為 v3 正常續租歷史、零長度 `stay_logs` 為歷史免費取消記錄、`active_stays.hourly_rate` 可為小數展示值。`V3_MIGRATION_TRANSFORM_VERSION` 已提升至 2：保留 renewed、stay log 只拒絕結束早於開始，小數時薪向下取整以維持既有 v4 integer 欄位；`adminPrepareV3Backup` 已重新部署 DEV ACTIVE。舊 `blocked` 批次會以新 transform version 重跑 prepare，不需重新選檔；promotion 仍必須在 MFA 管理員 UI 完成。
 - 實際 dry-run：`bini_backup_20260909_075803.json` 為 579,199 bytes／1,589 筆，清理後 431,817 bytes；排除 5 users，password 欄位傳輸檢查 false。這只是格式相容性證據，正式匯入必須使用操作員從 Dropbox 下載的最新檔。
 - Hosting 曾因 workspace Vite 未讀根目錄 `.env.local` 出現粉色空白頁；已在 `vite.config.ts` 設 `envDir: '../..'`，並新增 `guard:hosting-package`，缺少實際 DEV 設定會在部署前 fail closed。
 - 線上資產 QA：首頁、manifest、favicon、Apple touch icon、三個 PWA icon 與 BINI logo 均 HTTP 200；線上 manifest 的尺寸／purpose 正確，JS bundle 引用新 logo 且無舊 `/bini-mark.svg`，Service Worker 使用新 cache 並包含品牌資產。本輪 Windows `computer-use` RPC 未配置，因此未新增自動化 Chrome 截圖。

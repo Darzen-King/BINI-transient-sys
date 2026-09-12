@@ -26,6 +26,7 @@ export { stayCheckout } from './stays/checkout.js';
 export { paymentCreate } from './payments/create-payment.js';
 export { housekeepingUpdate } from './housekeeping/update-housekeeping.js';
 export { maintenanceScheduleCreate } from './maintenance/create-schedule.js';
+export { maintenanceScheduleAction } from './maintenance/schedule-action.js';
 
 if (getApps().length === 0) initializeApp();
 

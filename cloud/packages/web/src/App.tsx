@@ -270,16 +270,18 @@ function ShellSection({ title, hint, children }: { title: string; hint?: string;
   return <SectionCard hint={hint} title={title}>{children}</SectionCard>;
 }
 
-function TodayView({ canCreate, canCheckIn, canExtend, canCheckout, onAction, onOpenBookingCreate, onOpenCheckIn, onOpenExtend, onOpenCheckout, propertyId, roomOverviewGateway }: {
+function TodayView({ canCreate, canCheckIn, canExtend, canCheckout, canImport, onAction, onOpenBookingCreate, onOpenCheckIn, onOpenExtend, onOpenCheckout, onOpenInitialImport, propertyId, roomOverviewGateway }: {
   canCreate: boolean;
   canCheckIn: boolean;
   canExtend: boolean;
   canCheckout: boolean;
+  canImport: boolean;
   onAction: (action: string) => void;
   onOpenBookingCreate: () => void;
   onOpenCheckIn: () => void;
   onOpenExtend: () => void;
   onOpenCheckout: () => void;
+  onOpenInitialImport: () => void;
   propertyId: string;
   roomOverviewGateway: RoomOverviewGateway | undefined;
 }) {
@@ -330,7 +332,7 @@ function TodayView({ canCreate, canCheckIn, canExtend, canCheckout, onAction, on
       <ShellSection title={text('今日房態', "Today's rooms")} hint={text(`${roomViewModels.length} 間`, `${roomViewModels.length} rooms`)} >
         {loadError ? <Notice tone="danger" title={text('無法載入即時房態', 'Unable to load live room status')}>{text('資料格式或連線異常，請重新整理；系統不會改用展示資料。', 'Refresh the page. The system will not substitute preview data for live data.')}</Notice> : null}
         {roomOverviewGateway && !projection && !loadError ? <div className="empty-card">{text('正在載入即時房態…', 'Loading live room status…')}</div> : null}
-        {projection && projection.rooms.length === 0 ? <div className="empty-card">{text('此館別尚無房間資料；請先完成初始資料導入。', 'This property has no room data. Complete the initial data import first.')}</div> : null}
+        {projection && projection.rooms.length === 0 ? <div className="empty-card"><p>{text('此館別尚無房間資料；請先完成初始資料導入。', 'This property has no room data. Complete the initial data import first.')}</p>{canImport ? <Button onClick={onOpenInitialImport} size="sm">{text('開啟初始資料導入', 'Open initial data import')}</Button> : null}</div> : null}
         <div className="room-grid" role="region" aria-label={text('今日房態', "Today's rooms")}>
           {roomViewModels.map((room) => (
             <article className={`room-card room-card--${room.tone}`} key={room.number}>
@@ -590,7 +592,7 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   if (view === 'accounts' || view === 'users') return <AccountManagement session={session} gateway={accountGateway} />;
   if (view === 'initial_import') return <InitialDataImport session={session} gateway={dataImportGateway} />;
   if (view === 'more') return <MoreView isAdmin={session.role === 'admin'} allowedPages={session.allowedPages} onOpenPage={onOpenPage} onLogout={onLogout} />;
-  if (view === 'today' || view === 'rooms') return <TodayView canCheckIn={session.allowedPages.includes('checkin')} canCreate={session.allowedPages.includes('bookings_new')} canCheckout={session.allowedPages.includes('checkout')} canExtend={session.allowedPages.includes('extend')} onAction={onAction} onOpenBookingCreate={onOpenBookingCreate} onOpenCheckIn={() => onOpenPage('checkin')} onOpenCheckout={() => onOpenPage('checkout')} onOpenExtend={() => onOpenPage('extend')} propertyId={session.propertyId} roomOverviewGateway={roomOverviewGateway} />;
+  if (view === 'today' || view === 'rooms') return <TodayView canCheckIn={session.allowedPages.includes('checkin')} canCreate={session.allowedPages.includes('bookings_new')} canCheckout={session.allowedPages.includes('checkout')} canExtend={session.allowedPages.includes('extend')} canImport={session.role === 'admin'} onAction={onAction} onOpenBookingCreate={onOpenBookingCreate} onOpenCheckIn={() => onOpenPage('checkin')} onOpenCheckout={() => onOpenPage('checkout')} onOpenExtend={() => onOpenPage('extend')} onOpenInitialImport={() => onOpenPage('initial_import')} propertyId={session.propertyId} roomOverviewGateway={roomOverviewGateway} />;
   return <FoundationPage pageId={view} isAdmin={session.role === 'admin'} onOpenInitialImport={() => onOpenPage('initial_import')} />;
 }
 

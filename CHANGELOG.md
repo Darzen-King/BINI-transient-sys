@@ -21,9 +21,11 @@
 - 「退房辦理」已接入 `stayCheckout`：具 MFA 與 `checkout` 頁面權限的帳號可選取在住房、填寫雜費與選填逾時費調整，並以二次確認送出。伺服器以自身時間計算 15 分鐘免費取消、15 分鐘退房緩衝、半小時進位的逾時費，免費取消時建立符合 stay scope 的押金退款；同一 transaction 建立 stay log／退款／audit、房間轉待清潔並刪除 active stay。人工逾時調整保留系統與實收金額供 audit 比對。
 - 「付款管理」已接入第一個正式一般收款切片：即時讀取付款紀錄與在住房，提供 v3 同等的當日實收／退款／淨額／待收與付款方式摘要，並可選擇在住房建立一般收款。`paymentCreate` 需 MFA 與 `payments` 頁面權限，會在單一 transaction 驗證 stay／room identity 與可收款房態，原子建立 payment、audit 與可重試 operation；client 不可直接寫帳務。退款、訂金調整、手動例外收款、刪除、日結與 CSV 匯出仍待獨立 transaction／報表切片完成。
 - 「清潔管理」已接入 `housekeepingUpdate`：即時列出待清潔與清潔中的房間，並只接受 v3 的待清潔 → 清潔中 → 可入住單向流程。MFA 與 `housekeeping` 頁面權限在 transaction 內重新驗證，成功後原子更新房態、version、audit 與可重試 operation；手機與桌機共用觸控友善的房務卡片。
-- 「維修管理」已接入第一個排程切片：即時列出維修排程並可建立房號、標題、起訖時間與備註。`maintenanceScheduleCreate` 需 MFA 與 `maintenance` 權限，於 transaction 中重新檢查房間與同房有效預約；衝突時完全拒絕寫入，成功才建立 schedule、audit 與 operation。排程完成／刪除、維修房解除與進度備註待後續切片。
+- 「維修管理」已接入排程閉環：即時列出維修排程，可建立房號、標題、起訖時間與備註，亦可標記完成或刪除排程。`maintenanceScheduleCreate` 與 `maintenanceScheduleAction` 均要求 MFA／`maintenance` 權限；建立時重新檢查房間與同房有效預約，完成／刪除時以同一筆 transaction 寫入 schedule、audit 與可重試 operation。維修房解除、進度備註與篩選仍待後續切片。
+- 已確認 DEV 的 `properties/property-main/rooms` 為 0 筆，故所有依房間集合建立的選取控制項會停用或無選項；這不是前端假資料問題。房態空白時管理員現在可直接開啟一次性 Dropbox 初始資料導入，必須以原單機版 `bini_blooms_backup.json` 完成對帳與確認 promotion 才會安全建立原有六間房。
 - 新增 admin/MFA 限定「初始資料導入」：接受單機版 Dropbox `bini_blooms_backup.json`（schema 3.5），本機預覽 12 表筆數並先移除舊使用者／密碼、彙總報表、未知欄位、備份設定及 `rooms.next_booking`，再由 `adminStageV3Backup` 驗證 SHA-256 並以穩定 ID 寫入 default-deny staging；新增 `adminPrepareV3Backup` 將 12 類資料轉為 property-scoped typed documents，檢查日期、整數 NTS、狀態、外鍵與重複 active stay，並回傳逐表對帳報告。
 - 新增一次性 DEV 正式匯入 promotion：對帳通過後，管理員必須輸入該批次專屬確認字串，`adminPromotePreparedV3Backup` 才會重新檢查館別、checksum、轉換版本、逐表筆數、prepared 文件路徑與 migration metadata。除已存在的雲端館別根設定外，系統只會建立不存在的文件；根設定會保留 `name`／`active`／`currency`／`timezone`，並一次性附加 legacy property 資料，其餘既有資料一律拒絕覆寫。中斷後只能以相同批次、完全相同的文件安全續作，並與成功狀態原子寫入批次／audit 記錄。此版本僅提供程式與 DEV 部署能力，尚未對任何真實 Dropbox 備份執行 promotion，匯入後的復原演練仍待完成。
+- 修正真實 v3 備份的匯入相容性：月租續租歷史 `renewed`、免費取消形成的同時刻 stay log 與小數展示時薪不再錯誤阻擋整批對帳；小數時薪依 v4 既有規則向下取整，權威住宿總額保持原值。轉換版本已提升為 2，使舊版 `blocked` 批次可安全重新對帳；尚未進行正式 promotion。
 - 將程式品牌改為專案既有 BINI Blooms 橫式 logo，移除臨時機器人 SVG；使用專案房屋圖檔建立真正透明的 192／512 PWA icon、獨立 maskable icon、Apple touch icon 與 favicon，並更新 manifest 及 Service Worker cache，供手機「加入主畫面」顯示正確 App 圖示。
 - 以 2026-09-09 單機備份副本完成唯讀 dry-run：579,199 bytes／1,589 筆權威候選資料可解析，清理後為 431,817 bytes；5 筆舊使用者已排除，清理後內容不含 password hash/salt。此檔僅作相容性驗證，不作最終搬家來源。
 

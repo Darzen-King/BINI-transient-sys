@@ -24,7 +24,9 @@
   - `stayCheckout` callable 與退房頁已完成：伺服器端處理 15 分鐘免費取消、符合範圍的未退款押金退款、15 分鐘退房緩衝、半小時進位的逾時計價與人工調整。單一 transaction 建立 stay log／退款／audit、房間轉待清潔並刪除 active stay；桌機與手機共用帶二次確認的表單，房態快捷直接導向。
   - `paymentCreate` callable 與付款管理頁已完成：即時讀取在住房與付款紀錄，提供當日實收／退款／淨額／待收與各付款方式摘要。收款只允許選擇有效在住房，MFA＋`payments` 頁面權限會在同一 transaction 驗證 stay／room／房態後建立 payment、audit 與可重試 operation；退款、訂金調整、手動例外、刪除與日結仍待獨立切片。
   - `housekeepingUpdate` callable 與清潔管理頁已完成：即時列出待清潔與清潔中的房間，嚴格限制待清潔 → 清潔中 → 可入住；MFA＋`housekeeping` 權限 transaction 會同步 room version、audit 與 operation replay。DEV 函式已 ACTIVE（asia-east1、Node.js 22、512 MiB）。
-  - `maintenanceScheduleCreate` callable 與維修管理頁已完成：即時讀取排程，建立時驗證起訖時間、房間與同房有效預約衝突；成功才建立 schedule、audit 與 operation replay。DEV 函式已 ACTIVE（asia-east1、Node.js 22、512 MiB）。
+  - `maintenanceScheduleCreate`／`maintenanceScheduleAction` callable 與維修管理頁已完成：即時讀取排程，建立時驗證起訖時間、房間與同房有效預約衝突；可標記完成或刪除排程，所有動作均寫入 audit 與 operation replay。兩支 DEV 函式皆為 ACTIVE（asia-east1、Node.js 22、512 MiB）。
+  - 唯讀確認 DEV `properties/property-main/rooms` 為 0 筆，這會使所有房間選取功能無可用房號；不建立假資料。房態空白時，admin 現可直達一次性 Dropbox 初始資料導入，仍須由操作員提供原始 `bini_blooms_backup.json` 走完對帳與確認 promotion。
+  - 使用者暫存真實 Dropbox 批次後，唯讀查到狀態為 `blocked`（1,584 source／1,548 prepared），並定位 v3 合法 `renewed` 月租、零長度歷史 stay log 與小數 hourly rate 相容性缺陷。轉換版本提升至 2、`adminPrepareV3Backup` 已部署 ACTIVE；同批次可重新 prepare，未執行 promotion。
 
 ### 階段 1：權威盤點與差距矩陣
 - **狀態：** complete

@@ -23,9 +23,12 @@ const BOOKING_STATUSES = new Set(['已預約', '已取消', 'No-show', '已入�
 const PAYMENT_STATUSES = new Set(['paid', 'pending', 'partial', 'refunded']);
 const CASHIER_STATUSES = new Set(['open', 'closed']);
 const MAINTENANCE_STATUSES = new Set(['scheduled', 'in_progress', 'done']);
-const MONTHLY_STATUSES = new Set(['active', 'ended']);
+const MONTHLY_STATUSES = new Set(['active', 'ended', 'renewed']);
 
-export const V3_MIGRATION_TRANSFORM_VERSION = 1 as const;
+// Bumped after adding verified compatibility for real v3 renewal, historical
+// zero-duration log, and decimal display-rate records. Existing blocked batches
+// are therefore safely re-prepared instead of reusing their obsolete report.
+export const V3_MIGRATION_TRANSFORM_VERSION = 2 as const;
 
 export const v3BackupPrepareInputSchema = z.object({
   propertyId: z.string().trim().min(1).max(128).regex(/^[^/]+$/),
@@ -117,6 +120,12 @@ function requiredInteger(record: JsonRecord, key: string): number {
   return parsed;
 }
 
+function legacyFiniteNonNegativeNumber(value: unknown, key: string): number {
+  const parsed = typeof value === 'string' && value.trim() ? Number(value) : value;
+  if (typeof parsed !== 'number' || !Number.isFinite(parsed) || parsed < 0) throw new Error(`${key} must be a finite non-negative number`);
+  return parsed;
+}
+
 function nullableDateTime(record: JsonRecord, key: string): string | null {
   return legacyTaipeiDateTimeToIso(record[key]);
 }
@@ -138,6 +147,10 @@ function requiredDate(record: JsonRecord, key: string): string {
 
 function assertRange(start: string | null, end: string | null, label: string): void {
   if (start && end && Date.parse(start) >= Date.parse(end)) throw new Error(`${label} range must end after it starts`);
+}
+
+function assertNonDecreasingRange(start: string | null, end: string | null, label: string): void {
+  if (start && end && Date.parse(start) > Date.parse(end)) throw new Error(`${label} range must not end before it starts`);
 }
 
 function migrationMetadata(row: V3StagingRow, importedAt: string, checksumSha256: string): JsonRecord {
@@ -230,7 +243,10 @@ function transformStay(legacy: JsonRecord, metadata: JsonRecord): JsonRecord {
     totalDueNts: legacyNtsAmount(legacy.total_due),
     checkInAt,
     checkOutAt,
-    hourlyRateNts: legacyNtsAmount(legacy.hourly_rate),
+    // v3 stores this derived display rate as a decimal (for example 2000 / 24),
+    // whereas v4's operational field is an integer and is not used to recompute
+    // imported financial totals. Keep the v3-compatible floor used by v4 check-in.
+    hourlyRateNts: Math.floor(legacyFiniteNonNegativeNumber(legacy.hourly_rate, 'hourly_rate')),
     bookingId: nullableString(legacy, 'booking_id', 128),
     createdAt: nullableDateTime(legacy, 'created_at'),
     originalCheckOutAt: nullableDateTime(legacy, 'original_checkout_time'),
@@ -240,7 +256,7 @@ function transformStay(legacy: JsonRecord, metadata: JsonRecord): JsonRecord {
 function transformStayLog(legacy: JsonRecord, metadata: JsonRecord): JsonRecord {
   const checkInAt = nullableDateTime(legacy, 'checkin_time');
   const checkOutAt = nullableDateTime(legacy, 'checkout_time');
-  assertRange(checkInAt, checkOutAt, 'stay log');
+  assertNonDecreasingRange(checkInAt, checkOutAt, 'stay log');
   return {
     ...metadata,
     roomId: requiredString(legacy, 'room', 128),

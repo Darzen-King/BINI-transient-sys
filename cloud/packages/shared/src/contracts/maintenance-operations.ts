@@ -4,3 +4,7 @@ export const maintenanceScheduleCreateInputSchema = z.object({ propertyId, opera
 export type MaintenanceScheduleCreateInput = z.infer<typeof maintenanceScheduleCreateInputSchema>;
 export const maintenanceScheduleCreateResultSchema = z.object({ status: z.enum(['created', 'replayed']), scheduleId: z.string().min(1).max(128), roomId, startAt: dateTime, endAt: dateTime }).strict();
 export type MaintenanceScheduleCreateResult = z.infer<typeof maintenanceScheduleCreateResultSchema>;
+export const maintenanceScheduleActionInputSchema = z.object({ propertyId, operationId, scheduleId: z.string().trim().min(1).max(128).regex(/^[^/]+$/), action: z.enum(['complete', 'delete']) }).strict();
+export type MaintenanceScheduleActionInput = z.infer<typeof maintenanceScheduleActionInputSchema>;
+export const maintenanceScheduleActionResultSchema = z.object({ status: z.enum(['completed', 'deleted', 'replayed']), scheduleId: z.string().min(1).max(128), action: z.enum(['complete', 'delete']), completedAt: dateTime.nullable() }).strict();
+export type MaintenanceScheduleActionResult = z.infer<typeof maintenanceScheduleActionResultSchema>;

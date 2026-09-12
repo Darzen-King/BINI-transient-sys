@@ -84,6 +84,24 @@ describe('v3 migration transformation and reconciliation', () => {
     }));
   });
 
+  it('accepts v3 renewal history, zero-duration stay logs, and decimal display hourly rates', () => {
+    const backup = JSON.parse(fullBackup()) as {
+      active_stays: Array<Record<string, unknown>>;
+      monthly_rentals: Array<Record<string, unknown>>;
+      stay_logs: Array<Record<string, unknown>>;
+    };
+    backup.active_stays[0].hourly_rate = 83.33333333333333;
+    backup.monthly_rentals[0].status = 'renewed';
+    backup.stay_logs[0].checkout_time = backup.stay_logs[0].checkin_time;
+
+    const inspection = inspectV3BackupText(JSON.stringify(backup));
+    const result = prepareV3Migration(buildV3StagingRows(inspection, 'property-main'), { importedAt, checksumSha256 });
+
+    expect(result.report.valid).toBe(true);
+    expect(result.documents.find((document) => document.sourceTable === 'monthly_rentals')?.data.status).toBe('renewed');
+    expect(result.documents.find((document) => document.sourceTable === 'active_stays')?.data.hourlyRateNts).toBe(83);
+  });
+
   it('blocks orphan room and booking references', () => {
     const result = prepare({
       payments: [{ id: 4, booking_id: 'MISSING', room_id: '999', guest: 'Guest', payment_type: 'cash', amount: 500, is_deposit: 0, is_refund: 0, payment_status: 'paid', note: null, created_at: '2026-09-11 14:30', created_by: 'admin', invoice_no: null, external_txn_id: null, accounting_exported_at: null }],

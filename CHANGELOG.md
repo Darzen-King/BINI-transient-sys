@@ -19,7 +19,7 @@
 - 「入住登記」已接入 `stayCheckIn`：具 MFA 與 `checkin` 頁面權限的帳號可由有效預約帶入或建立 walk-in。它在一筆 Firestore transaction 內驗證可入住的房態、既有 stay、同房有效預約與維修時段，伺服器依 v3 假日／方案／天數規則重算金額，原子建立 stay、房間轉「使用中」、來源預約轉「已入住」、選填押金、audit 與可重試 operation。桌機／手機共用同一表單，房間總覽的「辦理入住」直接進入該流程；舊單機版覆蓋既有 stay 的行為不搬移。
 - 「延住處理」已接入 `stayExtend`：具 MFA 與 `extend` 頁面權限的帳號可選取即時在住房，查看原／目前／新退房、目前與累計延住費、應收與逐區塊預覽。延住費完全沿用 v3 的入住時間軸與 12 小時封頂規則，因此 12 小時延至 24 小時只收該時段差額，不會重新計算為新的一段住宿。送出時會在同一 Firestore transaction 再次檢查房間、未來有效預約與未完成維修，若撞期即拒絕且不寫入任何資料；成功後原子更新 stay／room、audit 與可重試 operation。單機版「先寫入、僅顯示撞期警告」的行為刻意提升為雲端 fail-closed，避免跨裝置超賣。
 - 「退房辦理」已接入 `stayCheckout`：具 MFA 與 `checkout` 頁面權限的帳號可選取在住房、填寫雜費與選填逾時費調整，並以二次確認送出。伺服器以自身時間計算 15 分鐘免費取消、15 分鐘退房緩衝、半小時進位的逾時費，免費取消時建立符合 stay scope 的押金退款；同一 transaction 建立 stay log／退款／audit、房間轉待清潔並刪除 active stay。人工逾時調整保留系統與實收金額供 audit 比對。
-- 「付款管理」已接入一般收款與追加式退款：即時讀取付款紀錄與在住房，提供 v3 同等的當日實收／退款／淨額／待收與付款方式摘要，並可選擇在住房建立一般收款。`paymentCreate` 需 MFA 與 `payments` 頁面權限，會在單一 transaction 驗證 stay／room identity 與可收款房態，原子建立 payment、audit 與可重試 operation；client 不可直接寫帳務。`paymentRefund` 同樣受 MFA／`payments` 保護，原付款永不覆寫或刪除，而是建立關聯的退款 payment；伺服器 transaction 重新檢查原付款、既有退款累計與可退餘額，並寫入 audit／可重試 operation。訂金調整、手動例外收款、刪除、日結與 CSV 匯出仍待獨立 transaction／報表切片完成。
+- 「付款管理」已接入一般收款、追加式退款與手動例外收款：即時讀取付款紀錄與在住房，提供 v3 同等的當日實收／退款／淨額／待收與付款方式摘要。`paymentCreate` 需 MFA 與 `payments` 頁面權限，會在單一 transaction 驗證 stay／room identity 與可收款房態，原子建立 payment、audit 與可重試 operation；client 不可直接寫帳務。`paymentRefund` 同樣受 MFA／`payments` 保護，原付款永不覆寫或刪除，而是建立關聯的退款 payment；伺服器 transaction 重新檢查原付款、既有退款累計與可退餘額。`paymentManualCreate` 則供無法使用在住房收款的例外，強制旅客、原因與正數金額；房號選填但填寫時必須存在，若未來 API 關聯預約也會重查同館別與房間一致性。三者皆寫入 audit／可重試 operation。訂金調整、刪除、日結與 CSV 匯出仍待獨立 transaction／報表切片完成。
 - 「清潔管理」已接入 `housekeepingUpdate`：即時列出待清潔與清潔中的房間，並只接受 v3 的待清潔 → 清潔中 → 可入住單向流程。MFA 與 `housekeeping` 頁面權限在 transaction 內重新驗證，成功後原子更新房態、version、audit 與可重試 operation；手機與桌機共用觸控友善的房務卡片。
 - 「維修管理」已接入排程閉環：即時列出維修排程，可建立房號、標題、起訖時間與備註，亦可標記完成或刪除排程。`maintenanceScheduleCreate` 與 `maintenanceScheduleAction` 均要求 MFA／`maintenance` 權限；建立時重新檢查房間與同房有效預約，完成／刪除時以同一筆 transaction 寫入 schedule、audit 與可重試 operation。維修房解除、進度備註與篩選仍待後續切片。
 - 已確認 DEV 的 `properties/property-main/rooms` 為 0 筆，故所有依房間集合建立的選取控制項會停用或無選項；這不是前端假資料問題。房態空白時管理員現在可直接開啟一次性 Dropbox 初始資料導入，必須以原單機版 `bini_blooms_backup.json` 完成對帳與確認 promotion 才會安全建立原有六間房。
@@ -47,7 +47,7 @@
 - 修正 Hosting 空白頁：workspace Vite 明確由 `cloud/.env.local` 讀取 DEV 設定；新增 bundle guard，缺設定、placeholder 或非 DEV project 時禁止部署。
 - DEV 預覽：`https://bini-transient-dev.web.app`。實際手機瀏覽器確認登入卡正常、無目前版本 console error，且頁面沒有註冊或外部備份入口。
 - 驗證：145 項 Vitest、6 項 DEV 部署防護、typecheck、lint 與 production build 通過；Rules Emulator 最近完整結果為 41/41（本次未改 Rules）。DEV live function list 確認十五個 Functions 全位於 `asia-east1`，其中新增的 `paymentCreate` 為 Node.js 22／512 MiB、ACTIVE。首頁與最新線上 bundle `index-DfdlN6xD.js` 均 HTTP 200，bundle 已包含付款頁與 `paymentCreate`。瀏覽器版面契約涵蓋 320／375／430／768／1100px；未登入 UI preview 未進 production build。
-- 限制：目前已完成單筆預約建立／修改／取消、15 分鐘 No-show 視覺提醒／人工標記、入住、延住、退房、在住房一般收款與追加式退款；首次資料 promotion 僅為一次性 migration callable。提醒提示音、多時段、訂金調整／手動例外／刪除／日結／CSV、房務、維修、報表等尚未接入正式 domain handlers，不可作為正式營運版。
+- 限制：目前已完成單筆預約建立／修改／取消、15 分鐘 No-show 視覺提醒／人工標記、入住、延住、退房、在住房一般收款、追加式退款與手動例外收款；首次資料 promotion 僅為一次性 migration callable。提醒提示音、多時段、訂金調整／刪除／日結／CSV、房務、維修、報表等尚未接入正式 domain handlers，不可作為正式營運版。
 
 ---
 

@@ -25,6 +25,7 @@ export { stayExtend } from './stays/extend.js';
 export { stayCheckout } from './stays/checkout.js';
 export { stayTransfer } from './stays/transfer.js';
 export { paymentRefund } from './payments/refund-payment.js';
+export { paymentManualCreate } from './payments/create-manual-payment.js';
 export { paymentCreate } from './payments/create-payment.js';
 export { housekeepingUpdate } from './housekeeping/update-housekeeping.js';
 export { maintenanceScheduleCreate } from './maintenance/create-schedule.js';

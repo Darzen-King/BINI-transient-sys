@@ -26,6 +26,7 @@
 - 新增 admin/MFA 限定「初始資料導入」：接受單機版 Dropbox `bini_blooms_backup.json`（schema 3.5），本機預覽 12 表筆數並先移除舊使用者／密碼、彙總報表、未知欄位、備份設定及 `rooms.next_booking`，再由 `adminStageV3Backup` 驗證 SHA-256 並以穩定 ID 寫入 default-deny staging；新增 `adminPrepareV3Backup` 將 12 類資料轉為 property-scoped typed documents，檢查日期、整數 NTS、狀態、外鍵與重複 active stay，並回傳逐表對帳報告。
 - 新增一次性 DEV 正式匯入 promotion：對帳通過後，管理員必須輸入該批次專屬確認字串，`adminPromotePreparedV3Backup` 才會重新檢查館別、checksum、轉換版本、逐表筆數、prepared 文件路徑與 migration metadata。除已存在的雲端館別根設定外，系統只會建立不存在的文件；根設定會保留 `name`／`active`／`currency`／`timezone`，並一次性附加 legacy property 資料，其餘既有資料一律拒絕覆寫。中斷後只能以相同批次、完全相同的文件安全續作，並與成功狀態原子寫入批次／audit 記錄。此版本僅提供程式與 DEV 部署能力，尚未對任何真實 Dropbox 備份執行 promotion，匯入後的復原演練仍待完成。
 - 修正真實 v3 備份的匯入相容性：月租續租歷史 `renewed`、免費取消形成的同時刻或早於原訂入住的 stay log，以及小數展示時薪不再錯誤阻擋整批對帳。提前取消會保留原訂入住時間並正規化為零時長歷史紀錄；小數時薪依 v4 既有規則向下取整，權威住宿總額保持原值。轉換版本已提升為 3，使舊版 `blocked` 批次可安全重新對帳；尚未進行正式 promotion。
+- 初始資料導入頁改為顯示 callable 的具體失敗原因，避免將前一次 promotion 的失敗訊息誤判為目前備份格式錯誤；管理員可據同一批次狀態繼續對帳或 promotion。
 - 將程式品牌改為專案既有 BINI Blooms 橫式 logo，移除臨時機器人 SVG；使用專案房屋圖檔建立真正透明的 192／512 PWA icon、獨立 maskable icon、Apple touch icon 與 favicon，並更新 manifest 及 Service Worker cache，供手機「加入主畫面」顯示正確 App 圖示。
 - 以 2026-09-09 單機備份副本完成唯讀 dry-run：579,199 bytes／1,589 筆權威候選資料可解析，清理後為 431,817 bytes；5 筆舊使用者已排除，清理後內容不含 password hash/salt。此檔僅作相容性驗證，不作最終搬家來源。
 

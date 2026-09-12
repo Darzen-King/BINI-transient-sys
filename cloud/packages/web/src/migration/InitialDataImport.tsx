@@ -14,6 +14,8 @@ import { Button, Notice, SectionCard } from '../design-system/index.js';
 import { useLocale } from '../i18n/locale.js';
 import { sha256Hex, type DataImportGateway, type V3BackupStageResult } from './data-import.js';
 
+const errorMessage = (error: unknown, fallback: string) => error instanceof Error && error.message ? error.message : fallback;
+
 interface SelectedBackup {
   fileName: string;
   content: string;
@@ -82,8 +84,8 @@ export function InitialDataImport({ session, gateway }: { session: StaffSession;
         checksumSha256: selected.checksumSha256,
         content: selected.content,
       }));
-    } catch {
-      setError(text('匯入暫存失敗；尚未變更任何正式營運資料，請確認登入狀態後重試。', 'Staging failed. No operational data changed. Check your session and try again.'));
+    } catch (stageError) {
+      setError(errorMessage(stageError, text('匯入暫存失敗；尚未變更任何正式營運資料，請確認登入狀態後重試。', 'Staging failed. No operational data changed. Check your session and try again.')));
     } finally {
       setBusy(false);
     }
@@ -99,8 +101,8 @@ export function InitialDataImport({ session, gateway }: { session: StaffSession;
         propertyId: session.propertyId,
         batchId: stageResult.batchId,
       }));
-    } catch {
-      setError(text('對帳準備失敗；尚未變更任何正式營運資料，請稍後重試。', 'Reconciliation preparation failed. No operational data changed. Try again later.'));
+    } catch (prepareError) {
+      setError(errorMessage(prepareError, text('對帳準備失敗；尚未變更任何正式營運資料，請稍後重試。', 'Reconciliation preparation failed. No operational data changed. Try again later.')));
     } finally {
       setBusy(false);
     }
@@ -119,8 +121,8 @@ export function InitialDataImport({ session, gateway }: { session: StaffSession;
         batchId: stageResult.batchId,
         confirmation,
       }));
-    } catch {
-      setError(text('正式匯入未完成。系統不會覆寫既有營運資料；請由管理員確認同一批次的狀態後再處理。', 'Promotion did not complete. Existing operational data was not overwritten; an administrator must review this same batch before proceeding.'));
+    } catch (promotionError) {
+      setError(errorMessage(promotionError, text('正式匯入未完成。系統不會覆寫既有營運資料；請由管理員確認同一批次的狀態後再處理。', 'Promotion did not complete. Existing operational data was not overwritten; an administrator must review this same batch before proceeding.')));
     } finally {
       setBusy(false);
     }

@@ -18,6 +18,7 @@ export interface BookingListItem {
   amountNts: number;
   discountNts: number;
   rateType: string | null;
+  pricingMode?: 'automatic' | 'manual';
   status: typeof CLOUD_ACTIVE_BOOKING_STATUSES[number];
 }
 
@@ -33,6 +34,7 @@ const bookingSchema = z.object({
   amountNts: z.number().int().safe(),
   discountNts: z.number().int().safe(),
   rateType: z.string().trim().max(100).nullable().optional(),
+  pricingMode: z.enum(['automatic', 'manual']).optional(),
   status: z.enum(['已預約', '已取消', 'No-show', '已入住']),
 }).passthrough();
 
@@ -73,6 +75,7 @@ export function buildActiveBookingList(
       amountNts: booking.amountNts,
       discountNts: booking.discountNts,
       rateType: booking.rateType ?? null,
+      ...(booking.pricingMode ? { pricingMode: booking.pricingMode } : {}),
       status: booking.status,
     }));
 }

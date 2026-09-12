@@ -68,6 +68,50 @@ export const bookingCreateResultSchema = z.object({
 
 export type BookingCreateResult = z.infer<typeof bookingCreateResultSchema>;
 
+export const bookingUpdateInputSchema = z.object({
+  propertyId: propertyIdSchema,
+  operationId: operationIdSchema,
+  bookingId: bookingIdSchema,
+  roomId: roomIdSchema,
+  guestName: z.string().trim().min(1).max(300),
+  phone: z.string().trim().max(100).nullable().optional(),
+  checkInAt: dateTimeSchema,
+  plan: z.enum(BOOKING_PLANS),
+  days: z.number().int().min(1).max(366),
+  discountNts: ntsAmountSchema,
+  pricingMode: z.enum(['automatic', 'manual']),
+  manualAmountNts: ntsAmountSchema.optional(),
+}).strict().superRefine((input, context) => {
+  if (input.pricingMode === 'manual' && input.manualAmountNts === undefined) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['manualAmountNts'],
+      message: '手動金額模式必須提供金額。',
+    });
+  }
+  if (input.pricingMode === 'automatic' && input.manualAmountNts !== undefined) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['manualAmountNts'],
+      message: '自動計價不可附帶手動金額。',
+    });
+  }
+});
+
+export type BookingUpdateInput = z.infer<typeof bookingUpdateInputSchema>;
+
+export const bookingUpdateResultSchema = z.object({
+  status: z.enum(['updated', 'replayed']),
+  bookingId: bookingIdSchema,
+  checkInAt: dateTimeSchema,
+  checkOutAt: dateTimeSchema,
+  amountNts: ntsAmountSchema,
+  discountNts: ntsAmountSchema,
+  rateType: z.enum(['非假日', '假日']),
+}).strict();
+
+export type BookingUpdateResult = z.infer<typeof bookingUpdateResultSchema>;
+
 export const bookingCancelInputSchema = z.object({
   propertyId: propertyIdSchema,
   operationId: operationIdSchema,
@@ -99,6 +143,11 @@ export interface BookingQuote {
   discountNts: number;
   rateType: '非假日' | '假日';
 }
+
+export type BookingPricingInput = Pick<
+  BookingCreateInput,
+  'checkInAt' | 'plan' | 'days' | 'discountNts' | 'pricingMode' | 'manualAmountNts'
+>;
 
 export interface BookingAvailabilityCandidate {
   id: string;
@@ -164,7 +213,7 @@ export function isV3Holiday(dayKey: string, calendar: BookingHolidayCalendar): b
   return weekday === 5 || V3_STATIC_HOLIDAY_DATES.has(dayKey) || V3_STATIC_HOLIDAY_DATES.has(tomorrow);
 }
 
-export function quoteBooking(input: BookingCreateInput, calendar: BookingHolidayCalendar): BookingQuote {
+export function quoteBooking(input: BookingPricingInput, calendar: BookingHolidayCalendar): BookingQuote {
   const checkInMillis = Date.parse(input.checkInAt);
   const planHours = input.plan === '12hrs' ? 12 : 24;
   const blockCount = (planHours * input.days) / 12;

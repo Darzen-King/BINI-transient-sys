@@ -8,6 +8,8 @@ import type { BookingListItem } from '@bini/cloud-shared';
 import { App } from '../src/App.js';
 import type { BookingCancelGateway } from '../src/bookings/booking-cancel.js';
 import type { BookingListGateway } from '../src/bookings/booking-list.js';
+import type { BookingUpdateGateway } from '../src/bookings/booking-update.js';
+import type { BookingRoomGateway } from '../src/rooms/booking-room-options.js';
 
 afterEach(cleanup);
 
@@ -29,6 +31,15 @@ function gateway(value: BookingListItem[]): BookingListGateway {
   return {
     subscribe(_propertyId, onValue) {
       queueMicrotask(() => onValue(value));
+      return () => undefined;
+    },
+  };
+}
+
+function roomGateway(): BookingRoomGateway {
+  return {
+    subscribe(_propertyId, onValue) {
+      queueMicrotask(() => onValue([{ roomId: '203', status: '可入住' }]));
       return () => undefined;
     },
   };
@@ -94,5 +105,40 @@ describe('live booking list UI', () => {
 
     await waitFor(() => expect(cancel).toHaveBeenCalledTimes(2));
     expect(cancel.mock.calls[1]?.[0].operationId).toBe(cancel.mock.calls[0]?.[0].operationId);
+  });
+
+  it('edits from the detail dialog with the same validated room form', async () => {
+    const update = vi.fn().mockResolvedValue({
+      status: 'updated', bookingId: 'RSV-live-203', checkInAt: '2026-09-14T05:00:00.000Z', checkOutAt: '2026-09-15T05:00:00.000Z', amountNts: 1_200, discountNts: 0, rateType: '非假日',
+    });
+    render(<App bookingListGateway={gateway(bookings)} bookingUpdateGateway={{ update } satisfies BookingUpdateGateway} bookingRoomGateway={roomGateway()} />);
+    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(await screen.findByText('203 · Live Guest'));
+    fireEvent.click(screen.getByRole('button', { name: '修改預約' }));
+    await screen.findByText('修改預約 · RSV-live-203');
+    fireEvent.change(screen.getByLabelText('住客姓名'), { target: { value: 'Changed Guest' } });
+    fireEvent.click(screen.getByRole('button', { name: '儲存變更' }));
+
+    await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({
+      propertyId: 'property-main', bookingId: 'RSV-live-203', roomId: '203', guestName: 'Changed Guest', plan: '24hrs', days: 1, pricingMode: 'automatic', operationId: expect.any(String),
+    })));
+    expect(await screen.findByText('預約已更新')).toBeInTheDocument();
+  });
+
+  it('reuses the update operation id when a save is retried', async () => {
+    const update = vi.fn()
+      .mockRejectedValueOnce(new Error('temporary network failure'))
+      .mockResolvedValueOnce({ status: 'updated', bookingId: 'RSV-live-203', checkInAt: '2026-09-14T05:00:00.000Z', checkOutAt: '2026-09-15T05:00:00.000Z', amountNts: 1_200, discountNts: 0, rateType: '非假日' });
+    render(<App bookingListGateway={gateway(bookings)} bookingUpdateGateway={{ update } satisfies BookingUpdateGateway} bookingRoomGateway={roomGateway()} />);
+    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(await screen.findByText('203 · Live Guest'));
+    fireEvent.click(screen.getByRole('button', { name: '修改預約' }));
+    await screen.findByText('修改預約 · RSV-live-203');
+    fireEvent.click(screen.getByRole('button', { name: '儲存變更' }));
+    await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: '儲存變更' }));
+
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(2));
+    expect(update.mock.calls[1]?.[0].operationId).toBe(update.mock.calls[0]?.[0].operationId);
   });
 });

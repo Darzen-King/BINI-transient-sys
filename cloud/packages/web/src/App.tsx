@@ -19,7 +19,9 @@ import { InitialDataImport } from './migration/InitialDataImport.js';
 import type { DataImportGateway } from './migration/data-import.js';
 import type { BookingListGateway } from './bookings/booking-list.js';
 import type { BookingCancelGateway } from './bookings/booking-cancel.js';
+import type { BookingUpdateGateway } from './bookings/booking-update.js';
 import { BookingCreatePage } from './bookings/BookingCreatePage.js';
+import { BookingEditPage } from './bookings/BookingEditPage.js';
 import type { BookingCreateGateway } from './bookings/booking-create.js';
 import type { RoomOverviewGateway } from './rooms/room-overview.js';
 import type { BookingRoomGateway } from './rooms/booking-room-options.js';
@@ -364,13 +366,16 @@ const previewBookings: BookingListItem[] = [
   { bookingId: 'RSV-preview-205', roomId: '205', guestName: 'Michael', phone: null, checkInAt: '2026-09-14T13:00:00+08:00', checkOutAt: '2026-09-15T13:00:00+08:00', plan: '12hrs', amountNts: 800, discountNts: 0, rateType: '非假日', status: '已預約' },
 ];
 
-function BookingsView({ canCreate, canCancel, onOpenBookingCreate, propertyId, gateway, bookingCancelGateway }: {
+function BookingsView({ canCreate, canCancel, onOpenBookingCreate, propertyId, gateway, bookingCancelGateway, bookingUpdateGateway, roomGateway, session }: {
   canCreate: boolean;
   canCancel: boolean;
   onOpenBookingCreate: () => void;
   propertyId: string;
   gateway: BookingListGateway | undefined;
   bookingCancelGateway: BookingCancelGateway | undefined;
+  bookingUpdateGateway: BookingUpdateGateway | undefined;
+  roomGateway: BookingRoomGateway | undefined;
+  session: StaffSession;
 }) {
   const { locale, text } = useLocale();
   const [bookings, setBookings] = useState<BookingListItem[] | null>(null);
@@ -382,6 +387,7 @@ function BookingsView({ canCreate, canCancel, onOpenBookingCreate, propertyId, g
   const [cancelError, setCancelError] = useState('');
   const [cancelledAt, setCancelledAt] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [editingBooking, setEditingBooking] = useState<BookingListItem | null>(null);
   const visibleBookings = gateway
     ? (bookings ?? []).filter((booking) => [booking.bookingId, booking.roomId, booking.guestName, booking.phone ?? ''].some((value) => value.toLocaleLowerCase('zh-TW').includes(query.trim().toLocaleLowerCase('zh-TW'))))
     : previewBookings.filter((booking) => [booking.bookingId, booking.roomId, booking.guestName, booking.phone ?? ''].some((value) => value.toLocaleLowerCase('zh-TW').includes(query.trim().toLocaleLowerCase('zh-TW'))));
@@ -433,6 +439,10 @@ function BookingsView({ canCreate, canCancel, onOpenBookingCreate, propertyId, g
     }
   };
 
+  if (editingBooking) {
+    return <BookingEditPage booking={editingBooking} gateway={bookingUpdateGateway} onBack={() => setEditingBooking(null)} roomGateway={roomGateway} session={session} />;
+  }
+
   return (
     <ShellSection title={text('預約', 'Bookings')} hint={text(`${visibleBookings.length} 筆有效預約`, `${visibleBookings.length} active bookings`)}>
       {canCreate ? <Button block onClick={onOpenBookingCreate} size="lg">＋ {text('新增預約', 'New booking')}</Button> : null}
@@ -465,6 +475,7 @@ function BookingsView({ canCreate, canCancel, onOpenBookingCreate, propertyId, g
           {!bookingCancelGateway ? <Notice tone="warning" title={text('預覽模式', 'Preview mode')}>{text('預覽不會寫入預約資料。', 'Preview mode does not write booking data.')}</Notice> : null}
           {confirmCancel && !cancelledAt ? <Notice tone="warning" title={text('確認取消預約？', 'Confirm cancellation?')}>{text('取消後會立即釋放此時段，且會寫入稽核紀錄。', 'This immediately releases the time slot and writes an audit record.')}</Notice> : null}
           <div className="booking-detail-actions">
+            {canCancel && bookingUpdateGateway && !cancelledAt ? <Button onClick={() => { const next = selectedBooking; closeDetails(); setEditingBooking(next); }} variant="secondary">{text('修改預約', 'Edit booking')}</Button> : null}
             {canCancel && bookingCancelGateway && !cancelledAt && !confirmCancel ? <Button onClick={() => setConfirmCancel(true)} variant="danger">{text('取消預約', 'Cancel booking')}</Button> : null}
             {canCancel && bookingCancelGateway && !cancelledAt && confirmCancel ? <Button loading={cancelBusy} onClick={() => void cancelBooking()} variant="danger">{text('確認取消', 'Confirm cancellation')}</Button> : null}
             {confirmCancel && !cancelledAt ? <Button disabled={cancelBusy} onClick={() => setConfirmCancel(false)} variant="ghost">{text('返回', 'Back')}</Button> : null}
@@ -543,7 +554,7 @@ function FoundationPage({ pageId, isAdmin, onOpenInitialImport }: {
   );
 }
 
-function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingCreateGateway, bookingRoomGateway, roomOverviewGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
+function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingCreateGateway, bookingRoomGateway, roomOverviewGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
   view: ViewId;
   onAction: (action: string) => void;
   session: StaffSession;
@@ -551,6 +562,7 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   dataImportGateway: DataImportGateway | undefined;
   bookingListGateway: BookingListGateway | undefined;
   bookingCancelGateway: BookingCancelGateway | undefined;
+  bookingUpdateGateway: BookingUpdateGateway | undefined;
   bookingCreateGateway: BookingCreateGateway | undefined;
   bookingRoomGateway: BookingRoomGateway | undefined;
   roomOverviewGateway: RoomOverviewGateway | undefined;
@@ -558,7 +570,7 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   onOpenPage: (pageId: CloudPageId | UtilityViewId) => void;
   onLogout: () => void;
 }) {
-  if (view === 'bookings') return <BookingsView bookingCancelGateway={bookingCancelGateway} canCancel={session.allowedPages.includes('bookings')} canCreate={session.allowedPages.includes('bookings_new')} gateway={bookingListGateway} onOpenBookingCreate={onOpenBookingCreate} propertyId={session.propertyId} />;
+  if (view === 'bookings') return <BookingsView bookingCancelGateway={bookingCancelGateway} bookingUpdateGateway={bookingUpdateGateway} canCancel={session.allowedPages.includes('bookings')} canCreate={session.allowedPages.includes('bookings_new')} gateway={bookingListGateway} onOpenBookingCreate={onOpenBookingCreate} propertyId={session.propertyId} roomGateway={bookingRoomGateway} session={session} />;
   if (view === 'bookings_new') return <BookingCreatePage gateway={bookingCreateGateway} onViewBookings={() => onOpenPage('bookings')} roomGateway={bookingRoomGateway} session={session} />;
   if (view === 'housekeeping') return <HousekeepingView />;
   if (view === 'payments') return <PaymentsView onAction={onAction} />;
@@ -592,6 +604,7 @@ export function App({
   dataImportGateway,
   bookingListGateway,
   bookingCancelGateway,
+  bookingUpdateGateway,
   bookingCreateGateway,
   bookingRoomGateway,
   roomOverviewGateway,
@@ -603,6 +616,7 @@ export function App({
   dataImportGateway?: DataImportGateway;
   bookingListGateway?: BookingListGateway;
   bookingCancelGateway?: BookingCancelGateway;
+  bookingUpdateGateway?: BookingUpdateGateway;
   bookingCreateGateway?: BookingCreateGateway;
   bookingRoomGateway?: BookingRoomGateway;
   roomOverviewGateway?: RoomOverviewGateway;
@@ -668,6 +682,7 @@ export function App({
           dataImportGateway={dataImportGateway}
           bookingListGateway={bookingListGateway}
           bookingCancelGateway={bookingCancelGateway}
+          bookingUpdateGateway={bookingUpdateGateway}
           bookingCreateGateway={bookingCreateGateway}
           bookingRoomGateway={bookingRoomGateway}
           roomOverviewGateway={roomOverviewGateway}

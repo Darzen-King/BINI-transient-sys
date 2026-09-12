@@ -19,6 +19,7 @@ export { adminPrepareV3Backup } from './migration/prepare-v3-backup.js';
 export { adminPromotePreparedV3Backup } from './migration/promote-v3-backup.js';
 export { bookingCreate } from './bookings/create-booking.js';
 export { bookingCancel } from './bookings/cancel-booking.js';
+export { bookingUpdate } from './bookings/update-booking.js';
 
 if (getApps().length === 0) initializeApp();
 

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   bookingCancelInputSchema,
   bookingCreateInputSchema,
+  bookingUpdateInputSchema,
   findBookingAvailabilityConflict,
   quoteBooking,
 } from '@bini/cloud-shared';
@@ -88,5 +89,26 @@ describe('booking cancellation contract', () => {
       operationId: '6c2b6dc7-5283-4c08-a6c8-6b7865ed9cb8',
       directWrite: true,
     })).toThrow();
+  });
+});
+
+describe('booking update contract', () => {
+  it('allows v3-compatible past check-in while keeping manual pricing explicit', () => {
+    const updated = bookingUpdateInputSchema.parse({
+      propertyId: 'property-main',
+      operationId: '0517fbaf-6f98-4ef2-84d9-8d2e2b84f8ca',
+      bookingId: 'RSV-260914-ABC12345',
+      roomId: '203',
+      guestName: 'Chris',
+      phone: null,
+      checkInAt: '2026-09-01T13:00:00+08:00',
+      plan: '12hrs',
+      days: 2,
+      discountNts: 0,
+      pricingMode: 'manual',
+      manualAmountNts: 1_500,
+    });
+    expect(quoteBooking(updated, calendar).amountNts).toBe(1_500);
+    expect(() => bookingUpdateInputSchema.parse({ ...updated, pricingMode: 'automatic', manualAmountNts: 1_500 })).toThrow(/自動計價/);
   });
 });

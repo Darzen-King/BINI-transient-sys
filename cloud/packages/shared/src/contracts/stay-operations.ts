@@ -79,3 +79,28 @@ export const stayExtendResultSchema = z.object({
 }).strict();
 
 export type StayExtendResult = z.infer<typeof stayExtendResultSchema>;
+
+export const stayCheckoutInputSchema = z.object({
+  propertyId: propertyIdSchema,
+  operationId: operationIdSchema,
+  stayId: z.string().trim().min(1).max(128).regex(/^[^/]+$/),
+  extraFeeNts: ntsAmountSchema.optional().default(0),
+  overdueFeeOverrideNts: ntsAmountSchema.nullable().optional(),
+}).strict();
+
+export type StayCheckoutInput = z.infer<typeof stayCheckoutInputSchema>;
+
+export const stayCheckoutResultSchema = z.object({
+  status: z.enum(['checked_out', 'replayed']),
+  stayId: z.string().min(1).max(128),
+  roomId: roomIdSchema,
+  checkedOutAt: dateTimeSchema,
+  totalChargedNts: ntsAmountSchema,
+  extensionFeeNts: ntsAmountSchema,
+  systemOverdueFeeNts: ntsAmountSchema,
+  appliedOverdueFeeNts: ntsAmountSchema,
+  freeCancel: z.boolean(),
+  refundedDepositNts: ntsAmountSchema,
+}).strict();
+
+export type StayCheckoutResult = z.infer<typeof stayCheckoutResultSchema>;

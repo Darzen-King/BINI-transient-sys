@@ -8,7 +8,7 @@
 - Firebase：DEV `bini-transient-dev`；PROD `bini-transient`（顯示名稱 `BINI-Transient`）。只部署 DEV，PROD 未部署、未修改。
 - DEV Firestore `(default)`：`asia-east1`、Native mode、Standard edition、delete protection。
 - Identity Platform：email/password、email enumeration protection、關閉公開註冊／自助刪除、TOTP MFA 強制流程。
-- DEV Hosting、Firestore Rules/indexes、十三個 Node.js 22 Functions 已部署；網址：`https://bini-transient-dev.web.app`。
+- DEV Hosting、Firestore Rules/indexes、十四個 Node.js 22 Functions 已部署；網址：`https://bini-transient-dev.web.app`。
 - 首位 admin `biniblooms250808@gmail.com` 已以 server-side bootstrap 建立，`emailVerified=true`、active、`property-main/admin`、17 個頁面權限、`mfaRequired=true`，並已寄出繁中一次性密碼設定信。
 - 實際 Web SDK 設定與 alias 保存在 Git 忽略的 `cloud/.env.local`、`cloud/.firebaserc`；禁止提交或輸出內容。
 
@@ -41,6 +41,7 @@
 - `bookingUpdate` 是第三個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`bookings` page allowlist。它在單一 transaction 驗證 booking identity／status／version、目標 room、同房有效 booking（排除自身）、active stay、maintenance schedule 與 holidays；伺服器重算 v3 block-ceiling 報價後只更新 booking／version／audit／operation record，既有 payment 不變。相同 UUID 加相同 fingerprint 只回傳原結果。
 - `stayCheckIn` 是第四個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`checkin` page allowlist。它支援有效預約帶入或 walk-in，在一筆 transaction 內驗證 room identity／可入住狀態、既有 stay、同房有效 booking／maintenance 衝突與 holidays，建立 stay、房間轉 `使用中`、來源 booking 轉 `已入住`、選填押金、audit 與 `stayOperations` replay 記錄；既有 stay 一律 fail closed，不能沿用 v3 的覆蓋行為。
 - `stayExtend` 是第五個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`extend` page allowlist。它以入住時間軸重現 v3 `extension_fee_between`，確保 12h→24h 只收該時段差額；在單一 transaction 驗證 stay／room identity、可延住房態、未來 `已預約` 與未完成 maintenance。撞期時完全拒絕寫入（刻意取代 v3 的寫後警告），成功才同步 `stays`／`rooms`／audit／`stayOperations` replay；舊匯入 stay 沒有 `stayId` 時以 document ID 相容識別。
+- `stayCheckout` 是第六個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`checkout` page allowlist。伺服器以自身時間執行 v3 的免費取消、退房緩衝、半小時進位逾時計價及選填人工調整；同一 transaction 建立 stay log、免費取消退款、audit、房間待清潔並刪除 active stay。退款只涵蓋同房且同 booking 或入住後的未退款押金，避免誤退其他住宿款項。
 - `packages/shared/src/migration/v3-transform.ts` 已完成 12 個權威 v3 table 的白名單 typed transformer：穩定 legacy ID、`property-main` 補值、property-scoped target path、Asia/Taipei 時間、SQLite boolean、整數 NTS、狀態、FK 與重複 active stay 檢查。`active_stays` 統一寫入規格中的 `stays` collection；真實備份仍待操作員從 Dropbox 下載後選檔。
 
 ### 手機 UI 與登入
@@ -56,6 +57,7 @@
 - `bookings/booking-soon.ts` + `BookingSoonBanner.tsx`：全域 listener 只投影嚴格位於未來 15 分鐘內的有效預約並每 60 秒重算。保留預約僅存 sessionStorage；桌機／手機共用提醒卡與二次確認 UI，標記 No-show 後沿用 `bookingCancel`、保留 retry UUID 並由 audit 區分。尚未搬移提示音。
 - `stays/StayCheckInPage.tsx` + `stays/stay-checkin.ts`：桌機／手機共用入住表單；可選有效預約以鎖定來源欄位帶入，或選 walk-in 編輯房間／住客／時間／方案／天數／折扣／手動金額與押金。房間總覽快捷「辦理入住」直接導向該頁；讀取 rooms／bookings 失敗時 fail closed，重送維持 UUID。
 - `stays/StayExtendPage.tsx` + `stays/stay-extend.ts`：桌機／手機共用延住表單；讀取在住房與假日資料後，提供旅客／方案、原／目前／新退房、目前／累計延住費、應收及逐區塊預覽。讀取失敗一律停用送出；提交與重送維持 UUID，房態快捷「延住處理」直接進入該頁。
+- `stays/StayCheckoutPage.tsx` + `stays/stay-checkout.ts`：桌機／手機共用退房表單；可選在住房、輸入雜費與選填逾時費調整，顯示目前應收／延住費並要求二次確認。讀取失敗 fail closed，房態快捷「退房辦理」直接導向此頁。
 - `bookings/BookingEditPage.tsx` + `booking-update.ts`：從預約明細進入修改；房間／住客／電話／入住／方案／天數／折扣／自動或手動金額均預填，桌機雙欄、手機單欄共用。儲存會維持 operation UUID；成功後由即時清單反映結果。既有訂金不能在此頁修改，送出前 quote／availability 顯示仍待補。
 - `styles.css`：產品／domain 版面樣式；基礎 token 已移到 design system。維持 44px target、safe-area、320／375／430px 單欄、768px 三欄、>=1100px v3 式桌機頂部導覽與三欄房卡，無水平溢位。
 - 「今日房態」以單一 room view model 同步輸出兩種 view：桌機卡片直接展開 v3 詳細欄位與快捷操作；手機卡片只保留房號／狀態／摘要，點擊後於詳細面板顯示完整欄位與操作。後續接 Firestore 時不得維護兩份資料邏輯。
@@ -70,7 +72,7 @@
 ### 驗證與部署結果
 
 ```text
-npm test                       141/141 passed
+npm test                       143/143 passed
 npm run test:deploy-guard       6/6 passed
 npm run test:rules             41/41 passed（Firestore Emulator）
 npm run typecheck              passed
@@ -78,13 +80,14 @@ npm run lint                   passed
 npm run build                  passed
 npm run guard:functions-package passed
 npm run guard:hosting-package   passed
-DEV Functions                  13/13 listed, asia-east1, nodejs22
+DEV Functions                  14/14 listed, asia-east1, nodejs22
 DEV bookingCreate              callable, 512 MiB, nodejs22
 DEV bookingCancel              callable, 512 MiB, nodejs22
 DEV bookingUpdate              callable, 512 MiB, nodejs22
 DEV stayCheckIn                callable, ACTIVE, 512 MiB, nodejs22
 DEV stayExtend                 callable, ACTIVE, 512 MiB, nodejs22
-DEV Hosting                    index-BT_q398d.js live; bundle contains five core callables and BookingSoon UI
+DEV stayCheckout               callable, ACTIVE, 512 MiB, nodejs22
+DEV Hosting                    index-BvF2WUB1.js live; bundle contains six core callables and BookingSoon UI
 DEV HTTP smoke                 home/manifest/favicon/PWA 192 icon = 200
 ```
 

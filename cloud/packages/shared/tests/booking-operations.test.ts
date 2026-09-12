@@ -6,6 +6,7 @@ import {
   bookingUpdateInputSchema,
   findBookingAvailabilityConflict,
   quoteBooking,
+  quoteStayCheckoutOverdue,
   quoteStayExtension,
 } from '@bini/cloud-shared';
 
@@ -128,5 +129,12 @@ describe('stay extension pricing', () => {
     const quote = quoteStayExtension('2026-09-14T13:00:00+08:00', '2026-09-15T13:00:00+08:00', 0.5, calendar);
     expect(quote.extensionFeeNts).toBe(100);
     expect(quote.breakdown).toEqual([expect.objectContaining({ hours: 0.5, ceilingNts: 800, feeNts: 100 })]);
+  });
+
+  it('applies the v3 checkout grace window then rounds overdue time up to half hours', () => {
+    const onTime = quoteStayCheckoutOverdue('2026-09-14T13:00:00+08:00', '2026-09-15T01:00:00+08:00', 0, '2026-09-15T01:15:00+08:00', calendar);
+    const overdue = quoteStayCheckoutOverdue('2026-09-14T13:00:00+08:00', '2026-09-15T01:00:00+08:00', 0, '2026-09-15T01:16:00+08:00', calendar);
+    expect(onTime).toEqual({ systemOverdueFeeNts: 0, totalExtensionFeeNts: 0 });
+    expect(overdue).toEqual({ systemOverdueFeeNts: 100, totalExtensionFeeNts: 100 });
   });
 });

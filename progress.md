@@ -20,7 +20,8 @@
 - `bookingUpdate` callable 與預填修改表單已完成：僅具 `bookings` 頁面權限的 MFA 使用者可更新仍為 `已預約` 的文件；server 排除自身後重算 v3 計價並檢查 booking／stay／maintenance，transaction 只更新 booking、version、audit／operation replay，不動既有 payment。桌機雙欄／手機單欄、重送 UUID 都共用同一 contract。
 - `BookingSoonBanner` + `booking-soon.ts` 已接 property-scoped Firestore listener：只投影仍為 `已預約` 且嚴格位於未來 15 分鐘內的預約，每 60 秒重新計算；保留預約只存於本 session。標記 No-show 會經二次確認，以既有 `bookingCancel` 交易寫入 `booking.no_show` audit，且失敗重送維持 UUID；不異動 payment、stay 或 room。尚未搬移提示音；多時段與送出前 quote／availability 仍待實作。
 - `stayCheckIn` callable、shared stay contract 與入住頁已完成：預約帶入與 walk-in 共用同一份表單／contract；transaction 會檢查 room status、既有 stay、同房有效 booking、maintenance 與 holidays，並原子建立 stay、更新 room／來源 booking、可選押金、audit 與 operation replay。桌機／手機的房間總覽快捷入口已改為直接導向入住；現有 stay 會 fail closed，不覆蓋資料。
-- `stayExtend` callable、在住房／假日 listener 與延住頁已完成：選取在住房後可顯示原／目前／新退房、目前／累計延住費、應收與逐區塊預覽。費率用 v3 `extension_fee_between` 的等價純函式，錨定入住時間而非以目前退房重新起算；同一 transaction 驗證 MFA／`extend` 權限、room／stay identity、未來有效 booking 和未完成 maintenance，衝突時 fail closed，成功後同步 stay／room／audit／operation replay。桌機與手機共用表單，房態「延住處理」直接導向該頁。
+  - `stayExtend` callable、在住房／假日 listener 與延住頁已完成：選取在住房後可顯示原／目前／新退房、目前／累計延住費、應收與逐區塊預覽。費率用 v3 `extension_fee_between` 的等價純函式，錨定入住時間而非以目前退房重新起算；同一 transaction 驗證 MFA／`extend` 權限、room／stay identity、未來有效 booking 和未完成 maintenance，衝突時 fail closed，成功後同步 stay／room／audit／operation replay。桌機與手機共用表單，房態「延住處理」直接導向該頁。
+  - `stayCheckout` callable 與退房頁已完成：伺服器端處理 15 分鐘免費取消、符合範圍的未退款押金退款、15 分鐘退房緩衝、半小時進位的逾時計價與人工調整。單一 transaction 建立 stay log／退款／audit、房間轉待清潔並刪除 active stay；桌機與手機共用帶二次確認的表單，房態快捷直接導向。
 
 ### 階段 1：權威盤點與差距矩陣
 - **狀態：** complete

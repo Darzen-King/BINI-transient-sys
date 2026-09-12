@@ -33,6 +33,8 @@ import { StayExtendPage } from './stays/StayExtendPage.js';
 import type { StayExtendGateway } from './stays/stay-extend.js';
 import type { ActiveStaysGateway } from './stays/active-stays.js';
 import type { HolidayCalendarGateway } from './stays/holiday-calendar.js';
+import { StayCheckoutPage } from './stays/StayCheckoutPage.js';
+import type { StayCheckoutGateway } from './stays/stay-checkout.js';
 
 type UtilityViewId = 'hub' | 'initial_import';
 type ViewId = 'today' | 'more' | 'accounts' | UtilityViewId | CloudPageId;
@@ -239,7 +241,7 @@ function RoomDetails({ room }: { room: RoomViewModel }) {
   );
 }
 
-function RoomActions({ room, onAction, onOpenCheckIn, onOpenExtend }: { room: RoomViewModel; onAction: (action: string) => void; onOpenCheckIn?: (() => void) | undefined; onOpenExtend?: (() => void) | undefined }) {
+function RoomActions({ room, onAction, onOpenCheckIn, onOpenExtend, onOpenCheckout }: { room: RoomViewModel; onAction: (action: string) => void; onOpenCheckIn?: (() => void) | undefined; onOpenExtend?: (() => void) | undefined; onOpenCheckout?: (() => void) | undefined }) {
   const { locale } = useLocale();
   if (room.actions.length === 0) return null;
   return (
@@ -248,7 +250,7 @@ function RoomActions({ room, onAction, onOpenCheckIn, onOpenExtend }: { room: Ro
         <Button
           className={`room-action room-action--${action}`}
           key={action}
-          onClick={() => action === 'checkin' && onOpenCheckIn ? onOpenCheckIn() : action === 'extend' && onOpenExtend ? onOpenExtend() : onAction(`${room.number} · ${actionLabels[action][locale === 'zh-TW' ? 0 : 1]}`)}
+          onClick={() => action === 'checkin' && onOpenCheckIn ? onOpenCheckIn() : action === 'extend' && onOpenExtend ? onOpenExtend() : action === 'checkout' && onOpenCheckout ? onOpenCheckout() : onAction(`${room.number} · ${actionLabels[action][locale === 'zh-TW' ? 0 : 1]}`)}
           size="sm"
           variant={action === 'checkin' ? 'primary' : 'outline'}
         >{action === 'payment' ? '💵 ' : ''}{actionLabels[action][locale === 'zh-TW' ? 0 : 1]}</Button>
@@ -261,14 +263,16 @@ function ShellSection({ title, hint, children }: { title: string; hint?: string;
   return <SectionCard hint={hint} title={title}>{children}</SectionCard>;
 }
 
-function TodayView({ canCreate, canCheckIn, canExtend, onAction, onOpenBookingCreate, onOpenCheckIn, onOpenExtend, propertyId, roomOverviewGateway }: {
+function TodayView({ canCreate, canCheckIn, canExtend, canCheckout, onAction, onOpenBookingCreate, onOpenCheckIn, onOpenExtend, onOpenCheckout, propertyId, roomOverviewGateway }: {
   canCreate: boolean;
   canCheckIn: boolean;
   canExtend: boolean;
+  canCheckout: boolean;
   onAction: (action: string) => void;
   onOpenBookingCreate: () => void;
   onOpenCheckIn: () => void;
   onOpenExtend: () => void;
+  onOpenCheckout: () => void;
   propertyId: string;
   roomOverviewGateway: RoomOverviewGateway | undefined;
 }) {
@@ -336,7 +340,7 @@ function TodayView({ canCreate, canCheckIn, canExtend, onAction, onOpenBookingCr
                 <span className="mobile-detail-affordance" aria-hidden="true">{text('查看詳細資料', 'View details')} ›</span>
               </button>
               <RoomDetails room={room} />
-              <RoomActions room={room} onAction={onAction} onOpenCheckIn={canCheckIn ? onOpenCheckIn : undefined} onOpenExtend={canExtend ? onOpenExtend : undefined} />
+              <RoomActions room={room} onAction={onAction} onOpenCheckIn={canCheckIn ? onOpenCheckIn : undefined} onOpenExtend={canExtend ? onOpenExtend : undefined} onOpenCheckout={canCheckout ? onOpenCheckout : undefined} />
             </article>
           ))}
         </div>
@@ -365,7 +369,7 @@ function TodayView({ canCreate, canCheckIn, canExtend, onAction, onOpenBookingCr
         >
             <Badge className="status-pill">{stateLabel(selectedRoom.state)}</Badge>
             <RoomDetails room={selectedRoom} />
-            <RoomActions room={selectedRoom} onAction={(action) => { setSelectedRoomNumber(null); onAction(action); }} onOpenCheckIn={canCheckIn ? () => { setSelectedRoomNumber(null); onOpenCheckIn(); } : undefined} onOpenExtend={canExtend ? () => { setSelectedRoomNumber(null); onOpenExtend(); } : undefined} />
+            <RoomActions room={selectedRoom} onAction={(action) => { setSelectedRoomNumber(null); onAction(action); }} onOpenCheckIn={canCheckIn ? () => { setSelectedRoomNumber(null); onOpenCheckIn(); } : undefined} onOpenExtend={canExtend ? () => { setSelectedRoomNumber(null); onOpenExtend(); } : undefined} onOpenCheckout={canCheckout ? () => { setSelectedRoomNumber(null); onOpenCheckout(); } : undefined} />
         </ResponsiveDialog>
       ) : null}
     </>
@@ -566,7 +570,7 @@ function FoundationPage({ pageId, isAdmin, onOpenInitialImport }: {
   );
 }
 
-function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingCreateGateway, bookingRoomGateway, roomOverviewGateway, stayCheckInGateway, stayExtendGateway, activeStaysGateway, holidayCalendarGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
+function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingCreateGateway, bookingRoomGateway, roomOverviewGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, activeStaysGateway, holidayCalendarGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
   view: ViewId;
   onAction: (action: string) => void;
   session: StaffSession;
@@ -580,6 +584,7 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   roomOverviewGateway: RoomOverviewGateway | undefined;
   stayCheckInGateway: StayCheckInGateway | undefined;
   stayExtendGateway: StayExtendGateway | undefined;
+  stayCheckoutGateway: StayCheckoutGateway | undefined;
   activeStaysGateway: ActiveStaysGateway | undefined;
   holidayCalendarGateway: HolidayCalendarGateway | undefined;
   onOpenBookingCreate: () => void;
@@ -590,12 +595,13 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   if (view === 'bookings_new') return <BookingCreatePage gateway={bookingCreateGateway} onViewBookings={() => onOpenPage('bookings')} roomGateway={bookingRoomGateway} session={session} />;
   if (view === 'checkin') return <StayCheckInPage bookingGateway={bookingListGateway} gateway={stayCheckInGateway} onBack={() => onOpenPage('rooms')} roomGateway={bookingRoomGateway} session={session} />;
   if (view === 'extend') return <StayExtendPage gateway={stayExtendGateway} holidayGateway={holidayCalendarGateway} onBack={() => onOpenPage('rooms')} session={session} staysGateway={activeStaysGateway} />;
+  if (view === 'checkout') return <StayCheckoutPage gateway={stayCheckoutGateway} onBack={() => onOpenPage('rooms')} session={session} staysGateway={activeStaysGateway} />;
   if (view === 'housekeeping') return <HousekeepingView />;
   if (view === 'payments') return <PaymentsView onAction={onAction} />;
   if (view === 'accounts' || view === 'users') return <AccountManagement session={session} gateway={accountGateway} />;
   if (view === 'initial_import') return <InitialDataImport session={session} gateway={dataImportGateway} />;
   if (view === 'more') return <MoreView isAdmin={session.role === 'admin'} allowedPages={session.allowedPages} onOpenPage={onOpenPage} onLogout={onLogout} />;
-  if (view === 'today' || view === 'rooms') return <TodayView canCheckIn={session.allowedPages.includes('checkin')} canCreate={session.allowedPages.includes('bookings_new')} canExtend={session.allowedPages.includes('extend')} onAction={onAction} onOpenBookingCreate={onOpenBookingCreate} onOpenCheckIn={() => onOpenPage('checkin')} onOpenExtend={() => onOpenPage('extend')} propertyId={session.propertyId} roomOverviewGateway={roomOverviewGateway} />;
+  if (view === 'today' || view === 'rooms') return <TodayView canCheckIn={session.allowedPages.includes('checkin')} canCreate={session.allowedPages.includes('bookings_new')} canCheckout={session.allowedPages.includes('checkout')} canExtend={session.allowedPages.includes('extend')} onAction={onAction} onOpenBookingCreate={onOpenBookingCreate} onOpenCheckIn={() => onOpenPage('checkin')} onOpenCheckout={() => onOpenPage('checkout')} onOpenExtend={() => onOpenPage('extend')} propertyId={session.propertyId} roomOverviewGateway={roomOverviewGateway} />;
   return <FoundationPage pageId={view} isAdmin={session.role === 'admin'} onOpenInitialImport={() => onOpenPage('initial_import')} />;
 }
 
@@ -629,6 +635,7 @@ export function App({
   roomOverviewGateway,
   stayCheckInGateway,
   stayExtendGateway,
+  stayCheckoutGateway,
   activeStaysGateway,
   holidayCalendarGateway,
   onLogout,
@@ -646,6 +653,7 @@ export function App({
   roomOverviewGateway?: RoomOverviewGateway;
   stayCheckInGateway?: StayCheckInGateway;
   stayExtendGateway?: StayExtendGateway;
+  stayCheckoutGateway?: StayCheckoutGateway;
   activeStaysGateway?: ActiveStaysGateway;
   holidayCalendarGateway?: HolidayCalendarGateway;
   onLogout?: () => void | Promise<void>;
@@ -718,6 +726,7 @@ export function App({
           roomOverviewGateway={roomOverviewGateway}
           stayCheckInGateway={stayCheckInGateway}
           stayExtendGateway={stayExtendGateway}
+          stayCheckoutGateway={stayCheckoutGateway}
           activeStaysGateway={activeStaysGateway}
           holidayCalendarGateway={holidayCalendarGateway}
           onOpenBookingCreate={() => setView('bookings_new')}

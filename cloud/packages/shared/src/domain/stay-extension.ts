@@ -75,3 +75,16 @@ export function quoteStayExtension(checkInAt: string, currentCheckOutAt: string,
   }
   return { extensionHours, fromHours, toHours, extensionFeeNts, breakdown };
 }
+
+/** v3 checkout rule: a 15-minute grace period, then round the elapsed stay up to a half-hour. */
+export function quoteStayCheckoutOverdue(checkInAt: string, originalCheckOutAt: string, currentExtensionFeeNts: number, checkedOutAt: string, calendar: BookingHolidayCalendar): { systemOverdueFeeNts: number; totalExtensionFeeNts: number } {
+  const checkInMillis = Date.parse(checkInAt);
+  const originalCheckOutMillis = Date.parse(originalCheckOutAt);
+  const checkedOutMillis = Date.parse(checkedOutAt);
+  if (![checkInMillis, originalCheckOutMillis, checkedOutMillis].every(Number.isFinite) || originalCheckOutMillis <= checkInMillis) throw new Error('在住房日期區間無效。');
+  if (checkedOutMillis <= originalCheckOutMillis + (15 * 60 * 1_000)) return { systemOverdueFeeNts: 0, totalExtensionFeeNts: currentExtensionFeeNts };
+  const totalStayHours = Math.ceil((checkedOutMillis - checkInMillis) / (30 * 60 * 1_000)) * 0.5;
+  const baseHours = (originalCheckOutMillis - checkInMillis) / HOUR_MS;
+  const totalExtensionFeeNts = quoteStayExtension(checkInAt, originalCheckOutAt, totalStayHours - baseHours, calendar).extensionFeeNts;
+  return { systemOverdueFeeNts: Math.max(0, totalExtensionFeeNts - currentExtensionFeeNts), totalExtensionFeeNts };
+}

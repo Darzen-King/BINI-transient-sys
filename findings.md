@@ -73,6 +73,7 @@
 - `stayCheckIn` 已發布至 DEV：MFA＋`checkin` 頁面權限、可入住 room、空 stay query、同房 booking／maintenance conflict、來源 booking identity 與 server quote 都在同一 transaction 驗證；成功後同步 stay／room／booking／可選 payment／audit／operation。最新 Hosting bundle `index-BwgjQ04D.js` 含四個核心 callable，12 支 Functions 均在 `asia-east1`，其中 `stayCheckIn` 為 ACTIVE、Node.js 22、512 MiB；真實資料寫入 smoke 仍須在管理員完成 MFA 並使用匯入或建立的測試資料後執行。
 - v3 延住不可從目前退房時間重新起算：`extension_fee_between` 必須以入住時間的 12 小時區塊累積，否則 12h 續為 24h 會錯收新 12h 上限。雲端 `quoteStayExtension` 已以純函式重現此時間軸，client 僅用於預覽，Function 會重新計算權威金額。
 - `stayExtend` 已完成本地契約／UI／Rules gate 並發布 DEV：MFA＋`extend` page allowlist、UUID fingerprint replay、room/stay identity、未來 booking 與未完成 maintenance 都在同一 transaction 內檢查；與 v3 在寫入後僅警告撞期不同，雲端必須 fail closed 以阻止跨裝置超賣。舊匯入 stay 缺少 `stayId` 欄位時以 Firestore document ID 相容識別。DEV `stayExtend` 為 ACTIVE（asia-east1、Node.js 22、512 MiB），十三個 Functions 已列出，Hosting `index-BT_q398d.js` 包含延住 callable／UI 且首頁與 manifest HTTP 200；具 MFA 的真實測試資料寫入驗收仍待執行。
+- 退房權威規則已逐行盤點：在入住後 15 分鐘內為免費取消，總應收歸零、符合 stay payment scope 的未退款押金逐筆建立退款；正常退房在原本／已延住退房時間後仍有 15 分鐘緩衝，超過後以半小時向上進位，將入住時間軸累計的總延住費扣掉既有延住費，才得到本次逾時加收。人工調低該逾時費時必須同時保存系統值、實收值與減免 audit。成功退房會寫 stay log、房間轉待清潔並刪除 active stay；雲端實作必須將這些寫入封在一個 MFA＋`checkout` 授權 transaction。
 - 單機 `icon.ico` 與雲端 `favicon.ico` 的 SHA-256 已加入契約測試鎖定為同一檔案；行動安裝圖示維持由專案 `Transient icon.png` 清背後產生的透明來源、192／512／maskable 與 Apple Touch Icon，不會退回臨時機器人圖示。
 
 ## 技術決策

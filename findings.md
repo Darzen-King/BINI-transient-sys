@@ -60,6 +60,7 @@
 - read-only 檢查 DEV 確認 `properties/property-main` 是預建雲端館別根設定（`active`、`currency`、`name`、`propertyId`、`timezone`、`updatedAt`）。promotion 因此只對符合這個完整形狀、且尚未含 migration marker 的根文件一次附加 `legacyV3Import`，絕不覆寫任何既有設定；所有其他 collision 仍 fail closed。
 - promotion 不會覆寫現有營運資料；相同 batch 的完整相同文件可重試續作，其他 collision fail closed。成功狀態與完成 audit 在同一 transaction 寫入；批次另保留嘗試／失敗 metadata。尚未對真實 Dropbox JSON 執行，也尚無 export/restore drill，不能視為切換完成。
 - promotion Functions 與 Hosting 已部署至 DEV；live bundle `index-CQUT3I8c.js` 含 `adminPromotePreparedV3Backup`、`PROMOTE DEV` 與 BINI logo，首頁 HTTP 200。Functions 部署完成後 Firebase 詢問 Artifact Registry image cleanup policy；因其涉及額外刪除／成本策略且未獲指定，已在三個 function operation 成功後停止提示，沒有設定該 policy。
+- v3 預約管理只顯示 `已預約`；`已取消`、`No-show`、`已入住` 都不得回到清單。cloud booking list 已以 shared schema 驗證 document identity／日期／整數金額，再由 AuthGate 注入 Firestore listener；資料錯誤或 listener 失敗時 fail closed。
 
 ## 技術決策
 | 決策 | 理由 |

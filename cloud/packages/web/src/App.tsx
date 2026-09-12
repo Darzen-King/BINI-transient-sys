@@ -3,6 +3,7 @@ import {
   CLOUD_PAGE_MANIFEST,
   ROLE_DEFAULT_PAGES,
   pagesAllowedForNavigation,
+  type BookingListItem,
   type CloudPageId,
   type CloudRoomStatus,
   type RoomOverviewProjection,
@@ -16,6 +17,7 @@ import { Badge, Button, Field, Notice, ResponsiveDialog, SectionCard } from './d
 import { LanguageSwitcher, useLocale, type AppLocale } from './i18n/locale.js';
 import { InitialDataImport } from './migration/InitialDataImport.js';
 import type { DataImportGateway } from './migration/data-import.js';
+import type { BookingListGateway } from './bookings/booking-list.js';
 import type { RoomOverviewGateway } from './rooms/room-overview.js';
 
 type UtilityViewId = 'hub' | 'initial_import';
@@ -350,16 +352,53 @@ function TodayView({ onAction, propertyId, roomOverviewGateway }: {
   );
 }
 
-function BookingsView({ onAction }: { onAction: (action: string) => void }) {
-  const { text } = useLocale();
+const previewBookings: BookingListItem[] = [
+  { bookingId: 'RSV-preview-202', roomId: '202', guestName: 'Juvy', phone: null, checkInAt: '2026-09-12T14:30:00+08:00', checkOutAt: '2026-09-13T14:30:00+08:00', plan: '24hrs', amountNts: 1_200, discountNts: 0, rateType: '非假日', status: '已預約' },
+  { bookingId: 'RSV-preview-203', roomId: '203', guestName: 'Chris', phone: null, checkInAt: '2026-09-13T17:00:00+08:00', checkOutAt: '2026-09-14T17:00:00+08:00', plan: '24hrs', amountNts: 1_200, discountNts: 0, rateType: '非假日', status: '已預約' },
+  { bookingId: 'RSV-preview-205', roomId: '205', guestName: 'Michael', phone: null, checkInAt: '2026-09-14T13:00:00+08:00', checkOutAt: '2026-09-15T13:00:00+08:00', plan: '12hrs', amountNts: 800, discountNts: 0, rateType: '非假日', status: '已預約' },
+];
+
+function BookingsView({ onAction, propertyId, gateway }: {
+  onAction: (action: string) => void;
+  propertyId: string;
+  gateway: BookingListGateway | undefined;
+}) {
+  const { locale, text } = useLocale();
+  const [bookings, setBookings] = useState<BookingListItem[] | null>(null);
+  const [query, setQuery] = useState('');
+  const [loadError, setLoadError] = useState(false);
+  const visibleBookings = gateway
+    ? (bookings ?? []).filter((booking) => [booking.bookingId, booking.roomId, booking.guestName, booking.phone ?? ''].some((value) => value.toLocaleLowerCase('zh-TW').includes(query.trim().toLocaleLowerCase('zh-TW'))))
+    : previewBookings.filter((booking) => [booking.bookingId, booking.roomId, booking.guestName, booking.phone ?? ''].some((value) => value.toLocaleLowerCase('zh-TW').includes(query.trim().toLocaleLowerCase('zh-TW'))));
+
+  useEffect(() => {
+    if (!gateway) return undefined;
+    setBookings(null);
+    setLoadError(false);
+    return gateway.subscribe(
+      propertyId,
+      (nextBookings) => {
+        setBookings(nextBookings);
+        setLoadError(false);
+      },
+      () => {
+        setBookings(null);
+        setLoadError(true);
+      },
+    );
+  }, [gateway, propertyId]);
+
   return (
-    <ShellSection title={text('預約', 'Bookings')} hint={text('今天 3 筆', '3 today')}>
+    <ShellSection title={text('預約', 'Bookings')} hint={text(`${visibleBookings.length} 筆有效預約`, `${visibleBookings.length} active bookings`)}>
       <Button block onClick={() => onAction(text('新增預約', 'New booking'))} size="lg">＋ {text('新增預約', 'New booking')}</Button>
-      <Field className="search-field" label={text('搜尋', 'Search')}><input type="search" placeholder={text('房號、姓名、預約編號', 'Room, guest or booking ID')} /></Field>
+      <Field className="search-field" label={text('搜尋', 'Search')}><input aria-label={text('搜尋預約', 'Search bookings')} onChange={(event) => setQuery(event.target.value)} placeholder={text('房號、姓名、預約編號', 'Room, guest or booking ID')} type="search" value={query} /></Field>
+      {loadError ? <Notice tone="danger" title={text('無法載入即時預約', 'Unable to load live bookings')}>{text('資料格式或連線異常，系統不會顯示展示預約。', 'The system will not substitute preview bookings after a data or connection error.')}</Notice> : null}
+      {gateway && bookings === null && !loadError ? <div className="empty-card">{text('正在載入即時預約…', 'Loading live bookings…')}</div> : null}
       <div className="booking-list">
-        {['202 · Juvy', '203 · Chris', '205 · Michael'].map((booking, index) => (
-          <button key={booking}><span><strong>{booking}</strong><small>{index === 0 ? text('今天 14:30 入住', 'Arrives today at 14:30') : text('明天入住', 'Arrives tomorrow')}</small></span><Badge tone="success">{text('已預約', 'Booked')}</Badge></button>
+        {visibleBookings.map((booking) => (
+          <button key={booking.bookingId} onClick={() => onAction(`${booking.roomId} · ${booking.guestName}`)}><span><strong>{booking.roomId} · {booking.guestName}</strong><small>{formatTaipeiDateTime(booking.checkInAt, locale)} · {booking.plan} · NT$ {booking.amountNts.toLocaleString()}</small></span><Badge tone="success">{text('已預約', 'Booked')}</Badge></button>
         ))}
+        {bookings !== null && visibleBookings.length === 0 ? <div className="empty-card">{query ? text('找不到符合的有效預約。', 'No matching active bookings.') : text('目前沒有有效預約。', 'There are no active bookings.')}</div> : null}
       </div>
     </ShellSection>
   );
@@ -432,17 +471,18 @@ function FoundationPage({ pageId, isAdmin, onOpenInitialImport }: {
   );
 }
 
-function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, roomOverviewGateway, onOpenPage, onLogout }: {
+function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, bookingListGateway, roomOverviewGateway, onOpenPage, onLogout }: {
   view: ViewId;
   onAction: (action: string) => void;
   session: StaffSession;
   accountGateway: AccountAdminGateway | undefined;
   dataImportGateway: DataImportGateway | undefined;
+  bookingListGateway: BookingListGateway | undefined;
   roomOverviewGateway: RoomOverviewGateway | undefined;
   onOpenPage: (pageId: CloudPageId | UtilityViewId) => void;
   onLogout: () => void;
 }) {
-  if (view === 'bookings') return <BookingsView onAction={onAction} />;
+  if (view === 'bookings') return <BookingsView gateway={bookingListGateway} onAction={onAction} propertyId={session.propertyId} />;
   if (view === 'housekeeping') return <HousekeepingView />;
   if (view === 'payments') return <PaymentsView onAction={onAction} />;
   if (view === 'accounts' || view === 'users') return <AccountManagement session={session} gateway={accountGateway} />;
@@ -473,6 +513,7 @@ export function App({
   session = previewSession,
   accountGateway,
   dataImportGateway,
+  bookingListGateway,
   roomOverviewGateway,
   onLogout,
 }: {
@@ -480,6 +521,7 @@ export function App({
   session?: StaffSession;
   accountGateway?: AccountAdminGateway;
   dataImportGateway?: DataImportGateway;
+  bookingListGateway?: BookingListGateway;
   roomOverviewGateway?: RoomOverviewGateway;
   onLogout?: () => void | Promise<void>;
 }) {
@@ -541,6 +583,7 @@ export function App({
           session={session}
           accountGateway={accountGateway}
           dataImportGateway={dataImportGateway}
+          bookingListGateway={bookingListGateway}
           roomOverviewGateway={roomOverviewGateway}
           onOpenPage={(pageId) => setView(pageId === 'users' ? 'accounts' : pageId)}
           onLogout={logout}

@@ -11,6 +11,7 @@
 - 新增完整 17 分頁導覽 manifest，桌機版改回 v3 同順序的頂部導覽與三欄房卡，手機版保留五個主分頁並可由「更多」到達所有有權限的低頻功能；移除會誤導為真實狀態的固定「2 筆待同步」假資料，明確標示 DEV 尚不可營運。
 - 「今日房態」採同一份 room view model 提供雙版面：桌機房卡直接顯示 v3 的旅客、入住／退房、款項、下一筆預約、備註與快捷操作；手機房卡維持精簡，點擊房號後以詳細面板顯示相同資料與操作。
 - 「今日房態」已由展示陣列改為 property-scoped Firestore 即時投影：監聽 rooms、bookings、stays、payments、maintenanceSchedules，共用 v3 active-stay 款項範圍、七種房態與維修排程覆蓋；下一筆預約只取 `已預約` 且晚於目前時間的最早資料，並每分鐘重算，避免過期時間殘留。真實登入失敗時 fail closed，不回退假房間；快捷操作的 server handlers 仍待實作。
+- 「預約管理」已改為 property-scoped Firestore 即時清單：保留 v3 僅顯示有效 `已預約`、依入住時間排序與房號／旅客／預約編號／電話搜尋的規則。真實登入的讀取失敗或資料格式不符時 fail closed，不會顯示展示預約；新增、修改、取消與 No-show 仍待 transaction handler。
 - 新增 admin/MFA 限定「初始資料導入」：接受單機版 Dropbox `bini_blooms_backup.json`（schema 3.5），本機預覽 12 表筆數並先移除舊使用者／密碼、彙總報表、未知欄位、備份設定及 `rooms.next_booking`，再由 `adminStageV3Backup` 驗證 SHA-256 並以穩定 ID 寫入 default-deny staging；新增 `adminPrepareV3Backup` 將 12 類資料轉為 property-scoped typed documents，檢查日期、整數 NTS、狀態、外鍵與重複 active stay，並回傳逐表對帳報告。
 - 新增一次性 DEV 正式匯入 promotion：對帳通過後，管理員必須輸入該批次專屬確認字串，`adminPromotePreparedV3Backup` 才會重新檢查館別、checksum、轉換版本、逐表筆數、prepared 文件路徑與 migration metadata。除已存在的雲端館別根設定外，系統只會建立不存在的文件；根設定會保留 `name`／`active`／`currency`／`timezone`，並一次性附加 legacy property 資料，其餘既有資料一律拒絕覆寫。中斷後只能以相同批次、完全相同的文件安全續作，並與成功狀態原子寫入批次／audit 記錄。此版本僅提供程式與 DEV 部署能力，尚未對任何真實 Dropbox 備份執行 promotion，匯入後的復原演練仍待完成。
 - 將程式品牌改為專案既有 BINI Blooms 橫式 logo，移除臨時機器人 SVG；使用專案房屋圖檔建立真正透明的 192／512 PWA icon、獨立 maskable icon、Apple touch icon 與 favicon，並更新 manifest 及 Service Worker cache，供手機「加入主畫面」顯示正確 App 圖示。
@@ -26,7 +27,7 @@
 - DEV Firestore 已建立於 `asia-east1`；Rules、indexes、八個 Node.js 22 Functions 與 Hosting 已部署至 `bini-transient-dev`，PROD `bini-transient` 未部署、未修改。
 - 修正 Hosting 空白頁：workspace Vite 明確由 `cloud/.env.local` 讀取 DEV 設定；新增 bundle guard，缺設定、placeholder 或非 DEV project 時禁止部署。
 - DEV 預覽：`https://bini-transient-dev.web.app`。實際手機瀏覽器確認登入卡正常、無目前版本 console error，且頁面沒有註冊或外部備份入口。
-- 驗證：109 項 Vitest、6 項 DEV 部署防護與 41 項 Firestore Rules Emulator 測試通過；typecheck、lint、production build、Functions/Hosting package guard 均通過。DEV live function list 確認八個 Functions 全位於 `asia-east1`；首頁、manifest、favicon、Apple/PWA icons 與 BINI logo 均 HTTP 200，線上 bundle 不再引用舊機器人 SVG。瀏覽器版面契約涵蓋 320／375／430／768／1100px；未登入 UI preview 未進 production build。
+- 驗證：114 項 Vitest、6 項 DEV 部署防護與 41 項 Firestore Rules Emulator 測試通過；typecheck、lint、production build、Functions/Hosting package guard 均通過。DEV live function list 確認八個 Functions 全位於 `asia-east1`；首頁、manifest、favicon、Apple/PWA icons 與 BINI logo 均 HTTP 200，線上 bundle 不再引用舊機器人 SVG。瀏覽器版面契約涵蓋 320／375／430／768／1100px；未登入 UI preview 未進 production build。
 - 限制：目前只有 `demo.note.upsert` PMS 營運驗證 handler；首次資料 promotion 僅為一次性 migration callable，房態以外的預約、入住、退房、付款等營運畫面仍未接入正式 domain handlers 或 IndexedDB，不可作為正式營運版。
 
 ---

@@ -11,6 +11,10 @@
   - 只讀確認 DEV 的預建 `properties/property-main` 根設定存在；修正 promotion，使它僅保留既有 cloud 設定並一次附加 `legacyV3Import`，所有其他權威文件仍維持 create-only。完成狀態與成功 audit 改在同一 transaction 寫入，避免資料已成功但 audit 失敗時誤回報失敗。
   - Functions 的 stage/prepare/promotion 三支 callable 已精準部署至 DEV `operations` codebase；Hosting 已發布 `index-CQUT3I8c.js`。Functions list 確認第 8 支 callable 位於 `asia-east1`；root-setting preserve 修正後，`adminPromotePreparedV3Backup` 已再次部署並由 `gcloud functions describe` 驗證為 `ACTIVE`、Node.js 22、1 GiB、540 秒；未執行任何真實 Dropbox JSON promotion。
 
+### 階段 3：預約管理即時讀取切片
+- **狀態：** in_progress（讀取完成；寫入流程未開始）
+- 完成 shared booking list schema、有效預約狀態篩選、按入住時間排序與文字搜尋；AuthGate 已將 Firestore `properties/{propertyId}/bookings` listener 注入預約管理頁。真實 listener／資料格式失敗時清空畫面，不顯示 preview booking。
+
 ### 階段 1：權威盤點與差距矩陣
 - **狀態：** complete
 - **開始時間：** 2026-09-11
@@ -100,6 +104,7 @@
 | 完整 Vitest（promotion 切片後） | `npm test` | 全部通過 | 109/109；deploy guard 6/6 | 通過 |
 | 更新後 Rules Emulator | `npm run test:rules` | 權威資料 server-only、migration staging default deny | 41/41 | 通過 |
 | DEV Functions / Hosting（promotion 切片） | `bini-transient-dev` | 新 callable 與確認 UI 發布 | 8 Functions；首頁及 live bundle HTTP 200 | 通過 |
+| 預約管理讀取切片 | shared contract、live UI、既有 mobile shell | 有效狀態、排序、搜尋、identity／schema fail-closed | 18/18 聚焦；完整 114/114 | 通過 |
 
 ## 錯誤日誌
 | 時間戳記 | 錯誤 | 嘗試次數 | 解決方案 |

@@ -23,6 +23,7 @@ import { Button, Field, Notice } from '../design-system/index.js';
 import type { FirebaseClient } from '../firebase-client.js';
 import { LanguageSwitcher, useLocale } from '../i18n/locale.js';
 import { createDataImportGateway } from '../migration/data-import.js';
+import { createBookingListGateway } from '../bookings/booking-list.js';
 import { createRoomOverviewGateway } from '../rooms/room-overview.js';
 import type { StaffSession } from './session.js';
 
@@ -76,6 +77,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const bookingListGateway = useMemo(() => createBookingListGateway(client.db), [client.db]);
   const roomOverviewGateway = useMemo(() => createRoomOverviewGateway(client.db), [client.db]);
 
   const evaluateUser = useCallback(async (user: User) => {
@@ -200,6 +202,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
       session={session}
       accountGateway={createAccountAdminGateway(client.functions)}
       dataImportGateway={createDataImportGateway(client.functions)}
+      bookingListGateway={bookingListGateway}
       roomOverviewGateway={roomOverviewGateway}
       onLogout={() => signOut(client.auth)}
     />;

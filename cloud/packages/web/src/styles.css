@@ -335,6 +335,21 @@ h1, h2, p { margin-top: 0; }
 .maintenance-list article + article { border-top: 1px solid var(--line); }
 .maintenance-list strong { color: var(--brand-dark); }
 .maintenance-list small { color: var(--muted); font-size: 11px; }
+.room-management-grid { display: grid; margin-top: 16px; gap: 10px; }
+.room-management-card { overflow: hidden; border: 1px solid var(--line); border-radius: var(--bds-radius-md); background: var(--bds-color-surface); }
+.room-management-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; width: 100%; padding: 13px; border: 0; background: transparent; color: var(--ink); text-align: left; gap: 10px; }
+.room-management-summary:disabled { color: var(--ink); opacity: 1; }
+.room-management-summary > span:first-child { display: grid; min-width: 0; gap: 3px; }
+.room-management-summary strong { color: var(--brand-dark); font-size: 20px; }
+.room-management-summary small { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.room-management-chevron { color: var(--brand-dark); font-size: 22px; }
+.room-management-details { display: none; padding: 0 13px 13px; border-top: 1px solid var(--line); }
+.room-management-detail-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; gap: 8px; }
+.room-management-detail-list > div { min-width: 0; padding: 9px; border-radius: 10px; background: var(--bds-color-neutral-100); }
+.room-management-detail-list dt { color: var(--muted); font-size: 10px; }
+.room-management-detail-list dd { margin: 3px 0 0; overflow-wrap: anywhere; font-size: 12px; font-weight: 750; }
+.room-management-actions { display: flex; flex-wrap: wrap; margin-top: 13px; gap: 8px; }
+.room-management-dialog { display: grid; padding-bottom: 4px; gap: 4px; }
 
 .booking-detail-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
 .booking-detail-list > div { padding: 11px; border: 1px solid var(--line); border-radius: var(--bds-radius-md); }
@@ -354,6 +369,7 @@ h1, h2, p { margin-top: 0; }
   .payment-summary-grid > div:nth-child(even) { border-left: 1px solid var(--line); }
   .payment-summary-grid > div:nth-child(n + 3) { border-top: 0; }
   .payment-type-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .room-management-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 480px) {
@@ -446,6 +462,10 @@ h1, h2, p { margin-top: 0; }
   .room-card-summary > strong, .room-card-summary > small, .mobile-detail-affordance { display: none; }
   .room-card-details { display: block; }
   .room-card-actions { display: flex; margin-top: 14px; }
+  .room-management-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .room-management-summary { cursor: default; }
+  .room-management-chevron { display: none; }
+  .room-management-details { display: block; }
   .topbar h1 { font-size: 30px; }
 }
 

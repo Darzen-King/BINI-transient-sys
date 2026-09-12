@@ -2,6 +2,13 @@
 
 ## 會話：2026-09-11—2026-09-12
 
+### 階段 2：房間管理／月租雲端 vertical slice
+
+- **狀態：** deployed to DEV
+- 完成 `roomManagementUpdate`、`monthlyRentalCreate`、`monthlyRentalRenew`、`monthlyRentalCheckout` 四個 callable；所有操作均要求 MFA＋`room_management`、property scope、transaction、UUID replay 與 audit。月租金／押金／退款依 v3 語意寫入 payments，退租後房間轉待清潔。
+- 建立 `RoomManagementPage` 與雙 listener gateway：桌機卡片保留月租與維修完整細節，手機點卡以 dialog 顯示／操作；不允許一般房態編輯破壞在住房或月租資料完整性。換房 wizard 尚待後續切片。
+- 驗證：`npm test` 151/151、deploy guard 6/6、`npm run typecheck`、`npm run lint` 與 production build 均通過；Rules emulator 43/43。四支 function 已以 `functions:operations:` 精準 target 部署為 ACTIVE，Hosting 與 Firestore Rules 均已發布至 DEV。
+
 ### 階段 2：promotion 垂直切片恢復
 - **狀態：** complete（整體階段 2 仍為 in_progress）
 - 執行的操作：

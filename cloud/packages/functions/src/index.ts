@@ -27,6 +27,8 @@ export { paymentCreate } from './payments/create-payment.js';
 export { housekeepingUpdate } from './housekeeping/update-housekeeping.js';
 export { maintenanceScheduleCreate } from './maintenance/create-schedule.js';
 export { maintenanceScheduleAction } from './maintenance/schedule-action.js';
+export { roomManagementUpdate } from './rooms/manage-room.js';
+export { monthlyRentalCreate, monthlyRentalRenew, monthlyRentalCheckout } from './monthly/manage-monthly.js';
 
 if (getApps().length === 0) initializeApp();
 

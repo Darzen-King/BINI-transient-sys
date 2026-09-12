@@ -42,6 +42,8 @@ import { HousekeepingPage } from './housekeeping/HousekeepingPage.js';
 import type { HousekeepingGateway } from './housekeeping/housekeeping-gateway.js';
 import { MaintenancePage } from './maintenance/MaintenancePage.js';
 import type { MaintenanceGateway } from './maintenance/maintenance-gateway.js';
+import { RoomManagementPage } from './room-management/RoomManagementPage.js';
+import type { RoomManagementGateway } from './room-management/room-management-gateway.js';
 
 type UtilityViewId = 'hub' | 'initial_import';
 type ViewId = 'today' | 'more' | 'accounts' | UtilityViewId | CloudPageId;
@@ -556,7 +558,7 @@ function FoundationPage({ pageId, isAdmin, onOpenInitialImport }: {
   );
 }
 
-function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingCreateGateway, bookingRoomGateway, roomOverviewGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, housekeepingGateway, maintenanceGateway, activeStaysGateway, holidayCalendarGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
+function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingCreateGateway, bookingRoomGateway, roomOverviewGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
   view: ViewId;
   onAction: (action: string) => void;
   session: StaffSession;
@@ -575,6 +577,7 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   paymentListGateway: PaymentListGateway | undefined;
   housekeepingGateway: HousekeepingGateway | undefined;
   maintenanceGateway: MaintenanceGateway | undefined;
+  roomManagementGateway: RoomManagementGateway | undefined;
   activeStaysGateway: ActiveStaysGateway | undefined;
   holidayCalendarGateway: HolidayCalendarGateway | undefined;
   onOpenBookingCreate: () => void;
@@ -588,6 +591,7 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   if (view === 'checkout') return <StayCheckoutPage gateway={stayCheckoutGateway} onBack={() => onOpenPage('rooms')} session={session} staysGateway={activeStaysGateway} />;
   if (view === 'housekeeping') return <HousekeepingPage gateway={housekeepingGateway} session={session} />;
   if (view === 'maintenance') return <MaintenancePage gateway={maintenanceGateway} session={session} />;
+  if (view === 'room_management') return <RoomManagementPage gateway={roomManagementGateway} session={session} />;
   if (view === 'payments') return <PaymentsPage createGateway={paymentCreateGateway} listGateway={paymentListGateway} session={session} staysGateway={activeStaysGateway} />;
   if (view === 'accounts' || view === 'users') return <AccountManagement session={session} gateway={accountGateway} />;
   if (view === 'initial_import') return <InitialDataImport session={session} gateway={dataImportGateway} />;
@@ -631,6 +635,7 @@ export function App({
   paymentListGateway,
   housekeepingGateway,
   maintenanceGateway,
+  roomManagementGateway,
   activeStaysGateway,
   holidayCalendarGateway,
   onLogout,
@@ -653,6 +658,7 @@ export function App({
   paymentListGateway?: PaymentListGateway;
   housekeepingGateway?: HousekeepingGateway;
   maintenanceGateway?: MaintenanceGateway;
+  roomManagementGateway?: RoomManagementGateway;
   activeStaysGateway?: ActiveStaysGateway;
   holidayCalendarGateway?: HolidayCalendarGateway;
   onLogout?: () => void | Promise<void>;
@@ -730,6 +736,7 @@ export function App({
           paymentListGateway={paymentListGateway}
           housekeepingGateway={housekeepingGateway}
           maintenanceGateway={maintenanceGateway}
+          roomManagementGateway={roomManagementGateway}
           activeStaysGateway={activeStaysGateway}
           holidayCalendarGateway={holidayCalendarGateway}
           onOpenBookingCreate={() => setView('bookings_new')}

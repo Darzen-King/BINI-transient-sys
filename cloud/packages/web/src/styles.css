@@ -330,6 +330,11 @@ h1, h2, p { margin-top: 0; }
 .housekeeping-list article > div:last-child { justify-items: end; }
 .housekeeping-list article strong { color: var(--brand-dark); font-size: 20px; }
 .housekeeping-list article span, .housekeeping-list article small { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.maintenance-list { display: grid; margin-top: 16px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--bds-radius-md); }
+.maintenance-list article { display: grid; padding: 12px; gap: 4px; }
+.maintenance-list article + article { border-top: 1px solid var(--line); }
+.maintenance-list strong { color: var(--brand-dark); }
+.maintenance-list small { color: var(--muted); font-size: 11px; }
 
 .booking-detail-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
 .booking-detail-list > div { padding: 11px; border: 1px solid var(--line); border-radius: var(--bds-radius-md); }

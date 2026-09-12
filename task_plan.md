@@ -43,10 +43,12 @@
   - [x] 修改：MFA＋`bookings` 頁面權限、self-excluded conflict／v3 計價、payment 保留、transaction／audit／operation ID retry、桌機／手機預填表單
   - [x] No-show：15 分鐘內即時提醒、工作階段保留、人工二次確認標記與 audit／operation retry
   - [ ] 多時段、送出前 quote／availability、提示音
-- [ ] 入住、延住、付款、退房與退款
+- [ ] 入住、延住、付款、退房與退款（核心入住／延住／退房／一般收款已完成；退款與完整帳務維護待完成）
   - [x] 入住：預約帶入與 walk-in、MFA＋`checkin` 權限、room／booking／stay／maintenance／holiday transaction、可選押金與 audit／operation retry
   - [x] 延住：即時在住房選取、v3 入住時間軸累計計價、MFA＋`extend` 權限、booking／maintenance fail-closed transaction、room／stay／audit／operation retry
-  - [ ] 退房：15 分鐘免費取消／押金退款、15 分鐘緩衝、超時半小時進位與人工減免 audit、stay log／房間待清潔／付款同步 transaction
+  - [x] 退房：15 分鐘免費取消／押金退款、15 分鐘緩衝、超時半小時進位與人工減免 audit、stay log／房間待清潔／付款同步 transaction
+  - [x] 一般收款：在住房選取、即時紀錄／日摘要、MFA＋`payments` 權限、payment／audit／operation transaction
+  - [ ] 帳務維護：退款／訂金調整、手動例外收款、刪除、日結、CSV 匯出
 - [ ] 房務清潔與維修狀態
 - **狀態：** in_progress
 

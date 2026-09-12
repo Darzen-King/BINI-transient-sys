@@ -35,6 +35,8 @@ import { createStayExtendGateway } from '../stays/stay-extend.js';
 import { createActiveStaysGateway } from '../stays/active-stays.js';
 import { createHolidayCalendarGateway } from '../stays/holiday-calendar.js';
 import { createStayCheckoutGateway } from '../stays/stay-checkout.js';
+import { createPaymentCreateGateway } from '../payments/payment-create.js';
+import { createPaymentListGateway } from '../payments/payment-list.js';
 import type { StaffSession } from './session.js';
 
 type GatePhase = 'loading' | 'login' | 'mfa' | 'verify-email' | 'enroll-mfa' | 'blocked' | 'ready';
@@ -99,6 +101,8 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
   const activeStaysGateway = useMemo(() => createActiveStaysGateway(client.db), [client.db]);
   const holidayCalendarGateway = useMemo(() => createHolidayCalendarGateway(client.db), [client.db]);
   const stayCheckoutGateway = useMemo(() => createStayCheckoutGateway(client.functions), [client.functions]);
+  const paymentCreateGateway = useMemo(() => createPaymentCreateGateway(client.functions), [client.functions]);
+  const paymentListGateway = useMemo(() => createPaymentListGateway(client.db), [client.db]);
 
   const evaluateUser = useCallback(async (user: User) => {
     setCurrentUser(user);
@@ -234,6 +238,8 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
       activeStaysGateway={activeStaysGateway}
       holidayCalendarGateway={holidayCalendarGateway}
       stayCheckoutGateway={stayCheckoutGateway}
+      paymentCreateGateway={paymentCreateGateway}
+      paymentListGateway={paymentListGateway}
       onLogout={() => signOut(client.auth)}
     />;
   }

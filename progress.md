@@ -12,7 +12,7 @@
   - Functions 的 stage/prepare/promotion 三支 callable 已精準部署至 DEV `operations` codebase；Hosting 已發布 `index-CQUT3I8c.js`。Functions list 確認第 8 支 callable 位於 `asia-east1`；root-setting preserve 修正後，`adminPromotePreparedV3Backup` 已再次部署並由 `gcloud functions describe` 驗證為 `ACTIVE`、Node.js 22、1 GiB、540 秒；未執行任何真實 Dropbox JSON promotion。
 
 ### 階段 3：預約／入住即時讀取與寫入切片
-- **狀態：** in_progress（預約讀取、單筆建立、取消、修改、No-show 人工標記、入住與延住完成；其餘寫入流程未開始）
+- **狀態：** in_progress（預約讀取、單筆建立、取消、修改、No-show 人工標記、入住、延住、退房與在住房一般收款完成；房態／房務／維修與完整帳務仍待接入）
 - 完成 shared booking list schema、有效預約狀態篩選、按入住時間排序與文字搜尋；AuthGate 已將 Firestore `properties/{propertyId}/bookings` listener 注入預約管理頁。真實 listener／資料格式失敗時清空畫面，不顯示 preview booking。
 - 已重新盤點 v3 新增預約的跨 collection 衝突與日期／金額規則；確認不可把資料完整性檢查放在 client 或目前單一 entity 的通用 processor。下一個子切片為 MFA + page permission 的專屬 booking transaction callable，以及對應的可重試 operation ID。
 - `bookingCreate` callable、shared booking contract／v3 價格與衝突純函式、頁面權限 helper、房間即時選單與完整新增預約頁已完成。真實寫入在同一 transaction 原子建立 booking、可選訂金 payment、audit 與 operation replay 記錄；UI 在網路重試時重用 UUID。桌機雙欄、手機單欄共用相同欄位／contract，月租房顯示但禁止選擇。尚未實作 edit/no-show/multi/前置 quote。
@@ -22,6 +22,7 @@
 - `stayCheckIn` callable、shared stay contract 與入住頁已完成：預約帶入與 walk-in 共用同一份表單／contract；transaction 會檢查 room status、既有 stay、同房有效 booking、maintenance 與 holidays，並原子建立 stay、更新 room／來源 booking、可選押金、audit 與 operation replay。桌機／手機的房間總覽快捷入口已改為直接導向入住；現有 stay 會 fail closed，不覆蓋資料。
   - `stayExtend` callable、在住房／假日 listener 與延住頁已完成：選取在住房後可顯示原／目前／新退房、目前／累計延住費、應收與逐區塊預覽。費率用 v3 `extension_fee_between` 的等價純函式，錨定入住時間而非以目前退房重新起算；同一 transaction 驗證 MFA／`extend` 權限、room／stay identity、未來有效 booking 和未完成 maintenance，衝突時 fail closed，成功後同步 stay／room／audit／operation replay。桌機與手機共用表單，房態「延住處理」直接導向該頁。
   - `stayCheckout` callable 與退房頁已完成：伺服器端處理 15 分鐘免費取消、符合範圍的未退款押金退款、15 分鐘退房緩衝、半小時進位的逾時計價與人工調整。單一 transaction 建立 stay log／退款／audit、房間轉待清潔並刪除 active stay；桌機與手機共用帶二次確認的表單，房態快捷直接導向。
+  - `paymentCreate` callable 與付款管理頁已完成：即時讀取在住房與付款紀錄，提供當日實收／退款／淨額／待收與各付款方式摘要。收款只允許選擇有效在住房，MFA＋`payments` 頁面權限會在同一 transaction 驗證 stay／room／房態後建立 payment、audit 與可重試 operation；退款、訂金調整、手動例外、刪除與日結仍待獨立切片。
 
 ### 階段 1：權威盤點與差距矩陣
 - **狀態：** complete
@@ -116,6 +117,7 @@
 | 預約建立／取消／修改／No-show 切片 | shared quote/conflict、MFA/page access、UI gateway/retry | v3 多日計價、衝突、權限、operation retry、取消確認、預填修改、15 分鐘 No-show 視覺提醒與品牌 icon 關聯 | 建立／取消／修改／No-show 聚焦測試通過；完整 135/135；Rules 41/41 | 通過 |
 | 入住切片 | stay contract、MFA/page access、room/booking/stay/payment transaction、UI gateway/retry | 預約帶入、walk-in、可入住狀態、衝突、押金、room/booking 同步與既有 stay fail closed | 入住 UI／契約聚焦測試通過；完整 138/138；Rules 41/41；DEV `stayCheckIn` ACTIVE | 通過 |
 | 延住切片 | stay contract、v3 時間軸計價、MFA/page access、booking/maintenance conflict、UI gateway/retry | 12h→24h 差額、半小時、原／目前／新退房、累計延住費與 fail-closed 衝突 | 完整 141/141；Rules 41/41；DEV `stayExtend` ACTIVE（asia-east1、Node.js 22、512 MiB）；Hosting `index-BT_q398d.js`、首頁／manifest HTTP 200 | 通過 |
+| 退房＋一般收款切片 | stay checkout／payment contracts、MFA/page access、transaction、即時 UI | 免費取消退款、退房緩衝／半小時計費、一般收款只連動 active stay、audit／operation replay | 完整 145/145；Rules 最近完整 41/41（本次未改 Rules）；DEV `stayCheckout`／`paymentCreate` ACTIVE（asia-east1、Node.js 22、512 MiB）；Hosting `index-DfdlN6xD.js`／首頁 HTTP 200 | 通過 |
 | DEV Functions / Hosting（預約建立／取消／修改／No-show 切片） | `bini-transient-dev` | `bookingCreate`／`bookingCancel`／`bookingUpdate` callable 與 No-show 最新 PWA bundle | 11 Functions 均為 asia-east1；`bookingCancel` 為 ACTIVE、Node.js 22／512 MiB；首頁、manifest、favicon、PWA 192 icon 與 `index-Bdoo7KvG.js` 均 HTTP 200，bundle 含三個 booking callable | 通過 |
 
 ## 錯誤日誌

@@ -302,6 +302,25 @@ h1, h2, p { margin-top: 0; }
 .stay-extension-preview > small { color: var(--muted); font-size: 11px; line-height: 1.5; }
 .checkout-confirm { display: flex; align-items: start; min-height: 44px; gap: 9px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .checkout-confirm input { flex: 0 0 auto; width: 20px; height: 20px; }
+.payment-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: hidden; border: 1px solid var(--line); border-radius: var(--bds-radius-md); background: var(--bds-color-surface); }
+.payment-summary-grid > div { display: grid; min-height: 76px; padding: 11px; gap: 4px; }
+.payment-summary-grid > div:nth-child(even) { border-left: 1px solid var(--line); }
+.payment-summary-grid > div:nth-child(n + 3) { border-top: 1px solid var(--line); }
+.payment-summary-grid small, .payment-history-heading small, .payment-history-list small { color: var(--muted); font-size: 11px; }
+.payment-summary-grid strong { color: var(--brand-dark); font-variant-numeric: tabular-nums; font-size: 16px; }
+.payment-type-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 10px; gap: 7px; }
+.payment-type-summary span { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-radius: 10px; background: var(--bds-color-neutral-100); color: var(--muted); font-size: 11px; gap: 8px; }
+.payment-type-summary b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.payment-history { display: grid; margin-top: 18px; gap: 9px; }
+.payment-history-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.payment-history-list { display: grid; overflow: hidden; border: 1px solid var(--line); border-radius: var(--bds-radius-md); }
+.payment-history-list article { display: flex; align-items: center; justify-content: space-between; padding: 11px 12px; gap: 12px; }
+.payment-history-list article + article { border-top: 1px solid var(--line); }
+.payment-history-list article > div { display: grid; min-width: 0; gap: 3px; }
+.payment-history-list article > div:last-child { justify-items: end; }
+.payment-history-list article strong, .payment-history-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.payment-amount { color: var(--bds-color-green-700); font-variant-numeric: tabular-nums; }
+.payment-amount.refund { color: var(--danger); }
 
 .booking-detail-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
 .booking-detail-list > div { padding: 11px; border: 1px solid var(--line); border-radius: var(--bds-radius-md); }
@@ -317,6 +336,10 @@ h1, h2, p { margin-top: 0; }
   .booking-create-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .booking-create-actions { display: flex; align-items: center; justify-content: flex-end; }
   .booking-detail-actions { display: flex; justify-content: flex-end; }
+  .payment-summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .payment-summary-grid > div:nth-child(even) { border-left: 1px solid var(--line); }
+  .payment-summary-grid > div:nth-child(n + 3) { border-top: 0; }
+  .payment-type-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 @media (max-width: 480px) {

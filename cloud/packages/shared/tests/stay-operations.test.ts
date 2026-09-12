@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { stayCheckInInputSchema, stayCheckoutInputSchema } from '../src/index.js';
+import { paymentCreateInputSchema, stayCheckInInputSchema, stayCheckoutInputSchema } from '../src/index.js';
 
 const base = {
   propertyId: 'property-main', operationId: '11111111-1111-4111-8111-111111111111', roomId: '203', bookingId: null,
@@ -25,5 +25,12 @@ describe('stay checkout contract', () => {
     expect(stayCheckoutInputSchema.parse({ propertyId: 'property-main', operationId: '22222222-2222-4222-8222-222222222222', stayId: 'STY-live-203', extraFeeNts: 50, overdueFeeOverrideNts: 0 })).toMatchObject({ extraFeeNts: 50, overdueFeeOverrideNts: 0 });
     expect(() => stayCheckoutInputSchema.parse({ propertyId: 'property-main', operationId: 'not-a-uuid', stayId: 'STY-live-203' })).toThrow();
     expect(() => stayCheckoutInputSchema.parse({ propertyId: 'property-main', operationId: '22222222-2222-4222-8222-222222222222', stayId: 'STY-live-203', extraFeeNts: -1 })).toThrow();
+  });
+});
+
+describe('normal payment contract', () => {
+  it('requires a property-scoped active stay and a positive integer amount', () => {
+    expect(paymentCreateInputSchema.parse({ propertyId: 'property-main', operationId: '33333333-3333-4333-8333-333333333333', stayId: 'STY-live-203', amountNts: 800, paymentType: 'cash', note: '補收' })).toMatchObject({ amountNts: 800, paymentType: 'cash' });
+    expect(() => paymentCreateInputSchema.parse({ propertyId: 'property-main', operationId: '33333333-3333-4333-8333-333333333333', stayId: 'STY-live-203', amountNts: 0, paymentType: 'cash' })).toThrow();
   });
 });

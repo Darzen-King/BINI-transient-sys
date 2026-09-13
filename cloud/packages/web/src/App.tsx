@@ -59,6 +59,28 @@ import { RoomManagementPage } from './room-management/RoomManagementPage.js';
 import type { RoomManagementGateway } from './room-management/room-management-gateway.js';
 import { RoomTimelinePage } from './gantt/RoomTimelinePage.js';
 import type { RoomTimelineGateway } from './gantt/room-timeline-gateway.js';
+import type { PropertyNameGateway } from './auth/property-session.js';
+
+/** Shown only to accounts granted more than one property; switching restarts the app in that property. */
+function PropertySwitcher({ className, session, gateway, onSwitch }: { className: string; session: StaffSession; gateway: PropertyNameGateway | undefined; onSwitch: ((propertyId: string) => void) | undefined }) {
+  const { text } = useLocale();
+  const memberships = session.memberships ?? [];
+  const [names, setNames] = useState<Record<string, string>>({});
+  const ids = memberships.map((membership) => membership.propertyId).join('|');
+  useEffect(() => {
+    if (!gateway || !ids.includes('|')) return undefined;
+    let cancelled = false;
+    void gateway.load(ids.split('|')).then((loaded) => { if (!cancelled) setNames(loaded); });
+    return () => { cancelled = true; };
+  }, [gateway, ids]);
+  if (memberships.length < 2 || !onSwitch) return null;
+  return <label className={`property-switcher ${className}`}>
+    <span>{text('館別', 'Property')}</span>
+    <select aria-label={text('切換館別', 'Switch property')} onChange={(event) => onSwitch(event.target.value)} value={session.propertyId}>
+      {memberships.map((membership) => <option key={membership.propertyId} value={membership.propertyId}>{names[membership.propertyId] ?? membership.propertyId}</option>)}
+    </select>
+  </label>;
+}
 
 type UtilityViewId = 'hub' | 'initial_import';
 type ViewId = 'today' | 'more' | 'accounts' | UtilityViewId | CloudPageId;
@@ -695,6 +717,8 @@ export function App({
   holidayCalendarGateway,
   holidayGateway,
   propertyGateway,
+  propertyNameGateway,
+  onSwitchProperty,
   onLogout,
 }: {
   initialAuthenticated?: boolean;
@@ -727,6 +751,8 @@ export function App({
   holidayCalendarGateway?: HolidayCalendarGateway;
   holidayGateway?: HolidayGateway;
   propertyGateway?: PropertyGateway;
+  propertyNameGateway?: PropertyNameGateway;
+  onSwitchProperty?: (propertyId: string) => void;
   onLogout?: () => void | Promise<void>;
 }) {
   const { locale, text } = useLocale();
@@ -766,6 +792,7 @@ export function App({
         </nav>
         <div className="desktop-account">
           <span className="environment-state">DEV</span>
+          <PropertySwitcher className="desktop-property-switch" gateway={propertyNameGateway} onSwitch={onSwitchProperty} session={session} />
           <strong>{session.displayName}</strong>
           <LanguageSwitcher className="desktop-language-switch" />
           <button type="button" aria-label={text('登出', 'Sign out')} onClick={logout}>⏻</button>
@@ -775,7 +802,7 @@ export function App({
       <div className="page-column">
         <header className="topbar">
           <div><small>{formatLocalDate(locale)}</small><h1>{titleForView(view, locale, text)}</h1></div>
-          <div className="topbar-controls"><LanguageSwitcher className="mobile-language-switch" /><button className="avatar" aria-label={text('帳號選單', 'Account menu')}>{session.displayName.slice(0, 1) || text('管', 'A')}</button></div>
+          <div className="topbar-controls"><PropertySwitcher className="mobile-property-switch" gateway={propertyNameGateway} onSwitch={onSwitchProperty} session={session} /><LanguageSwitcher className="mobile-language-switch" /><button className="avatar" aria-label={text('帳號選單', 'Account menu')}>{session.displayName.slice(0, 1) || text('管', 'A')}</button></div>
         </header>
 
         <Notice className="foundation-banner" title={text('DEV 開發中 · 尚不可作為正式營運系統', 'DEV in progress · Not for live operations')}>

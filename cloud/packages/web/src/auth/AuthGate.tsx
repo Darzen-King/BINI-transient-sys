@@ -14,7 +14,7 @@ import {
   type TotpSecret,
   type User,
 } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { CLOUD_ROLES, type CloudPageId, type CloudRole } from '@bini/cloud-shared';
 
 import { App } from '../App.js';
@@ -49,6 +49,7 @@ import { createHousekeepingGateway } from '../housekeeping/housekeeping-gateway.
 import { createMaintenanceGateway } from '../maintenance/maintenance-gateway.js';
 import { createRoomManagementGateway } from '../room-management/room-management-gateway.js';
 import { createRoomTimelineGateway } from '../gantt/room-timeline-gateway.js';
+import { choosePropertyId, createPropertyNameGateway, listMemberships, readPreferredProperty, writePreferredProperty } from './property-session.js';
 import type { StaffSession } from './session.js';
 
 type GatePhase = 'loading' | 'login' | 'mfa' | 'verify-email' | 'enroll-mfa' | 'blocked' | 'ready';
@@ -88,6 +89,7 @@ function parseProfile(user: User, propertyId: string, profile: Record<string, un
     propertyId,
     role: role as CloudRole,
     allowedPages,
+    memberships: listMemberships(profile.roles),
   };
 }
 
@@ -96,6 +98,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
   const [phase, setPhase] = useState<GatePhase>('loading');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [session, setSession] = useState<StaffSession | null>(null);
+  const [profileData, setProfileData] = useState<Record<string, unknown> | null>(null);
   const [resolver, setResolver] = useState<MultiFactorResolver | null>(null);
   const [totpSecret, setTotpSecret] = useState<TotpSecret | null>(null);
   const [error, setError] = useState('');
@@ -127,6 +130,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
   const maintenanceGateway = useMemo(() => createMaintenanceGateway(client.db, client.functions), [client.db, client.functions]);
   const roomManagementGateway = useMemo(() => createRoomManagementGateway(client.db, client.functions), [client.db, client.functions]);
   const roomTimelineGateway = useMemo(() => createRoomTimelineGateway(client.db), [client.db]);
+  const propertyNameGateway = useMemo(() => createPropertyNameGateway(client.db), [client.db]);
 
   const evaluateUser = useCallback(async (user: User) => {
     setCurrentUser(user);
@@ -150,11 +154,14 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
       return;
     }
     const snapshot = await getDoc(doc(client.db, 'users', user.uid));
-    const nextSession = snapshot.exists() ? parseProfile(user, client.propertyId, snapshot.data()) : null;
+    const profile = snapshot.exists() ? snapshot.data() : null;
+    const propertyId = profile ? choosePropertyId(listMemberships(profile.roles), readPreferredProperty(), client.propertyId) : null;
+    const nextSession = profile && propertyId ? parseProfile(user, propertyId, profile) : null;
     if (!nextSession) {
       setPhase('blocked');
       return;
     }
+    setProfileData(profile);
     setSession(nextSession);
     setPhase('ready');
   }, [client.auth, client.db, client.propertyId, text]);
@@ -245,9 +252,37 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
     }
   };
 
+  // Keep roles live: a newly created property appears in the switcher, and a revoked role blocks at once.
+  const readyUid = phase === 'ready' ? currentUser?.uid : undefined;
+  useEffect(() => {
+    if (!readyUid || !currentUser) return undefined;
+    return onSnapshot(doc(client.db, 'users', readyUid), (snapshot) => {
+      const profile = snapshot.exists() ? snapshot.data() : null;
+      setProfileData(profile);
+      setSession((current) => {
+        if (!current || !profile) return null;
+        const next = parseProfile(currentUser, current.propertyId, profile);
+        return next && JSON.stringify(next) === JSON.stringify(current) ? current : next;
+      });
+    }, () => undefined);
+  }, [client.db, currentUser, readyUid]);
+  useEffect(() => { if (phase === 'ready' && !session) setPhase('blocked'); }, [phase, session]);
+
+  const switchProperty = (propertyId: string) => {
+    if (!currentUser || !profileData || propertyId === session?.propertyId) return;
+    const nextSession = parseProfile(currentUser, propertyId, profileData);
+    if (!nextSession) return;
+    writePreferredProperty(propertyId);
+    setSession(nextSession);
+  };
+
   if (phase === 'ready' && session) {
+    // Keyed by property so every page, form and listener restarts cleanly in the newly selected property.
     return <App
+      key={session.propertyId}
       session={session}
+      onSwitchProperty={switchProperty}
+      propertyNameGateway={propertyNameGateway}
       accountGateway={createAccountAdminGateway(client.functions)}
       dataImportGateway={createDataImportGateway(client.functions)}
       bookingListGateway={bookingListGateway}

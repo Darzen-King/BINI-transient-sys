@@ -8,7 +8,7 @@
 - Firebase：DEV `bini-transient-dev`；PROD `bini-transient`（顯示名稱 `BINI-Transient`）。只部署 DEV，PROD 未部署、未修改。
 - DEV Firestore `(default)`：`asia-east1`、Native mode、Standard edition、delete protection。
 - Identity Platform：email/password、email enumeration protection、關閉公開註冊／自助刪除、TOTP MFA 強制流程。
-- DEV Hosting、Firestore Rules/indexes、三十三個 Node.js 22 Functions 已部署；網址：`https://bini-transient-dev.web.app`。
+- DEV Hosting、Firestore Rules/indexes、三十五個 Node.js 22 Functions 已部署；網址：`https://bini-transient-dev.web.app`。
 - 首位 admin `biniblooms250808@gmail.com` 已以 server-side bootstrap 建立，`emailVerified=true`、active、`property-main/admin`、17 個頁面權限、`mfaRequired=true`，並已寄出繁中一次性密碼設定信。
 - 實際 Web SDK 設定與 alias 保存在 Git 忽略的 `cloud/.env.local`、`cloud/.firebaserc`；禁止提交或輸出內容。
 
@@ -81,6 +81,7 @@
 - `gantt/RoomTimelinePage.tsx` + `room-timeline-gateway.ts`：以 `rooms`、`bookings`、`stays`、`maintenanceSchedules`、`monthlyRentals` 5 個 property-scoped live listeners 建立台灣時區 14 天投影；只顯示有效預約、active stay、未完成維修與 active 月租。桌機固定房號欄，手機水平捲動；event dialog 顯示類型／名稱／起迄。這是 client read projection，不可用於衝突或寫入權威判斷；館別切換、今日定位和房間篩選尚待補。
 - `audit/AuditTrailPage.tsx` + `audit/audit-gateway.ts` + `domain/audit-list.ts`：manager/admin 以 property-scoped `auditLogs` listener 讀取 v3 `activity_logs` 移入資料與 v4 append-only audit；支援 action、target ID、關鍵字篩選與每頁 50 筆投影，明細 dialog 顯示時間、操作者、目標、before/after/raw details。Rules 僅允許同館別 manager/admin read，所有 client write 一律拒絕；未知 action 仍保留原始名稱，避免歷史紀錄遺失。
 - `holidays/HolidayManagementPage.tsx` + `holiday-gateway.ts` + `contracts/holiday-operations.ts`：桌機以 12 個月年曆保留 v3 年度、國定／匯入／手動標示與點擊操作；手機維持單欄月卡與 `ResponsiveDialog`。`holidayManualUpsert`／`holidayDelete`／`holidayResync` 都要求 MFA、`holidays` allowlist 與 manager/admin 角色，採 UUID replay、transaction、`holidaySyncRuns`、audit 與 client-write deny。手動資料會覆蓋同日自動資料且重同步永不覆蓋手動項；政府 API 兩來源失敗才使用與 v3 相同的 2025／2026 fallback，若無來源則 fail-closed、不先清除既有資料。這些 dates 繼續供 booking/check-in/extend/checkout 的 server pricing transaction 讀取。
+- `properties/PropertyManagementPage.tsx` + `property-gateway.ts` + `contracts/property-operations.ts`：admin 可由目前來源館別列出自己具 membership 的館別，並保留 v3 的 ID、名稱、地址、電話、備註與啟用狀態。`propertyCreate` 要求 MFA＋來源館別 admin，以 UUID operation replay transaction 建立 TWD／Asia/Taipei 的新館別、原子授予建立者新館別 admin 與 17 個頁面權限，並寫入來源館別 audit；`propertyList` 只傳回該管理員可存取的館別。現有營運 session 仍固定單一 property，尚無跨館別切換、新館別房間初始化、編輯或停用能力，不能宣告多館別營運已完成。
 - `FoundationPage` 的 Prototype Hub 已替換為 `allowedPages` 驅動的卡片入口；按鈕只呼叫既有 `onOpenPage` router，不自行提高權限。Admin 才有初始資料導入卡，所有其他 foundation 頁仍明確標示尚未搬遷。
 - 實際 dry-run：`bini_backup_20260909_075803.json` 為 579,199 bytes／1,589 筆，清理後 431,817 bytes；排除 5 users，password 欄位傳輸檢查 false。這只是格式相容性證據，正式匯入必須使用操作員從 Dropbox 下載的最新檔。
 - Hosting 曾因 workspace Vite 未讀根目錄 `.env.local` 出現粉色空白頁；已在 `vite.config.ts` 設 `envDir: '../..'`，並新增 `guard:hosting-package`，缺少實際 DEV 設定會在部署前 fail closed。
@@ -89,15 +90,15 @@
 ### 驗證與部署結果
 
 ```text
-npm test                       170/170 passed
+npm test                       179/179 passed
 npm run test:deploy-guard       6/6 passed
-npm run test:rules             45/45 passed（Firestore Emulator）
+npm run test:rules             47/47 passed（Firestore Emulator）
 npm run typecheck              passed
 npm run lint                   passed
 npm run build                  passed
 npm run guard:functions-package passed
 npm run guard:hosting-package   passed
-DEV Functions                  33/33 listed, asia-east1, nodejs22; costCreate/costUpdate/costArchive/reportExportCsv/holidayManualUpsert/holidayDelete/holidayResync ACTIVE, 512 MiB
+DEV Functions                  35/35 listed, asia-east1, nodejs22; costCreate/costUpdate/costArchive/reportExportCsv/holidayManualUpsert/holidayDelete/holidayResync/propertyList/propertyCreate ACTIVE, 512 MiB
 DEV bookingCreate              callable, 512 MiB, nodejs22
 DEV bookingCancel              callable, 512 MiB, nodejs22
 DEV bookingUpdate              callable, 512 MiB, nodejs22
@@ -110,7 +111,7 @@ DEV cashierClose               callable, ACTIVE, 512 MiB, nodejs22; manager/admi
 DEV costCreate                 callable, ACTIVE, 512 MiB, nodejs22; MFA＋costs page＋property admin、create/audit/replay
 DEV costUpdate                 callable, ACTIVE, 512 MiB, nodejs22; version conflict protection/audit/replay
 DEV costArchive                callable, ACTIVE, 512 MiB, nodejs22; required reason/immutable history/audit/replay
-DEV Hosting                    index-BjwJTuX4.js live; bundle contains Holiday calendar and holiday callable markers
+DEV Hosting                    index-D59Ni7D-.js live; bundle contains New property/propertyCreate/propertyList markers
 DEV HTTP smoke                 home/manifest/favicon/PWA 192 icon = 200
 ```
 
@@ -122,7 +123,7 @@ PowerShell 呼叫 Firebase CLI 時，含逗號的 `--only` 值不可裸寫：它
 
 1. 管理員完成密碼設定後登入，首次綁定 TOTP；正式 pilot 前建立第二位 admin 並演練遺失驗證器恢復。
 2. promotion repository 與批次確認已完成；接續為 promotion 加入 Firestore export／按批次 restore drill，並以匿名化 snapshot 執行一次完整 DEV 匯入驗收。所有權威寫入仍須由 Admin SDK／operation processor 執行，不可由 UI 直寫 Firestore。
-3. room overview 即時讀取、check-in、extend、checkout、active-stay 一般收款、追加式退款、手動例外收款、日結、成本 CRUD、reports 核心 KPI/P&L/CSV、audit 唯讀軌跡與 holidays 維護閉環已完成；接續完成訂金調整／刪除／CSV、房務／維修其餘 server-authoritative operations，再補 reports 的付款日摘要／圖表／館別切換與完整分區，之後處理 gantt、bookings 多時段與前置 quote、properties。每個 domain 要有 role matrix、payload schema、idempotency/conflict tests。
+3. room overview 即時讀取、check-in、extend、checkout、active-stay 一般收款、追加式退款、手動例外收款、日結、成本 CRUD、reports 核心 KPI/P&L/CSV、audit 唯讀軌跡、holidays 維護與館別建立已完成；接續完成訂金調整／刪除／CSV、房務／維修其餘 server-authoritative operations，再補 reports 的付款日摘要／圖表／館別切換與完整分區，以及 properties 跨館別 session 切換、新館別房間初始化、編輯／停用，之後處理 gantt、bookings 多時段與前置 quote。每個 domain 要有 role matrix、payload schema、idempotency/conflict tests。
 4. 每個 domain 同步交付 v3 等價桌機頁與完整手機 adaptive view；不得只做靜態畫面或無作用按鈕。
 5. 加入 IndexedDB operation queue、離線／衝突 UI、App Check、預算警示、日誌與 Firestore 匯出／還原演練。
 6. 使用匿名化 v3 snapshot 匯入 DEV，核對筆數、狀態、金額、`property-main` 映射與多裝置衝突。

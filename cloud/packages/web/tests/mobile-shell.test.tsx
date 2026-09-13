@@ -67,6 +67,13 @@ describe('mobile-first PMS shell', () => {
     expect(screen.getByRole('button', { name: '辦理退房' })).toBeInTheDocument();
   });
 
+  it('routes the global checkout shortcut to the guarded checkout workflow', () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '辦理退房' }));
+    expect(screen.getByLabelText('選擇在住房')).toBeInTheDocument();
+  });
+
   it('labels the deployed shell as a non-operational DEV foundation without fake pending work', () => {
     render(<App />);
 

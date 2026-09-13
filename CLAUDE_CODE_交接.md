@@ -79,7 +79,7 @@
 - `InitialDataImport.tsx` 現在保留並顯示 stage／prepare／promotion callable 的原始可讀錯誤，不再用同一個籠統訊息覆蓋；畫面可見的舊紅框不等於目前 batch state，應以 `migrationImports/{batchId}.status` 判定。真實批次 `93ba8b3ce620…` 已在 transform v3 取得 `ready`、1,584 prepared，尚未 promotion。
 - 真實 Dropbox v3 批次 `93ba8b3ce620…` 已成功 promotion 至 DEV：`migrationImports` 狀態為 `promoted`、transform version 3。唯讀驗收確認 property-main 下 rooms 6（`201、202、203、205、206、207`）、bookings 97、stays 3、stayLogs 140、payments 93、monthlyRentals 34、holidays 241；auditLogs 971 含 migration audit。`buildBookingRoomOptions` 已以實際六份 Firestore room 文件通過，選單可讀取所有房號（依目前狀態顯示月租／使用中）。
 - 房間管理 vertical slice 已部署 DEV：`roomManagementUpdate`、`monthlyRentalCreate`、`monthlyRentalRenew`、`monthlyRentalCheckout`、`stayTransfer` 全部為 asia-east1／Node.js 22／512 MiB，要求 MFA＋`room_management` permission，並用 property-scoped transaction、UUID operation replay 與 append-only audit。建立月租只接受可入住且無 active stay／active monthly／未來有效預約的房間，建立時收租金與押金；續租關閉前一期並只收新一期租金；退租退款上限為押金並把房間改為待清潔。`RoomManagementPage` 桌機直接顯示備註、維修、月租、在住房與操作，手機點房卡進 ResponsiveDialog。換房只允許來源 active stay 轉入可入住目標房，server transaction 重新檢查目標的有效預約及未完成維修，原房改待清潔；只同步關聯的已入住預約，未關聯未來預約與付款不搬移，並建立零金額轉房 stay log／audit。已補 `monthlyRentals` 同館別 MFA 成員唯讀 Rules（client 仍不能寫入），Rules emulator 43/43 通過。不要讓一般房態操作改寫使用中／即將退房／月租狀態，這些狀態分別屬於 stay 或 monthly transaction。
-- `TodayView` 的房間總覽已提供全部房間與七種房態的即時篩選磚；桌機仍直接呈現完整旅客／時間／款項／下一筆預約／快捷操作，手機仍由房卡開啟 ResponsiveDialog。具有 `payments` 分頁權限時，使用中／即將退房房卡的付款捷徑會導向付款頁並以即時在住房清單帶入同房 stay；若 listener 找不到相符 stay 則不預填，收款 callable 仍是唯一寫入權威。篩選與快捷帶入僅在 client 投影，不可直接寫入 Firestore；館別切換仍待補。
+- `TodayView` 的房間總覽已提供全部房間與七種房態的即時篩選磚；桌機仍直接呈現完整旅客／時間／款項／下一筆預約／快捷操作，手機仍由房卡開啟 ResponsiveDialog。具有 `payments` 分頁權限時，使用中／即將退房房卡的付款捷徑會導向付款頁並以即時在住房清單帶入同房 stay；若 listener 找不到相符 stay 則不預填，收款 callable 仍是唯一寫入權威。全域「辦理退房」也只在 `checkout` 權限存在時開啟既有退房頁，不再建立提示 sheet。篩選與快捷帶入僅在 client 投影，不可直接寫入 Firestore；館別切換仍待補。
 - `gantt/RoomTimelinePage.tsx` + `room-timeline-gateway.ts`：以 `rooms`、`bookings`、`stays`、`maintenanceSchedules`、`monthlyRentals` 5 個 property-scoped live listeners 建立台灣時區 14 天投影；只顯示有效預約、active stay、未完成維修與 active 月租。桌機固定房號欄，手機水平捲動；event dialog 顯示類型／名稱／起迄。這是 client read projection，不可用於衝突或寫入權威判斷；館別切換、今日定位和房間篩選尚待補。
 - `audit/AuditTrailPage.tsx` + `audit/audit-gateway.ts` + `domain/audit-list.ts`：manager/admin 以 property-scoped `auditLogs` listener 讀取 v3 `activity_logs` 移入資料與 v4 append-only audit；支援 action、target ID、關鍵字篩選與每頁 50 筆投影，明細 dialog 顯示時間、操作者、目標、before/after/raw details。Rules 僅允許同館別 manager/admin read，所有 client write 一律拒絕；未知 action 仍保留原始名稱，避免歷史紀錄遺失。
 - `holidays/HolidayManagementPage.tsx` + `holiday-gateway.ts` + `contracts/holiday-operations.ts`：桌機以 12 個月年曆保留 v3 年度、國定／匯入／手動標示與點擊操作；手機維持單欄月卡與 `ResponsiveDialog`。`holidayManualUpsert`／`holidayDelete`／`holidayResync` 都要求 MFA、`holidays` allowlist 與 manager/admin 角色，採 UUID replay、transaction、`holidaySyncRuns`、audit 與 client-write deny。手動資料會覆蓋同日自動資料且重同步永不覆蓋手動項；政府 API 兩來源失敗才使用與 v3 相同的 2025／2026 fallback，若無來源則 fail-closed、不先清除既有資料。這些 dates 繼續供 booking/check-in/extend/checkout 的 server pricing transaction 讀取。
@@ -93,7 +93,7 @@
 ### 驗證與部署結果
 
 ```text
-npm test                       192/192 passed
+npm test                       193/193 passed
 npm run test:deploy-guard       6/6 passed
 npm run test:rules             47/47 passed（Firestore Emulator）
 npm run typecheck              passed
@@ -118,7 +118,7 @@ DEV costArchive                callable, ACTIVE, 512 MiB, nodejs22; required rea
 DEV bookingMultiCreate         callable, ACTIVE, 512 MiB, nodejs22; v3 partial-success multi-slot transaction/audit/replay
 DEV bookingUpdatePreview       callable, ACTIVE, 512 MiB, nodejs22; self-excluding advisory quote/conflict preview
 DEV paymentExportCsv           callable, ACTIVE, 512 MiB, nodejs22; property-scoped Taiwan-date payment CSV, audit/replay, no payment mutation
-DEV Hosting                    index-D8pXvW9l.js live; bundle contains paymentExportCsv and room-payment stay-preselection markers
+DEV Hosting                    index-AIaWHA3_.js live; bundle contains paymentExportCsv, room-payment preselection and guarded checkout-routing markers
 DEV HTTP smoke                 home/manifest/favicon/PWA 192 icon = 200
 ```
 

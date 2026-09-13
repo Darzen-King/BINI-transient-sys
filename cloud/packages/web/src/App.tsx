@@ -348,7 +348,7 @@ function TodayView({ canCreate, canCheckIn, canExtend, canPayment, canCheckout, 
       <section className="quick-actions" aria-label={text('櫃檯快捷操作', 'Front desk quick actions')}>
         {canCreate ? <Button aria-label={text('新增預約', 'New booking')} className="primary-action" onClick={onOpenBookingCreate}>＋<span>{text('新增預約', 'New booking')}</span></Button> : null}
         {canCheckIn ? <Button aria-label={text('辦理入住', 'Check in')} onClick={onOpenCheckIn} variant="outline">↘<span>{text('辦理入住', 'Check in')}</span></Button> : null}
-        <Button aria-label={text('辦理退房', 'Check out')} onClick={() => onAction(text('辦理退房', 'Check out'))} variant="outline">↗<span>{text('辦理退房', 'Check out')}</span></Button>
+        {canCheckout ? <Button aria-label={text('辦理退房', 'Check out')} onClick={onOpenCheckout} variant="outline">↗<span>{text('辦理退房', 'Check out')}</span></Button> : null}
       </section>
 
       <ShellSection title={text('今日房態', "Today's rooms")} hint={text(`${visibleRoomViewModels.length}/${roomViewModels.length} 間`, `${visibleRoomViewModels.length}/${roomViewModels.length} rooms`)} >

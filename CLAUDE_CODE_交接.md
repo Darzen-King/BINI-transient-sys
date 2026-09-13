@@ -66,7 +66,7 @@
 - `stays/StayCheckInPage.tsx` + `stays/stay-checkin.ts`：桌機／手機共用入住表單；可選有效預約以鎖定來源欄位帶入，或選 walk-in 編輯房間／住客／時間／方案／天數／折扣／手動金額與押金。房間總覽快捷「辦理入住」直接導向該頁；讀取 rooms／bookings 失敗時 fail closed，重送維持 UUID。
 - `stays/StayExtendPage.tsx` + `stays/stay-extend.ts`：桌機／手機共用延住表單；讀取在住房與假日資料後，提供旅客／方案、原／目前／新退房、目前／累計延住費、應收及逐區塊預覽。讀取失敗一律停用送出；提交與重送維持 UUID，房態快捷「延住處理」直接進入該頁。
 - `stays/StayCheckoutPage.tsx` + `stays/stay-checkout.ts`：桌機／手機共用退房表單；可選在住房、輸入雜費與選填逾時費調整，顯示目前應收／延住費並要求二次確認。讀取失敗 fail closed，房態快捷「退房辦理」直接導向此頁。
-- `payments/PaymentsPage.tsx` + `payments/{payment-create,payment-list}.ts`：桌機／手機共用付款頁；即時顯示台北當日實收／退款／淨額／待收、付款方式摘要與歷史紀錄，新增一般收款時只能選取 active stay。每筆非退款付款可開啟退款 dialog，退款原因必填，client 只呼叫 `paymentRefund`；可退額仍完全由 server transaction 重查。另提供手動例外收款 dialog，填寫旅客、選填房號、金額、付款方式、訂金標示與原因，client 只呼叫 `paymentManualCreate`。manager/admin 額外看到日結 dialog，先顯示目前投影淨額、再由 `cashierClose` 以伺服器日期重新計算和鎖定。讀取失敗或 gateway 不完整時停用送出，不回退展示帳務資料。
+- `payments/PaymentsPage.tsx` + `payments/{payment-create,payment-list}.ts`：桌機／手機共用付款頁；即時顯示台北當日實收／退款／淨額／待收、付款方式摘要與歷史紀錄，新增一般收款時只能選取 active stay。每筆非退款付款可開啟退款 dialog，退款原因必填，client 只呼叫 `paymentRefund`；可退額仍完全由 server transaction 重查。另提供手動例外收款 dialog，填寫旅客、選填房號、金額、付款方式、訂金標示與原因，client 只呼叫 `paymentManualCreate`。admin 另可作廢未退款、未日結的 paid payment：`paymentVoid` 保留原付款與作廢原因／audit，並從即時摘要、房間餘額、日結與免費取消押金退款排除。manager/admin 額外看到日結 dialog，先顯示目前投影淨額、再由 `cashierClose` 以伺服器日期重新計算和鎖定。讀取失敗或 gateway 不完整時停用送出，不回退展示帳務資料。
 - `costs/CostManagementPage.tsx` + `costs/cost-gateway.ts` + `domain/cost-list.ts`：桌機／手機共用成本頁；以 property-scoped Firestore listener 讀取成本，提供本月成本／筆數／前二分類摘要、月份與分類篩選、完整成本欄位表單與明細。只有 admin 顯示新增、修改、封存按鈕；修改透過 ResponsiveDialog 並帶 document version，封存要求原因且不移除 Firestore 文件。gateway 或 listener 失敗時停用寫入且不回退展示資料。
 - `bookings/BookingEditPage.tsx` + `booking-update.ts` + `booking-update-preview.ts`：從預約明細進入修改；房間／住客／電話／入住／方案／天數／折扣／自動或手動金額均預填，桌機雙欄、手機單欄共用。儲存會維持 operation UUID；成功後由即時清單反映結果。編輯前可呼叫 server-authoritative `bookingUpdatePreview` 顯示 quote／availability，且文案明確說明只會排除目前這筆預約；既有訂金不能在此頁修改。
 - `styles.css`：產品／domain 版面樣式；基礎 token 已移到 design system。維持 44px target、safe-area、320／375／430px 單欄、768px 三欄、>=1100px v3 式桌機頂部導覽與三欄房卡，無水平溢位。
@@ -93,7 +93,7 @@
 ### 驗證與部署結果
 
 ```text
-npm test                       193/193 passed
+npm test                       195/195 passed
 npm run test:deploy-guard       6/6 passed
 npm run test:rules             47/47 passed（Firestore Emulator）
 npm run typecheck              passed
@@ -101,7 +101,7 @@ npm run lint                   passed
 npm run build                  passed
 npm run guard:functions-package passed
 npm run guard:hosting-package   passed
-DEV Functions                  39/39 listed, asia-east1, nodejs22; costCreate/costUpdate/costArchive/reportExportCsv/paymentExportCsv/holidayManualUpsert/holidayDelete/holidayResync/propertyList/propertyCreate/bookingPreview/bookingMultiCreate/bookingUpdatePreview ACTIVE, 512 MiB
+DEV Functions                  40/40 listed, asia-east1, nodejs22; costCreate/costUpdate/costArchive/reportExportCsv/paymentExportCsv/paymentVoid/holidayManualUpsert/holidayDelete/holidayResync/propertyList/propertyCreate/bookingPreview/bookingMultiCreate/bookingUpdatePreview ACTIVE, 512 MiB
 DEV bookingCreate              callable, 512 MiB, nodejs22
 DEV bookingCancel              callable, 512 MiB, nodejs22
 DEV bookingUpdate              callable, 512 MiB, nodejs22
@@ -118,7 +118,8 @@ DEV costArchive                callable, ACTIVE, 512 MiB, nodejs22; required rea
 DEV bookingMultiCreate         callable, ACTIVE, 512 MiB, nodejs22; v3 partial-success multi-slot transaction/audit/replay
 DEV bookingUpdatePreview       callable, ACTIVE, 512 MiB, nodejs22; self-excluding advisory quote/conflict preview
 DEV paymentExportCsv           callable, ACTIVE, 512 MiB, nodejs22; property-scoped Taiwan-date payment CSV, audit/replay, no payment mutation
-DEV Hosting                    index-9u9NVOBQ.js live; bundle contains paymentExportCsv, room-payment preselection, guarded checkout-routing, room-filter, go-to-now and scrollTo markers
+DEV paymentVoid                callable, ACTIVE, 512 MiB, nodejs22; admin + MFA + payments page, reason/audit/replay, rejects refunded or closed-day payments
+DEV Hosting                    index-CPwmb4no.js live; bundle contains paymentExportCsv, paymentVoid, room-payment preselection, guarded checkout-routing, room-filter, go-to-now and scrollTo markers
 DEV HTTP smoke                 home/manifest/favicon/PWA 192 icon = 200
 ```
 

@@ -150,6 +150,17 @@ describe("payments UI", () => {
     expect(await screen.findByText("帳務完成")).toBeInTheDocument();
   });
 
+  it("lets an administrator void an unrefunded payment with an audit reason", async () => {
+    const voidPayment = vi.fn().mockResolvedValue({ status: "voided", paymentId: "PAY-old", voidedAt: "2026-09-12T09:00:00.000Z" });
+    render(<App activeStaysGateway={staysGateway} paymentCreateGateway={{ create: vi.fn(), void: voidPayment } satisfies PaymentCreateGateway} paymentListGateway={listGateway} session={{ ...session, role: "admin" }} />);
+    fireEvent.click(screen.getByRole("link", { name: "付款管理" }));
+    fireEvent.click(await screen.findByRole("button", { name: "作廢" }));
+    fireEvent.change(screen.getByLabelText("作廢原因"), { target: { value: "重複登錄" } });
+    fireEvent.click(screen.getByRole("button", { name: "確認作廢付款" }));
+    await waitFor(() => expect(voidPayment).toHaveBeenCalledWith({ propertyId: "property-main", operationId: expect.any(String), paymentId: "PAY-old", reason: "重複登錄" }));
+    expect(await screen.findByText("帳務完成")).toBeInTheDocument();
+  });
+
   it("creates a server-validated manual exception payment", async () => {
     const manualCreate = vi.fn().mockResolvedValue({
       status: "created",

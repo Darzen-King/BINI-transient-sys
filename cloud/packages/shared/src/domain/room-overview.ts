@@ -102,6 +102,7 @@ const paymentSchema = z.object({
   amountNts: safeIntegerSchema,
   deposit: z.boolean(),
   refund: z.boolean(),
+  status: z.enum(['paid', 'pending', 'partial', 'refunded', 'voided']).optional().default('paid'),
   createdAt: dateTimeSchema,
 }).passthrough();
 
@@ -204,10 +205,13 @@ export function buildRoomOverviewProjection(
       if (stay) {
         const paymentFloor = stay.createdAt ?? stay.checkInAt ?? '';
         const scopedPayments = payments.filter((payment) => (
+          payment.data.status !== 'voided'
+          && (
           payment.data.roomId === roomId
           && (
             (paymentFloor !== '' && Date.parse(payment.data.createdAt) >= Date.parse(paymentFloor))
             || (stay.bookingId != null && payment.data.bookingId === stay.bookingId)
+          )
           )
         ));
         const received = scopedPayments
@@ -245,6 +249,7 @@ export function buildRoomOverviewProjection(
 
   const paidByBooking = new Map<string, number>();
   for (const payment of payments) {
+    if (payment.data.status === 'voided') continue;
     if (!payment.data.bookingId) continue;
     const direction = payment.data.refund ? -1 : 1;
     paidByBooking.set(

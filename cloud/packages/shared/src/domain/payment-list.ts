@@ -8,7 +8,7 @@ const paymentSchema = z.object({
   amountNts: z.number().int().safe().min(0),
   deposit: z.boolean().optional(),
   refund: z.boolean().optional(),
-  status: z.enum(['paid', 'pending', 'partial', 'refunded']),
+  status: z.enum(['paid', 'pending', 'partial', 'refunded', 'voided']),
   note: z.string().max(2_000).nullable().optional(),
   invoiceNo: z.string().max(200).nullable().optional(),
   externalTransactionId: z.string().max(300).nullable().optional(),
@@ -27,7 +27,7 @@ export interface PaymentListItem {
   amountNts: number;
   deposit: boolean;
   refund: boolean;
-  status: 'paid' | 'pending' | 'partial' | 'refunded';
+  status: 'paid' | 'pending' | 'partial' | 'refunded' | 'voided';
   note: string | null;
   invoiceNo?: string | null;
   externalTxnId?: string | null;
@@ -55,6 +55,7 @@ export function summarizePayments(items: readonly PaymentListItem[], day: string
   const byType: PaymentDailySummary['byType'] = { cash: 0, transfer: 0, card: 0, other: 0 };
   let receivedNts = 0; let refundsNts = 0; let outstandingNts = 0;
   for (const item of items) {
+    if (item.status === 'voided') continue;
     if (item.status === 'pending' || item.status === 'partial') outstandingNts += item.amountNts;
     if (!item.createdAt.startsWith(day)) continue;
     if (item.refund) refundsNts += item.amountNts;

@@ -9,6 +9,8 @@ import {
   paymentManualCreateResultSchema,
   paymentRefundInputSchema,
   paymentRefundResultSchema,
+  paymentVoidInputSchema,
+  paymentVoidResultSchema,
   type PaymentCreateInput,
   type PaymentCreateResult,
   type PaymentExportInput,
@@ -19,6 +21,8 @@ import {
   type PaymentManualCreateResult,
   type PaymentRefundInput,
   type PaymentRefundResult,
+  type PaymentVoidInput,
+  type PaymentVoidResult,
 } from "@bini/cloud-shared";
 import { httpsCallable, type Functions } from "firebase/functions";
 
@@ -29,6 +33,7 @@ export interface PaymentCreateGateway {
     input: PaymentManualCreateInput,
   ): Promise<PaymentManualCreateResult>;
   refund?(input: PaymentRefundInput): Promise<PaymentRefundResult>;
+  void?(input: PaymentVoidInput): Promise<PaymentVoidResult>;
   exportCsv?(input: PaymentExportInput): Promise<PaymentExportResult>;
 }
 
@@ -80,6 +85,10 @@ export function createPaymentCreateGateway(
       return paymentExportResultSchema.parse(
         (await call(paymentExportInputSchema.parse(input))).data,
       );
+    },
+    async void(input) {
+      const call = httpsCallable<PaymentVoidInput, unknown>(functions, 'paymentVoid');
+      return paymentVoidResultSchema.parse((await call(paymentVoidInputSchema.parse(input))).data);
     },
   };
 }

@@ -82,6 +82,8 @@ export function PaymentsPage({
   );
   const [refundAmount, setRefundAmount] = useState(0);
   const [refundNote, setRefundNote] = useState("");
+  const [voidPayment, setVoidPayment] = useState<PaymentListItem | null>(null);
+  const [voidReason, setVoidReason] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
   const [manualGuestName, setManualGuestName] = useState("");
   const [manualRoomId, setManualRoomId] = useState("");
@@ -304,6 +306,23 @@ export function PaymentsPage({
       setBusy(false);
     }
   };
+  const voidPaymentRecord = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!createGateway?.void || !voidPayment || !voidReason.trim()) return;
+    setBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      const result = await createGateway.void({ propertyId: session.propertyId, operationId: crypto.randomUUID(), paymentId: voidPayment.paymentId, reason: voidReason.trim() });
+      setVoidPayment(null);
+      setVoidReason("");
+      setSuccess(text(`已作廢付款 ${result.paymentId}；原始帳務紀錄與作廢原因已保留。`, `Voided ${result.paymentId}; the original ledger entry and reason were retained.`));
+    } catch (failure) {
+      setError(errorMessage(failure, text("付款作廢未完成，請確認尚未退款且該營業日未日結。", "Payment void did not complete. Confirm it has no refund and its cashier day is still open.")));
+    } finally {
+      setBusy(false);
+    }
+  };
   const closeCashier = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!createGateway?.cashierClose) return;
@@ -341,6 +360,7 @@ export function PaymentsPage({
   const canCloseCashier =
     (session.role === "admin" || session.role === "manager") &&
     Boolean(createGateway?.cashierClose);
+  const canVoidPayments = session.role === "admin" && Boolean(createGateway?.void);
   return (
     <SectionCard
       actions={<Button disabled={!createGateway?.exportCsv} loading={exporting} onClick={() => void exportCsv()} size="sm" variant="outline">{text("匯出 CSV", "Export CSV")}</Button>}
@@ -564,14 +584,18 @@ export function PaymentsPage({
                 <div>
                   <Badge
                     tone={
-                      payment.refund
+                      payment.status === "voided"
+                        ? "neutral"
+                        : payment.refund
                         ? "danger"
                         : payment.status === "paid"
                           ? "success"
                           : "warning"
                     }
                   >
-                    {payment.refund
+                    {payment.status === "voided"
+                      ? text("已作廢", "Voided")
+                      : payment.refund
                       ? text("退款", "Refund")
                       : payment.deposit
                         ? text("訂金", "Deposit")
@@ -579,7 +603,7 @@ export function PaymentsPage({
                   </Badge>
                   <strong
                     className={
-                      payment.refund
+                      payment.refund || payment.status === "voided"
                         ? "payment-amount refund"
                         : "payment-amount"
                     }
@@ -587,7 +611,7 @@ export function PaymentsPage({
                     {payment.refund ? "−" : ""}NT${" "}
                     {payment.amountNts.toLocaleString()}
                   </strong>
-                  {!payment.refund && createGateway?.refund ? (
+                  {!payment.refund && payment.status === "paid" && createGateway?.refund ? (
                     <Button
                       onClick={() => {
                         setRefundPayment(payment);
@@ -599,6 +623,9 @@ export function PaymentsPage({
                     >
                       {text("退款", "Refund")}
                     </Button>
+                  ) : null}
+                  {canVoidPayments && !payment.refund && payment.status === "paid" ? (
+                    <Button onClick={() => { setVoidPayment(payment); setVoidReason(""); }} size="sm" variant="danger">{text("作廢", "Void")}</Button>
                   ) : null}
                 </div>
               </article>
@@ -674,6 +701,17 @@ export function PaymentsPage({
                 {text("確認退款", "Confirm refund")}
               </Button>
             </div>
+          </form>
+        </ResponsiveDialog>
+      ) : null}
+      {voidPayment ? (
+        <ResponsiveDialog onClose={() => { if (!busy) setVoidPayment(null); }} title={text("作廢付款", "Void payment")}>
+          <form className="booking-create-form" onSubmit={(event) => void voidPaymentRecord(event)}>
+            <Notice tone="warning" title={text(`付款 ${voidPayment.paymentId}（NT$ ${voidPayment.amountNts.toLocaleString()}）會從即時摘要與房間餘額排除。`, `Payment ${voidPayment.paymentId} (NT$ ${voidPayment.amountNts.toLocaleString()}) will be excluded from live summaries and room balances.`)}>
+              {text("此操作僅限管理員。原始付款不會刪除，系統會保存原因與稽核紀錄；已有退款或已日結的付款不可作廢。", "Admins only. The original payment is retained with its reason and audit trail; refunded or closed-day payments cannot be voided.")}
+            </Notice>
+            <Field label={text("作廢原因", "Void reason")}><input autoFocus maxLength={2000} onChange={(event) => setVoidReason(event.target.value)} required value={voidReason} /></Field>
+            <div className="booking-create-actions"><Button disabled={!voidReason.trim()} loading={busy} type="submit" variant="danger">{text("確認作廢付款", "Confirm void")}</Button></div>
           </form>
         </ResponsiveDialog>
       ) : null}

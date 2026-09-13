@@ -139,6 +139,21 @@ export const paymentRefundResultSchema = z
   .strict();
 export type PaymentRefundResult = z.infer<typeof paymentRefundResultSchema>;
 
+/** Admin-only accounting correction. The original payment stays immutable enough for audit and exports. */
+export const paymentVoidInputSchema = z.object({
+  propertyId: propertyIdSchema,
+  operationId: operationIdSchema,
+  paymentId: z.string().trim().min(1).max(128).regex(/^[^/]+$/),
+  reason: z.string().trim().min(1).max(2_000),
+}).strict();
+export type PaymentVoidInput = z.infer<typeof paymentVoidInputSchema>;
+export const paymentVoidResultSchema = z.object({
+  status: z.enum(['voided', 'replayed']),
+  paymentId: z.string().min(1).max(128),
+  voidedAt: z.string().datetime(),
+}).strict();
+export type PaymentVoidResult = z.infer<typeof paymentVoidResultSchema>;
+
 /** Server-produced v3-compatible payment ledger export. */
 export const paymentExportInputSchema = z.object({
   propertyId: propertyIdSchema,

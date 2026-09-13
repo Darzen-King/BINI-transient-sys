@@ -104,6 +104,7 @@ export const cashierClose = onCall(
       };
       for (const snapshot of payments.docs) {
         const payment = snapshot.data() ?? {};
+        if (payment.status === 'voided') continue;
         const amount = integerAmount(payment.amountNts);
         if (payment.refund === true) {
           totals.refunds += amount;

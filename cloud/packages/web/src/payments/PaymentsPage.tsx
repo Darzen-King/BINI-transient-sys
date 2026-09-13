@@ -17,6 +17,7 @@ import {
   SectionCard,
 } from "../design-system/index.js";
 import type { BookingListGateway } from "../bookings/booking-list.js";
+import { labelFor, PAYMENT_STATUS_LABELS } from "../i18n/labels.js";
 import { useLocale } from "../i18n/locale.js";
 import type { BookingRoomGateway } from "../rooms/booking-room-options.js";
 import type { ActiveStaysGateway } from "../stays/active-stays.js";
@@ -734,7 +735,7 @@ export function PaymentsPage({
                       ? text("退款", "Refund")
                       : payment.deposit
                         ? text("訂金", "Deposit")
-                        : payment.status}
+                        : labelFor(PAYMENT_STATUS_LABELS, payment.status, text)}
                   </Badge>
                   <strong
                     className={

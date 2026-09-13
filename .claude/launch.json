@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "cloud-ui-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "cloud/packages/web", "run", "dev", "--", "--port", "5174", "--strictPort"],
+      "port": 5174
+    }
+  ]
+}

@@ -72,8 +72,10 @@
   background: var(--bds-color-surface);
   box-shadow: var(--bds-shadow-md);
 }
-.bds-section__heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--bds-space-3); gap: var(--bds-space-3); }
-.bds-section__heading h2 { margin: 0; font-size: var(--bds-font-size-lg); line-height: var(--bds-line-height-tight); }
+.bds-section__heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; margin-bottom: var(--bds-space-3); gap: var(--bds-space-3); }
+/* Titles keep a readable width; actions wrap under them on narrow screens instead of crushing both. */
+.bds-section__heading h2 { flex: 1 1 8rem; min-width: 8rem; margin: 0; font-size: var(--bds-font-size-lg); line-height: var(--bds-line-height-tight); }
+.bds-section__heading > :not(h2) { flex: 0 1 auto; max-width: 100%; }
 .bds-section__hint { color: var(--bds-color-text-secondary); font-size: var(--bds-font-size-sm); }
 
 .bds-field { display: grid; color: var(--bds-color-text-primary); font-size: var(--bds-font-size-md); font-weight: var(--bds-font-weight-semibold); gap: 6px; }

@@ -3,6 +3,7 @@ import type { MaintenanceRoomItem, MaintenanceScheduleItem } from '@bini/cloud-s
 
 import type { StaffSession } from '../auth/session.js';
 import { Badge, Button, Field, Notice, ResponsiveDialog, SectionCard } from '../design-system/index.js';
+import { labelFor, MAINTENANCE_STATUS_LABELS } from '../i18n/labels.js';
 import { useLocale } from '../i18n/locale.js';
 import type { MaintenanceGateway } from './maintenance-gateway.js';
 
@@ -225,7 +226,7 @@ export function MaintenancePage({ session, gateway }: { session: StaffSession; g
           (items ?? []).map((item) => (
             <article key={item.scheduleId}>
               <strong>{item.roomId} · {item.title}</strong>
-              <small>{item.startAt} → {item.endAt} · {item.status}</small>
+              <small>{item.startAt} → {item.endAt} · {labelFor(MAINTENANCE_STATUS_LABELS, item.status, text)}</small>
               {item.note ? <small>{item.note}</small> : null}
               {item.status !== 'done' ? (
                 <Button loading={busyId === item.scheduleId} onClick={() => void act(item.scheduleId, 'complete')} variant="outline">

@@ -10,15 +10,9 @@ import {
 import type { AccountAdminGateway } from './account-admin.js';
 import type { StaffSession } from '../auth/session.js';
 import { Badge, Button, Field, Notice, ResponsiveDialog } from '../design-system/index.js';
+import { ROLE_LABELS } from '../i18n/labels.js';
 import { useLocale, type AppLocale } from '../i18n/locale.js';
 
-const ROLE_LABELS: Record<CloudRole, readonly [string, string]> = {
-  admin: ['系統管理員', 'Administrator'],
-  manager: ['主管', 'Manager'],
-  front_desk: ['前台', 'Front Desk'],
-  housekeeping: ['房務', 'Housekeeping'],
-  maintenance: ['維修', 'Maintenance'],
-};
 
 const PAGE_LABELS: Record<CloudPageId, readonly [string, string]> = {
   rooms: ['房間總覽', 'Rooms'],

@@ -135,6 +135,12 @@
 ---
 *每執行2次查看/瀏覽器/搜尋操作後更新此檔案*
 
+## 2026-09-14 版面與雙語驗收
+- 新增 `packages/web/src/preview/preview-gateways.ts`：`ui-preview.html` 以虛構 Firestore 形狀資料接上所有 gateway，並呼叫與正式版相同的 shared builder；正式 `index.html` 不引用，已確認正式 bundle 不含預覽資料。
+- 以內建瀏覽器在 320／375／430／1280px 逐頁量測（DOM 幾何）：無水平溢位；發現並修正兩類「擠壓」問題（溢位量測抓不到）：手機頂列在多館別選單出現時標題被擠成直排、`SectionCard` 標題列不換行導致甘特圖標題與「定位現在」被壓扁。桌機 1280px 頂部導覽需橫向捲動，與 v3 `bb-nav`「單列、溢出橫捲」設計一致，不改。
+- 雙語掃描：中文介面外露 `paid`／`pending`、`scheduled`／`in_progress`、成本分類代碼與角色代碼；英文介面外露房態與預約狀態中文代碼。統一改用 `i18n/labels.ts`（沿用 v3 `payment.status.*`、`maintenance.status_*` 等翻譯）。
+- 截圖在視窗背景時會停在舊畫面，驗收以 DOM 量測為準。
+
 ## 2026-09-14 報表對帳與資料時效
 - 以 `sqlite3` backup API 將 v3 正式 DB 唯讀快照到暫存區，再以 v3 `compute_report` 與雲端 `buildReportProjection`（DEV Firestore 資料）比對 2026-05-01～09-10：訂單 169 vs 166、營收 452,771 vs 448,771。逐筆比對後差異完全來自 DEV 缺少 v3 stay log 141–143（1,200＋800＋2,000＝4,000；24h×2、12h×1；假日 3,200／平日 800），扣除後各指標一致，證明報表算法已 parity。
 - 結論：DEV promotion 批次約停在 2026-09-05／06。正式切換前必須做最終匯入（見 task_plan 關鍵問題 4）。

@@ -14,6 +14,7 @@ import {
   ResponsiveDialog,
   SectionCard,
 } from "../design-system/index.js";
+import { COST_CATEGORY_LABELS } from "../i18n/labels.js";
 import { useLocale } from "../i18n/locale.js";
 import type { CostGateway } from "./cost-gateway.js";
 
@@ -33,18 +34,7 @@ interface CostFormValue {
   receiptNo: string;
 }
 
-const categoryLabels: Record<CostCategory, readonly [string, string]> = {
-  utilities: ["水電瓦斯", "Utilities"],
-  cleaning_supplies: ["清潔用品", "Cleaning supplies"],
-  laundry: ["洗滌費", "Laundry"],
-  maintenance: ["維修費", "Maintenance"],
-  consumables: ["備品耗材", "Consumables"],
-  staff: ["人事費", "Staff"],
-  rent: ["租金", "Rent"],
-  internet_software: ["網路／軟體", "Internet / software"],
-  marketing: ["行銷費", "Marketing"],
-  misc: ["其他", "Miscellaneous"],
-};
+const categoryLabels = COST_CATEGORY_LABELS;
 const paymentLabels: Record<PaymentMethod, readonly [string, string]> = {
   cash: ["現金", "Cash"],
   transfer: ["轉帳", "Transfer"],

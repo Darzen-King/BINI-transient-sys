@@ -3,6 +3,7 @@ import { summarizePayments, type ReportDailyItem, type ReportProjection } from '
 
 import type { StaffSession } from '../auth/session.js';
 import { Button, Field, Notice, SectionCard } from '../design-system/index.js';
+import { BOOKING_STATUS_LABELS, COST_CATEGORY_LABELS, labelFor, ROOM_STATUS_LABELS } from '../i18n/labels.js';
 import { useLocale } from '../i18n/locale.js';
 import type { ReportGateway, ReportPaymentLedger } from './report-gateway.js';
 
@@ -43,10 +44,10 @@ function ShareBars({ rows, format }: { rows: ReadonlyArray<{ key: string; label:
   return <div className="report-share-list">{rows.map((row) => <div key={row.key}><span>{row.label}</span><b>{format(row.value)} · {share(row.value, total)}%</b><i style={{ width: `${share(row.value, total)}%` }} /></div>)}</div>;
 }
 
-function CountTable({ counts, total }: { counts: Record<string, number>; total: number }) {
+function CountTable({ counts, total, label }: { counts: Record<string, number>; total: number; label: (code: string) => string }) {
   const rows = Object.entries(counts);
   if (!rows.length) return <p className="empty-card">—</p>;
-  return <div className="report-share-list">{rows.map(([status, count]) => <div key={status}><span>{status}</span><b>{count}</b><i style={{ width: `${share(count, total)}%` }} /></div>)}</div>;
+  return <div className="report-share-list">{rows.map(([status, count]) => <div key={status}><span>{label(status)}</span><b>{count}</b><i style={{ width: `${share(count, total)}%` }} /></div>)}</div>;
 }
 
 export function ReportsPage({ session, gateway }: { session: StaffSession; gateway: ReportGateway | undefined }) {
@@ -91,7 +92,7 @@ export function ReportsPage({ session, gateway }: { session: StaffSession; gatew
           <Metric label={text('平均住宿', 'Average stay')} value={`${report.avgStayHours}h`} />
           <Metric label={text('在住中', 'In-house')} value={String(report.activeStaysCount)} />
         </div>
-        {isAdmin && report.totalCostNts !== null ? <section className="report-pnl"><div><small>{text('區間成本', 'Period costs')}</small><strong>{money(report.totalCostNts)}</strong></div><div><small>{text('淨損益', 'Net profit')}</small><strong className={report.netProfitNts !== null && report.netProfitNts < 0 ? 'negative' : ''}>{money(report.netProfitNts ?? 0)}</strong></div><div><small>{text('成本率', 'Cost ratio')}</small><strong>{report.costRatioPct ?? 0}%</strong></div>{Object.entries(report.costByCategoryNts ?? {}).map(([category, value]) => <span key={category}>{category} · {money(value)}</span>)}</section> : null}
+        {isAdmin && report.totalCostNts !== null ? <section className="report-pnl"><div><small>{text('區間成本', 'Period costs')}</small><strong>{money(report.totalCostNts)}</strong></div><div><small>{text('淨損益', 'Net profit')}</small><strong className={report.netProfitNts !== null && report.netProfitNts < 0 ? 'negative' : ''}>{money(report.netProfitNts ?? 0)}</strong></div><div><small>{text('成本率', 'Cost ratio')}</small><strong>{report.costRatioPct ?? 0}%</strong></div>{Object.entries(report.costByCategoryNts ?? {}).map(([category, value]) => <span key={category}>{labelFor(COST_CATEGORY_LABELS, category, text)} · {money(value)}</span>)}</section> : null}
         <section className="report-section"><div className="report-section-heading"><h3>{text('每日營收與住房率', 'Daily revenue & occupancy')}</h3><small>{text('預約金額僅用於趨勢，區間營收以已退房與月租認列。', 'Bookings are trend-only; period revenue uses completed stays and recognised monthly rent.')}</small></div>
           <DailyChart daily={report.daily} occupancyLabel={text('住房率 (%)', 'Occupancy (%)')} revenueLabel={text('營收 (NT$)', 'Revenue (NT$)')} />
           <details className="report-daily-details"><summary>{text('每日明細', 'Daily detail')}</summary><div className="report-daily-list">{report.daily.map((item) => <div key={item.date}><strong>{item.date}</strong><span>{money(item.revenueNts)}</span><small>{item.occupancyPct}%</small></div>)}</div></details>
@@ -111,10 +112,10 @@ export function ReportsPage({ session, gateway }: { session: StaffSession; gatew
         </> : !ledgerError ? <div className="empty-card">{text('正在載入付款摘要…', 'Loading payment summary…')}</div> : null}
       </section> : null}
       {report ? <>
-        <section className="report-section"><div className="report-section-heading"><h3>{text('房間營運', 'Room operations')}</h3><small>{text('依租用筆數排序', 'Sorted by rental count')}</small></div><div className="report-room-list">{report.roomRentals.map((item) => <article key={item.roomId}><div><strong>{item.roomId}</strong><small>{item.status}{item.note ? ` · ${item.note}` : ''}</small></div><div><strong>{money(item.revenueNts)}</strong><small>{item.count} {text('筆', 'records')} · 12h {item.plans['12hrs'] ?? 0} / 24h {item.plans['24hrs'] ?? 0}{item.plans['月租'] ? ` / ${text('月租', 'Monthly')} ${item.plans['月租']}` : ''}</small></div></article>)}</div></section>
+        <section className="report-section"><div className="report-section-heading"><h3>{text('房間營運', 'Room operations')}</h3><small>{text('依租用筆數排序', 'Sorted by rental count')}</small></div><div className="report-room-list">{report.roomRentals.map((item) => <article key={item.roomId}><div><strong>{item.roomId}</strong><small>{labelFor(ROOM_STATUS_LABELS, item.status, text)}{item.note ? ` · ${item.note}` : ''}</small></div><div><strong>{money(item.revenueNts)}</strong><small>{item.count} {text('筆', 'records')} · 12h {item.plans['12hrs'] ?? 0} / 24h {item.plans['24hrs'] ?? 0}{item.plans['月租'] ? ` / ${text('月租', 'Monthly')} ${item.plans['月租']}` : ''}</small></div></article>)}</div></section>
         <div className="report-split">
-          <section className="report-section"><div className="report-section-heading"><h3>{text('預約狀態', 'Booking status')}</h3><small>{text('入住日在區間內', 'Check-in within range')}</small></div><CountTable counts={report.bookingStatusCounts} total={Math.max(1, report.totalOrders)} /></section>
-          <section className="report-section"><div className="report-section-heading"><h3>{text('房態', 'Room status')}</h3><small>{text(`共 ${report.totalRooms} 間`, `${report.totalRooms} rooms`)}</small></div><CountTable counts={report.roomStatusCounts} total={Math.max(1, report.totalRooms)} /></section>
+          <section className="report-section"><div className="report-section-heading"><h3>{text('預約狀態', 'Booking status')}</h3><small>{text('入住日在區間內', 'Check-in within range')}</small></div><CountTable counts={report.bookingStatusCounts} label={(code) => labelFor(BOOKING_STATUS_LABELS, code, text)} total={Math.max(1, report.totalOrders)} /></section>
+          <section className="report-section"><div className="report-section-heading"><h3>{text('房態', 'Room status')}</h3><small>{text(`共 ${report.totalRooms} 間`, `${report.totalRooms} rooms`)}</small></div><CountTable counts={report.roomStatusCounts} label={(code) => labelFor(ROOM_STATUS_LABELS, code, text)} total={Math.max(1, report.totalRooms)} /></section>
         </div>
       </> : null}
     </SectionCard>

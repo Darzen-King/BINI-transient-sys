@@ -113,6 +113,61 @@ describe("payments UI", () => {
     expect(screen.getByText("付款紀錄")).toBeInTheDocument();
   });
 
+  it("records an active-stay deposit through the same guarded callable, like the v3 deposit checkbox", async () => {
+    const create = vi.fn().mockResolvedValue({
+      status: "created",
+      paymentId: "PAY-dep",
+      stayId: "STY-live-202",
+      roomId: "202",
+      amountNts: 500,
+      createdAt: "2026-09-12T09:00:00.000Z",
+    });
+    render(
+      <App
+        activeStaysGateway={staysGateway}
+        paymentCreateGateway={{ create } satisfies PaymentCreateGateway}
+        paymentListGateway={listGateway}
+        session={session}
+      />,
+    );
+    fireEvent.click(screen.getByRole("link", { name: "付款管理" }));
+    fireEvent.change(await screen.findByLabelText("選擇在住房"), {
+      target: { value: "STY-live-202" },
+    });
+    fireEvent.change(screen.getByLabelText("收款金額（NT$）"), {
+      target: { value: "500" },
+    });
+    fireEvent.click(screen.getByLabelText("記為訂金"));
+    fireEvent.click(screen.getByRole("button", { name: "確認收取訂金" }));
+    await waitFor(() =>
+      expect(create).toHaveBeenCalledWith({
+        propertyId: "property-main",
+        operationId: expect.any(String),
+        stayId: "STY-live-202",
+        amountNts: 500,
+        paymentType: "cash",
+        note: null,
+        deposit: true,
+      }),
+    );
+    expect(await screen.findByText(/已記錄 202 房 NT\$ 500 訂金/)).toBeInTheDocument();
+    expect(screen.getByLabelText("記為訂金")).not.toBeChecked();
+  });
+
+  it("no longer advertises deposit and deletion as unfinished work", async () => {
+    render(
+      <App
+        activeStaysGateway={staysGateway}
+        paymentCreateGateway={{ create: vi.fn() } satisfies PaymentCreateGateway}
+        paymentListGateway={listGateway}
+        session={session}
+      />,
+    );
+    fireEvent.click(screen.getByRole("link", { name: "付款管理" }));
+    await screen.findByLabelText("選擇在住房");
+    expect(screen.queryByText(/訂金調整與刪除紀錄仍會以獨立交易切片接入/)).not.toBeInTheDocument();
+  });
+
   it("creates an append-only refund from a paid payment", async () => {
     const refund = vi.fn().mockResolvedValue({
       status: "refunded",

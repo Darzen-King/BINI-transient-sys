@@ -73,6 +73,7 @@ export function PaymentsPage({
     "cash" | "transfer" | "card" | "other"
   >("cash");
   const [note, setNote] = useState("");
+  const [deposit, setDeposit] = useState(false);
   const [operationId, setOperationId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -187,15 +188,22 @@ export function PaymentsPage({
         amountNts,
         paymentType,
         note: note.trim() || null,
+        ...(deposit ? { deposit: true } : {}),
       });
       setOperationId(null);
       setAmountNts(0);
       setNote("");
+      setDeposit(false);
       setSuccess(
-        text(
-          `已記錄 ${result.roomId} 房 NT$ ${result.amountNts.toLocaleString()} 收款。`,
-          `Recorded NT$ ${result.amountNts.toLocaleString()} for room ${result.roomId}.`,
-        ),
+        deposit
+          ? text(
+              `已記錄 ${result.roomId} 房 NT$ ${result.amountNts.toLocaleString()} 訂金。`,
+              `Recorded an NT$ ${result.amountNts.toLocaleString()} deposit for room ${result.roomId}.`,
+            )
+          : text(
+              `已記錄 ${result.roomId} 房 NT$ ${result.amountNts.toLocaleString()} 收款。`,
+              `Recorded NT$ ${result.amountNts.toLocaleString()} for room ${result.roomId}.`,
+            ),
       );
     } catch (failure) {
       setError(
@@ -512,6 +520,17 @@ export function PaymentsPage({
                 value={note}
               />
             </Field>
+            <Field label={text("帳務類型", "Record type")}>
+              <label>
+                <input
+                  checked={deposit}
+                  disabled={!ready || !selectedStay}
+                  onChange={(event) => setDeposit(event.target.checked)}
+                  type="checkbox"
+                />{" "}
+                {text("記為訂金", "Record as deposit")}
+              </label>
+            </Field>
           </div>
           {selectedStay ? (
             <div className="stay-extension-preview">
@@ -535,7 +554,9 @@ export function PaymentsPage({
               size="lg"
               type="submit"
             >
-              {text("確認收款", "Record payment")}
+              {deposit
+                ? text("確認收取訂金", "Record deposit")
+                : text("確認收款", "Record payment")}
             </Button>
           </div>
         </fieldset>
@@ -853,15 +874,6 @@ export function PaymentsPage({
           </form>
         </ResponsiveDialog>
       ) : null}
-      <Notice
-        tone="warning"
-        title={text("後續帳務項目", "Next accounting items")}
-      >
-        {text(
-          "訂金調整與刪除紀錄仍會以獨立交易切片接入；目前不會用前端直接修改帳務資料。",
-          "Deposit adjustments and deletion will be delivered as separate transactions; this screen never edits accounting data directly from the browser.",
-        )}
-      </Notice>
     </SectionCard>
   );
 }

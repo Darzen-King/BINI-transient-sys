@@ -4,6 +4,8 @@
 
 ## Unreleased — Firebase v4 全介面／全功能雲端搬移（DEV）
 
+- 「付款管理」補回 v3「新增付款」的**訂金**選項：在住房收款表單新增「記為訂金」，勾選後送出按鈕改為「確認收取訂金」，仍由同一支受 MFA 與 `payments` 頁面權限保護的 `paymentCreate` transaction 寫入。付款紀錄標記 `deposit: true` 並沿用在住房的 booking 關聯，因此房卡押金、日結訂金小計與免費取消押金退款都會納入；audit 動作為 `payment.deposit_create`，審計軌跡顯示「收取訂金」。一般收款的 operation 指紋維持不變，既有重送仍可正確回放。v3 的實體刪除付款不搬移，改由既有 admin「作廢付款」保留原紀錄與原因。
+
 - 建立 BINI Design System v1：將既有粉色品牌演進為 primitive／semantic 雙層 Tokens，涵蓋色彩、字級、4px 間距、圓角、陰影、motion、44px touch target 與房態語意；新增 Button、Badge、SectionCard、Field、Notice、ResponsiveDialog 六個 React 核心元件與 contract tests，並開始套用到登入、MFA、今日房態、帳號管理及首次資料導入。
 - 補上手機版遺漏的「中／EN」語言切換，並啟用原先停用的桌機語言按鈕；兩種版面及登入流程共用 `LocaleProvider`，切換不需重新載入、會記住選擇，且目前已完成的導覽、房態、操作、帳號與匯入文字同步切換。
 - 明確鎖定 v4 為 **v3.9.14 全介面、全功能雲端搬移**：桌機版保留現有頂部導覽、頁面與操作流程，只有手機版依小螢幕改成卡片／全螢幕表單／bottom sheet；新增 `docs/cloud/v3-v4-full-parity-matrix.md`，逐頁追蹤 22 個介面／替代項目。實作順序僅為風險切片，不代表縮減範圍。
@@ -60,7 +62,7 @@
 - 修正 Hosting 空白頁：workspace Vite 明確由 `cloud/.env.local` 讀取 DEV 設定；新增 bundle guard，缺設定、placeholder 或非 DEV project 時禁止部署。
 - DEV 預覽：`https://bini-transient-dev.web.app`。實際手機瀏覽器確認登入卡正常、無目前版本 console error，且頁面沒有註冊或外部備份入口。
 - 驗證：145 項 Vitest、6 項 DEV 部署防護、typecheck、lint 與 production build 通過；Rules Emulator 最近完整結果為 41/41（本次未改 Rules）。DEV live function list 確認十五個 Functions 全位於 `asia-east1`，其中新增的 `paymentCreate` 為 Node.js 22／512 MiB、ACTIVE。首頁與最新線上 bundle `index-DfdlN6xD.js` 均 HTTP 200，bundle 已包含付款頁與 `paymentCreate`。瀏覽器版面契約涵蓋 320／375／430／768／1100px；未登入 UI preview 未進 production build。
-- 限制：目前已完成單筆預約建立／修改／取消、15 分鐘 No-show 視覺提醒／人工標記、入住、延住、退房、在住房一般收款、追加式退款、手動例外收款與日結；首次資料 promotion 僅為一次性 migration callable。提醒提示音、多時段、訂金調整／刪除／CSV、房務、維修、報表等尚未接入正式 domain handlers，不可作為正式營運版。
+- 限制（2026-09-13 更新）：預約（單筆／多時段／修改／取消／No-show）、入住、延住、退房、付款（一般收款、訂金、退款、手動例外、作廢、日結、CSV）、房間管理／月租／換房、清潔、維修排程、成本、報表、審計、假日、館別建立與使用者管理均已接入 DEV 的 server-authoritative handlers。仍缺多館別切換、維修解除與進度備註、報表付款日摘要與圖表、審計日期篩選與匯出、預約費率參考與提示音、離線佇列、App Check 與 Firestore 匯出／還原演練，因此仍不可作為正式營運版。
 
 ---
 

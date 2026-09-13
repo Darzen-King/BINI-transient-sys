@@ -1,5 +1,29 @@
 # 進度日誌
 
+## 會話：2026-09-13（Claude Code 接續 Codex）
+
+### 補登：Codex 2026-09-12 晚至 2026-09-13 已完成、但本檔未記錄的切片
+依 git 紀錄（`5f3ad30` … `88dc929`，均已推送至 GitHub 並依交接文件部署 DEV）：
+- 房間管理月租流程、原子換房（`stayTransfer`）
+- 房間總覽七種房態篩選、付款快捷帶入在住房、全域退房快捷
+- 甘特圖 14 天即時投影、房間篩選、定位現在
+- Prototype Hub 依權限列出模組
+- 付款：追加式退款、手動例外收款、manager 日結、帳務 CSV、admin 作廢
+- 成本 CRUD（封存）、統計報表投影與 CSV、審計軌跡唯讀、假日管理、館別建立、使用者管理完整 parity
+- 預約：送出前 availability preview、多時段建立、修改預覽
+- 交接文件記錄的最近驗證：`npm test` 195/195、Rules 47/47、DEV Functions 40 支
+
+### 階段 3：付款管理——在住房訂金收款
+- **狀態：** 程式碼完成、已本機 commit；**尚未部署 DEV**
+- 盤點：v3 `payments.html` 新增付款表單在選擇在住房客時可勾選 `is_deposit`，`create_payment` 以 booking_id 歸戶並寫 `deposit_create` audit。雲端 `paymentCreate` 原本寫死 `deposit: false`，是 parity matrix 第 5 列最後缺口。v3 實體刪除付款已由 Codex 的 admin `paymentVoid` 取代。
+- 測試先行（紅燈已確認）：
+  - `functions/tests/stay-payment-record.test.ts`（4 項）：一般收款、訂金紀錄與 audit 動作、無 booking 的 walk-in、fingerprint 與舊公式逐位元相同
+  - `shared/tests/stay-operations.test.ts`：契約接受 `deposit: true`、拒絕非布林
+  - `web/tests/payments-ui.test.tsx`（+2 項）：勾選訂金送出 `deposit: true`、成功後重設；過時提示已移除
+- 實作：契約新增選填 `deposit`；抽出 `stay-payment-record.ts` 純函式；`paymentCreate` 改用之；付款頁新增「記為訂金」、按鈕與成功文案切換；審計軌跡新增「收取訂金」標籤。
+- 驗證：`npm test` 201/201＋deploy guard 6/6、typecheck、lint、build、functions／hosting package guard 全部通過；bundle 均含 `payment.deposit_create`。Rules 未變更。
+- 文件：更新 CHANGELOG、parity matrix 第 5 列、交接文件（並修正其中前後矛盾處）、`task_plan.md`、`findings.md`。
+
 ## 會話：2026-09-11—2026-09-12
 
 ### 階段 2：房間管理／月租雲端 vertical slice
@@ -153,16 +177,16 @@
 ## 五問重啟檢查
 | 問題 | 答案 |
 |------|------|
-| 我在哪裡？ | 階段 2：共用雲端領域基礎 |
-| 我要去哪裡？ | 完成 12 類 transformer、reconciliation 與 prepare callable |
+| 我在哪裡？ | 階段 3／4 收尾：付款 parity 已補齊（訂金待部署） |
+| 我要去哪裡？ | 部署訂金切片 → 維修解除／備註 → 審計日期篩選 → 多館別切換 → 階段 5 驗收 |
 | 目標是什麼？ | 單機版所有介面、功能、權限與資料完整移轉至 Firebase DEV |
 | 我學到了什麼？ | 見 `findings.md` |
 | 我做了什麼？ | 見上方記錄 |
 
-## 本切片交付狀態
-- **狀態：** complete（整體階段 2 仍為 in_progress）
-- **完成：** 12 類 v3 prepare/reconcile、受控 promotion callable、明確確認 UI、create-only 同批次續作、對帳 UI、BINI 品牌與手機 PWA icon、DEV Functions／Hosting 部署。
-- **尚未做：** Firestore export/rollback drill、真實最新 Dropbox JSON 操作員匯入，以及各 PMS domain handlers／真實營運 UI。
+## 本切片交付狀態（2026-09-13 更新）
+- **狀態：** 在住房訂金切片程式碼完成，待部署 DEV。
+- **已完成（累計）：** 真實 Dropbox 批次已 promotion；預約、入住、延住、退房、付款、房間管理、清潔、維修排程、成本、報表、審計、假日、館別建立、使用者管理的 server-authoritative handlers 與 UI。
+- **尚未做：** Firestore export/restore drill、多館別切換、維修解除／備註、審計日期篩選與匯出、報表付款日摘要／圖表、預約費率參考／提示音、離線佇列、App Check、階段 5 逐頁驗收。
 
 ---
 *每個階段完成後或遇到錯誤時更新此檔案*

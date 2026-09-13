@@ -18,7 +18,11 @@ const stayIdSchema = z
   .regex(/^[^/]+$/);
 const amountSchema = z.number().int().safe().min(1).max(100_000_000);
 
-/** A normal received payment for one active stay. Deposits and refunds have separate, auditable flows. */
+/**
+ * A received payment for one active stay. `deposit: true` mirrors the v3 "Deposit" checkbox on the
+ * add-payment form: the record stays linked to the stay's booking so balances and free-cancel refunds
+ * include it. Refunds keep their own append-only flow.
+ */
 export const paymentCreateInputSchema = z
   .object({
     propertyId: propertyIdSchema,
@@ -27,6 +31,7 @@ export const paymentCreateInputSchema = z
     amountNts: amountSchema,
     paymentType: z.enum(BOOKING_PAYMENT_TYPES),
     note: z.string().trim().max(2_000).nullable().optional(),
+    deposit: z.boolean().optional(),
   })
   .strict();
 

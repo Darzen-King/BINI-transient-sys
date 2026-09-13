@@ -11,6 +11,15 @@
 - 只部署 DEV，正式環境需另外取得使用者指示。
 
 ## 研究發現
+
+> 2026-09-13 註：以下條目依發現時間累積，早期條目描述的是當時狀態（例如「operation registry 僅有 demo handler」、「DEV rooms 為 0」、「promotion 仍禁止」），已被後續切片取代。目前狀態以 parity matrix 與交接文件為準。
+
+### 2026-09-13（Claude Code 接續 Codex）
+- `task_plan.md`／`progress.md` 停在 2026-09-12 的房間管理切片，漏記之後 20 餘個已推送、已部署的切片；交接文件同時存在「DEV 0 間房」與「已匯入 6 間房」、「39／40 支 Functions」、「其餘寫入仍未雲端化」等互相矛盾的敘述，本輪已更正。
+- v3 的「訂金」並非獨立調整功能，而是 `payments.html` 新增付款表單的 `is_deposit` 核取框：選在住房客時帶入 booking_id，`create_payment` 以 `deposit_create` 寫 audit。v3 `get_balance`／`_stay_payment_floor` 依 `is_deposit` 與 booking_id 或入住時間範圍納入押金。
+- 雲端下游早已依 `deposit` 旗標計算：`room-overview.ts` 的 `depositPaidNts`、`close-cashier.ts` 的 `totalDepositsNts`、`checkout.ts` 免費取消的押金退款範圍（同 booking 或入住後建立）。因此只需讓 `paymentCreate` 能寫 `deposit: true`，不需新增 callable 或改投影。
+- `paymentCreate` 的 fingerprint 是 `sha256(JSON.stringify({ operationType, ...input }))`。直接加欄位會使「顯式送 `deposit: false`」的請求指紋改變；做法是 `deposit` 非 true 時不納入，並以測試鎖定與舊公式逐位元相同。
+- v3 實體刪除付款（admin）在雲端已以 `paymentVoid` 取代：保留原紀錄、原因與 audit，拒絕已退款或已日結的付款。parity matrix 已明確標註為刻意替代。
 - 2026-09-11 已完成 BINI Design System v1 與共用 locale foundation，並部署 DEV。
 - 目前雲端首頁與部分管理畫面仍屬 foundation／preview，不能據此宣稱完整單機版移轉完成。
 - 下一步必須以單機版路由、模板、服務、資料模型對照 cloud 實作，建立權威差距矩陣。
@@ -90,6 +99,8 @@
 | 匯入目標一律使用 property-scoped subcollections | 與既有 Rules／多館別模型一致，避免根 collection 與子 collection 雙重權威 |
 | transformer 實作為 shared 純函式 | 可用備份 fixture 做 deterministic 測試，Functions 與未來 migration CLI 共用 |
 | 保留 v3 狀態字串作為第一版 canonical 值 | 可避免遷移時改變業務語意；UI 翻譯層再映射顯示文字 |
+| 在住房訂金以 `paymentCreate` 的選填 `deposit` 旗標實作 | 與 v3 同一表單語意；權限、交易、衝突檢查完全共用，下游投影無需改動 |
+| 新增選填欄位時，預設值不進入 operation fingerprint | 保持既有重送指紋不變，避免已提交操作的重試被誤判為不同請求 |
 
 ## 遇到的問題
 | 問題 | 解決方案 |

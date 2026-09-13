@@ -114,6 +114,26 @@ describe("normal payment contract", () => {
         note: "補收",
       }),
     ).toMatchObject({ amountNts: 800, paymentType: "cash" });
+    expect(
+      paymentCreateInputSchema.parse({
+        propertyId: "property-main",
+        operationId: "33333333-3333-4333-8333-333333333333",
+        stayId: "STY-live-203",
+        amountNts: 1000,
+        paymentType: "transfer",
+        deposit: true,
+      }),
+    ).toMatchObject({ deposit: true });
+    expect(() =>
+      paymentCreateInputSchema.parse({
+        propertyId: "property-main",
+        operationId: "33333333-3333-4333-8333-333333333333",
+        stayId: "STY-live-203",
+        amountNts: 1000,
+        paymentType: "transfer",
+        deposit: "yes",
+      }),
+    ).toThrow();
     expect(() =>
       paymentCreateInputSchema.parse({
         propertyId: "property-main",

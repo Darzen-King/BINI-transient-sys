@@ -1,11 +1,12 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { type BookingListItem, type BookingRoomOption, type BookingUpdateResult } from '@bini/cloud-shared';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { type BookingListItem, type BookingPreviewResult, type BookingRoomOption, type BookingUpdateResult } from '@bini/cloud-shared';
 
 import type { StaffSession } from '../auth/session.js';
 import { Button, Field, Notice, SectionCard } from '../design-system/index.js';
 import { useLocale } from '../i18n/locale.js';
 import type { BookingRoomGateway } from '../rooms/booking-room-options.js';
 import type { BookingUpdateGateway } from './booking-update.js';
+import type { BookingUpdatePreviewGateway } from './booking-update-preview.js';
 
 function toTaipeiIso(value: string): string {
   const normalized = value.length === 16 ? `${value}:00` : value;
@@ -38,16 +39,23 @@ function functionErrorMessage(error: unknown, text: (zhTw: string, en: string) =
   return text('無法修改預約，請稍後再試。', 'The booking could not be updated. Try again shortly.');
 }
 
+function previewErrorMessage(error: unknown, text: (zhTw: string, en: string) => string): string {
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') return error.message;
+  return text('無法取得修改預覽，請稍後再試。', 'The edit preview could not be loaded. Try again shortly.');
+}
+
 export function BookingEditPage({
   booking,
   session,
   gateway,
+  previewGateway,
   roomGateway,
   onBack,
 }: {
   booking: BookingListItem;
   session: StaffSession;
   gateway: BookingUpdateGateway | undefined;
+  previewGateway: BookingUpdatePreviewGateway | undefined;
   roomGateway: BookingRoomGateway | undefined;
   onBack: () => void;
 }) {
@@ -59,6 +67,10 @@ export function BookingEditPage({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [updated, setUpdated] = useState<BookingUpdateResult | null>(null);
+  const [preview, setPreview] = useState<BookingPreviewResult | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [previewError, setPreviewError] = useState('');
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (!roomGateway) return undefined;
@@ -106,6 +118,31 @@ export function BookingEditPage({
     }
   };
 
+  const runPreview = async () => {
+    if (!previewGateway || !formRef.current) return;
+    const data = new FormData(formRef.current);
+    setPreviewBusy(true);
+    setPreviewError('');
+    setPreview(null);
+    try {
+      setPreview(await previewGateway.preview({
+        propertyId: session.propertyId,
+        bookingId: booking.bookingId,
+        roomId: String(data.get('roomId') ?? ''),
+        checkInAt: toTaipeiIso(String(data.get('checkInAt') ?? '')),
+        plan: String(data.get('plan')) === '12hrs' ? '12hrs' : '24hrs',
+        days: Number(data.get('days') || 0),
+        discountNts: Number(data.get('discountNts') || 0),
+        pricingMode,
+        ...(pricingMode === 'manual' ? { manualAmountNts: Number(data.get('manualAmountNts') || 0) } : {}),
+      }));
+    } catch (previewFailure) {
+      setPreviewError(previewErrorMessage(previewFailure, text));
+    } finally {
+      setPreviewBusy(false);
+    }
+  };
+
   return (
     <SectionCard hint={text('伺服器重新檢查衝突與價格', 'Server rechecks conflicts and pricing')} title={text(`修改預約 · ${booking.bookingId}`, `Edit booking · ${booking.bookingId}`)}>
       <p className="booking-create-intro">{text('會排除這筆預約自身後，重新檢查房間、有效預約、在住房與未完成維修；既有訂金付款不會在此表單被修改。', 'The server excludes this booking itself, then rechecks the room, active bookings, stays, and unfinished maintenance. Existing deposit payments are not changed here.')}</p>
@@ -116,7 +153,7 @@ export function BookingEditPage({
         <p>{text(`入住 ${updated.checkInAt}，退房 ${updated.checkOutAt}，金額 NT$ ${updated.amountNts.toLocaleString()}`, `Check-in ${updated.checkInAt}, check-out ${updated.checkOutAt}, total NT$ ${updated.amountNts.toLocaleString()}`)}</p>
         <Button onClick={onBack} variant="outline">{text('返回預約管理', 'Back to bookings')}</Button>
       </Notice> : null}
-      <form className="booking-create-form" onSubmit={(event) => void submit(event)}>
+      <form className="booking-create-form" ref={formRef} onSubmit={(event) => void submit(event)}>
         <div className="booking-create-grid">
           <Field label={text('房間', 'Room')}><select defaultValue={booking.roomId} disabled={!gateway || rooms === null || roomError} name="roomId" required>{(rooms ?? []).map((room) => <option disabled={room.status === '月租套房' && room.roomId !== booking.roomId} key={room.roomId} value={room.roomId}>{room.roomId} · {roomStatusLabel(room.status, text)}</option>)}</select></Field>
           <Field label={text('住客姓名', 'Guest name')}><input defaultValue={booking.guestName} disabled={!gateway} maxLength={300} name="guestName" required /></Field>
@@ -128,6 +165,12 @@ export function BookingEditPage({
           <Field label={text('計價方式', 'Pricing')}><select disabled={!gateway} name="pricingMode" onChange={(event) => setPricingMode(event.target.value === 'manual' ? 'manual' : 'automatic')} value={pricingMode}><option value="automatic">{text('自動計價', 'Automatic')}</option><option value="manual">{text('手動覆寫', 'Manual override')}</option></select></Field>
           {pricingMode === 'manual' ? <Field label={text('手動金額（NT$）', 'Manual amount (NT$)')}><input defaultValue={booking.amountNts} disabled={!gateway} min="0" name="manualAmountNts" required type="number" /></Field> : null}
         </div>
+        <div className="booking-preview-actions"><Button disabled={!previewGateway || !gateway || rooms === null || roomError} loading={previewBusy} onClick={() => void runPreview()} type="button" variant="outline">{text('檢查可用性與報價', 'Check availability & quote')}</Button><small>{text('此預覽會排除目前這筆預約；儲存時伺服器仍會重新驗證。', 'This preview excludes this booking; the server validates again on save.')}</small></div>
+        {previewError ? <Notice tone="danger" title={text('無法取得預覽', 'Preview unavailable')}>{previewError}</Notice> : null}
+        {preview ? <Notice tone={preview.available ? 'success' : 'warning'} title={preview.available ? text('此時段可修改', 'This slot can be updated') : text('此時段不可修改', 'This slot cannot be updated')}>
+          <p>{text(`入住 ${preview.quote.checkInAt}，退房 ${preview.quote.checkOutAt}，${preview.quote.rateType}，原價 NT$ ${preview.quote.grossAmountNts.toLocaleString()}，折扣 NT$ ${preview.quote.discountNts.toLocaleString()}，應收 NT$ ${preview.quote.amountNts.toLocaleString()}`, `Check-in ${preview.quote.checkInAt}, check-out ${preview.quote.checkOutAt}, ${preview.quote.rateType}, gross NT$ ${preview.quote.grossAmountNts.toLocaleString()}, discount NT$ ${preview.quote.discountNts.toLocaleString()}, total NT$ ${preview.quote.amountNts.toLocaleString()}`)}</p>
+          {!preview.available ? <p>{preview.reason === 'room_unavailable' ? text('找不到房間或此房為月租套房，不能修改為短期預約。', 'The room is unavailable or monthly-only.') : text(`與 ${preview.conflict?.id ?? ''} 的既有時段衝突。`, `Conflicts with ${preview.conflict?.id ?? ''}.`)}</p> : null}
+        </Notice> : null}
         {error ? <Notice tone="danger" title={text('無法修改預約', 'Booking could not be updated')}>{error}</Notice> : null}
         <div className="booking-create-actions"><Button disabled={!gateway || rooms === null || roomError} loading={busy} size="lg" type="submit">{text('儲存變更', 'Save changes')}</Button><Button onClick={onBack} type="button" variant="outline">{text('返回預約管理', 'Back to bookings')}</Button></div>
       </form>

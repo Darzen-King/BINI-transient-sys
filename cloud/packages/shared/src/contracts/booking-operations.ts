@@ -76,6 +76,28 @@ export const bookingPreviewInputSchema = z.object({
 
 export type BookingPreviewInput = z.infer<typeof bookingPreviewInputSchema>;
 
+/** Read-only edit preview. The callable verifies the booking identity before excluding it from conflicts. */
+export const bookingUpdatePreviewInputSchema = z.object({
+  propertyId: propertyIdSchema,
+  bookingId: bookingIdSchema,
+  roomId: roomIdSchema,
+  checkInAt: dateTimeSchema,
+  plan: z.enum(BOOKING_PLANS),
+  days: z.number().int().min(1).max(366),
+  discountNts: ntsAmountSchema,
+  pricingMode: z.enum(['automatic', 'manual']),
+  manualAmountNts: ntsAmountSchema.optional(),
+}).strict().superRefine((input, context) => {
+  if (input.pricingMode === 'manual' && input.manualAmountNts === undefined) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['manualAmountNts'], message: '手動金額模式必須提供金額。' });
+  }
+  if (input.pricingMode === 'automatic' && input.manualAmountNts !== undefined) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['manualAmountNts'], message: '自動計價不可附帶手動金額。' });
+  }
+});
+
+export type BookingUpdatePreviewInput = z.infer<typeof bookingUpdatePreviewInputSchema>;
+
 const bookingSlotSchema = z.object({
   roomId: roomIdSchema,
   checkInAt: dateTimeSchema,

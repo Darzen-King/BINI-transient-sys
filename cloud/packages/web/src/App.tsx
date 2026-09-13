@@ -27,6 +27,7 @@ import { BookingEditPage } from './bookings/BookingEditPage.js';
 import type { BookingCreateGateway } from './bookings/booking-create.js';
 import type { BookingMultiCreateGateway } from './bookings/booking-multi-create.js';
 import type { BookingPreviewGateway } from './bookings/booking-preview.js';
+import type { BookingUpdatePreviewGateway } from './bookings/booking-update-preview.js';
 import type { RoomOverviewGateway } from './rooms/room-overview.js';
 import type { BookingRoomGateway } from './rooms/booking-room-options.js';
 import { StayCheckInPage } from './stays/StayCheckInPage.js';
@@ -417,7 +418,7 @@ const previewBookings: BookingListItem[] = [
   { bookingId: 'RSV-preview-205', roomId: '205', guestName: 'Michael', phone: null, checkInAt: '2026-09-14T13:00:00+08:00', checkOutAt: '2026-09-15T13:00:00+08:00', plan: '12hrs', amountNts: 800, discountNts: 0, rateType: '非假日', status: '已預約' },
 ];
 
-function BookingsView({ canCreate, canCancel, onOpenBookingCreate, propertyId, gateway, bookingCancelGateway, bookingUpdateGateway, roomGateway, session }: {
+function BookingsView({ canCreate, canCancel, onOpenBookingCreate, propertyId, gateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, roomGateway, session }: {
   canCreate: boolean;
   canCancel: boolean;
   onOpenBookingCreate: () => void;
@@ -425,6 +426,7 @@ function BookingsView({ canCreate, canCancel, onOpenBookingCreate, propertyId, g
   gateway: BookingListGateway | undefined;
   bookingCancelGateway: BookingCancelGateway | undefined;
   bookingUpdateGateway: BookingUpdateGateway | undefined;
+  bookingUpdatePreviewGateway: BookingUpdatePreviewGateway | undefined;
   roomGateway: BookingRoomGateway | undefined;
   session: StaffSession;
 }) {
@@ -491,7 +493,7 @@ function BookingsView({ canCreate, canCancel, onOpenBookingCreate, propertyId, g
   };
 
   if (editingBooking) {
-    return <BookingEditPage booking={editingBooking} gateway={bookingUpdateGateway} onBack={() => setEditingBooking(null)} roomGateway={roomGateway} session={session} />;
+    return <BookingEditPage booking={editingBooking} gateway={bookingUpdateGateway} onBack={() => setEditingBooking(null)} previewGateway={bookingUpdatePreviewGateway} roomGateway={roomGateway} session={session} />;
   }
 
   return (
@@ -583,7 +585,7 @@ function FoundationPage({ pageId, isAdmin, allowedPages, onOpenInitialImport, on
   );
 }
 
-function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingCreateGateway, bookingMultiCreateGateway, bookingPreviewGateway, bookingRoomGateway, roomOverviewGateway, roomTimelineGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, costGateway, reportGateway, auditGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, holidayGateway, propertyGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
+function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, bookingCreateGateway, bookingMultiCreateGateway, bookingPreviewGateway, bookingRoomGateway, roomOverviewGateway, roomTimelineGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, costGateway, reportGateway, auditGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, holidayGateway, propertyGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
   view: ViewId;
   onAction: (action: string) => void;
   session: StaffSession;
@@ -592,6 +594,7 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   bookingListGateway: BookingListGateway | undefined;
   bookingCancelGateway: BookingCancelGateway | undefined;
   bookingUpdateGateway: BookingUpdateGateway | undefined;
+  bookingUpdatePreviewGateway: BookingUpdatePreviewGateway | undefined;
   bookingCreateGateway: BookingCreateGateway | undefined;
   bookingMultiCreateGateway: BookingMultiCreateGateway | undefined;
   bookingPreviewGateway: BookingPreviewGateway | undefined;
@@ -617,7 +620,7 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   onOpenPage: (pageId: CloudPageId | UtilityViewId) => void;
   onLogout: () => void;
 }) {
-  if (view === 'bookings') return <BookingsView bookingCancelGateway={bookingCancelGateway} bookingUpdateGateway={bookingUpdateGateway} canCancel={session.allowedPages.includes('bookings')} canCreate={session.allowedPages.includes('bookings_new')} gateway={bookingListGateway} onOpenBookingCreate={onOpenBookingCreate} propertyId={session.propertyId} roomGateway={bookingRoomGateway} session={session} />;
+  if (view === 'bookings') return <BookingsView bookingCancelGateway={bookingCancelGateway} bookingUpdateGateway={bookingUpdateGateway} bookingUpdatePreviewGateway={bookingUpdatePreviewGateway} canCancel={session.allowedPages.includes('bookings')} canCreate={session.allowedPages.includes('bookings_new')} gateway={bookingListGateway} onOpenBookingCreate={onOpenBookingCreate} propertyId={session.propertyId} roomGateway={bookingRoomGateway} session={session} />;
   if (view === 'bookings_new') return <BookingCreatePage gateway={bookingCreateGateway} multiGateway={bookingMultiCreateGateway} onViewBookings={() => onOpenPage('bookings')} previewGateway={bookingPreviewGateway} roomGateway={bookingRoomGateway} session={session} />;
   if (view === 'checkin') return <StayCheckInPage bookingGateway={bookingListGateway} gateway={stayCheckInGateway} onBack={() => onOpenPage('rooms')} roomGateway={bookingRoomGateway} session={session} />;
   if (view === 'extend') return <StayExtendPage gateway={stayExtendGateway} holidayGateway={holidayCalendarGateway} onBack={() => onOpenPage('rooms')} session={session} staysGateway={activeStaysGateway} />;
@@ -664,6 +667,7 @@ export function App({
   bookingCancelGateway,
   bookingSoonGateway,
   bookingUpdateGateway,
+  bookingUpdatePreviewGateway,
   bookingCreateGateway,
   bookingMultiCreateGateway,
   bookingPreviewGateway,
@@ -695,6 +699,7 @@ export function App({
   bookingCancelGateway?: BookingCancelGateway;
   bookingSoonGateway?: BookingSoonGateway;
   bookingUpdateGateway?: BookingUpdateGateway;
+  bookingUpdatePreviewGateway?: BookingUpdatePreviewGateway;
   bookingCreateGateway?: BookingCreateGateway;
   bookingMultiCreateGateway?: BookingMultiCreateGateway;
   bookingPreviewGateway?: BookingPreviewGateway;
@@ -781,6 +786,7 @@ export function App({
           bookingListGateway={bookingListGateway}
           bookingCancelGateway={bookingCancelGateway}
           bookingUpdateGateway={bookingUpdateGateway}
+          bookingUpdatePreviewGateway={bookingUpdatePreviewGateway}
           bookingCreateGateway={bookingCreateGateway}
           bookingMultiCreateGateway={bookingMultiCreateGateway}
           bookingPreviewGateway={bookingPreviewGateway}

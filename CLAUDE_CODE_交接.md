@@ -8,7 +8,7 @@
 - Firebase：DEV `bini-transient-dev`；PROD `bini-transient`（顯示名稱 `BINI-Transient`）。只部署 DEV，PROD 未部署、未修改。
 - DEV Firestore `(default)`：`asia-east1`、Native mode、Standard edition、delete protection。
 - Identity Platform：email/password、email enumeration protection、關閉公開註冊／自助刪除、TOTP MFA 強制流程。
-- DEV Hosting、Firestore Rules/indexes、三十七個 Node.js 22 Functions 已部署；網址：`https://bini-transient-dev.web.app`。
+- DEV Hosting、Firestore Rules/indexes、三十八個 Node.js 22 Functions 已部署；網址：`https://bini-transient-dev.web.app`。
 - 首位 admin `biniblooms250808@gmail.com` 已以 server-side bootstrap 建立，`emailVerified=true`、active、`property-main/admin`、17 個頁面權限、`mfaRequired=true`，並已寄出繁中一次性密碼設定信。
 - 實際 Web SDK 設定與 alias 保存在 Git 忽略的 `cloud/.env.local`、`cloud/.firebaserc`；禁止提交或輸出內容。
 
@@ -40,6 +40,7 @@
 - `bookingCancel` 是第二個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`bookings` page allowlist。它在單一 transaction 驗證 property／booking identity／status／version，只允許 `已預約` 改為 `已取消`，並原子寫入 audit 與 operation record；相同 UUID 加相同 fingerprint 只回傳原結果。`cancellationReason` 僅允許 `manual`／`no_show`；後者寫入 `booking.no_show` audit，且只有 No-show 才進 fingerprint，保留已發布手動取消的重送相容性。v3 取消不直接異動 payment、stay 或 room。
 - `bookingUpdate` 是第三個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`bookings` page allowlist。它在單一 transaction 驗證 booking identity／status／version、目標 room、同房有效 booking（排除自身）、active stay、maintenance schedule 與 holidays；伺服器重算 v3 block-ceiling 報價後只更新 booking／version／audit／operation record，既有 payment 不變。相同 UUID 加相同 fingerprint 只回傳原結果。
 - `bookingMultiCreate` 將 v3 的多時段預約搬入單一 transaction：須 email verified＋當次 TOTP MFA＋active profile＋`bookings_new` page allowlist，會一次讀取每個涉及房間的有效 booking、active stay、未完成 maintenance、room 與 holidays。它保留 v3 部分成功規則（衝突／過期／不可用房間只略過該時段），並把同一次請求中已接受的時段納入後續衝突檢查，避免同請求與跨裝置超賣；每個成功時段由伺服器重算 quote，共用住客／電話，選填 deposit 只建立在第一筆成功預約。結果、batch audit 與 UUID fingerprint replay 都在 transaction 中保存，client 不能逐筆直寫或自行決定衝突結果。
+- `bookingUpdatePreview` 是修改預約的唯讀 advisory callable：要求 email verified＋當次 TOTP MFA＋active profile＋`bookings` page allowlist，先驗證目標 booking 的 property／ID／有效狀態，才從同房有效 booking 候選中排除**目標自身**；其他 booking、active stay、maintenance 仍參與衝突檢查，並由 server 回傳同一份 v3 quote。它不寫資料、不使用 operation replay；真正的 `bookingUpdate` transaction 仍是權威，且會再次完整檢查。
 - `stayCheckIn` 是第四個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`checkin` page allowlist。它支援有效預約帶入或 walk-in，在一筆 transaction 內驗證 room identity／可入住狀態、既有 stay、同房有效 booking／maintenance 衝突與 holidays，建立 stay、房間轉 `使用中`、來源 booking 轉 `已入住`、選填押金、audit 與 `stayOperations` replay 記錄；既有 stay 一律 fail closed，不能沿用 v3 的覆蓋行為。
 - `stayExtend` 是第五個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`extend` page allowlist。它以入住時間軸重現 v3 `extension_fee_between`，確保 12h→24h 只收該時段差額；在單一 transaction 驗證 stay／room identity、可延住房態、未來 `已預約` 與未完成 maintenance。撞期時完全拒絕寫入（刻意取代 v3 的寫後警告），成功才同步 `stays`／`rooms`／audit／`stayOperations` replay；舊匯入 stay 沒有 `stayId` 時以 document ID 相容識別。
 - `stayCheckout` 是第六個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`checkout` page allowlist。伺服器以自身時間執行 v3 的免費取消、退房緩衝、半小時進位逾時計價及選填人工調整；同一 transaction 建立 stay log、免費取消退款、audit、房間待清潔並刪除 active stay。退款只涵蓋同房且同 booking 或入住後的未退款押金，避免誤退其他住宿款項。
@@ -67,7 +68,7 @@
 - `stays/StayCheckoutPage.tsx` + `stays/stay-checkout.ts`：桌機／手機共用退房表單；可選在住房、輸入雜費與選填逾時費調整，顯示目前應收／延住費並要求二次確認。讀取失敗 fail closed，房態快捷「退房辦理」直接導向此頁。
 - `payments/PaymentsPage.tsx` + `payments/{payment-create,payment-list}.ts`：桌機／手機共用付款頁；即時顯示台北當日實收／退款／淨額／待收、付款方式摘要與歷史紀錄，新增一般收款時只能選取 active stay。每筆非退款付款可開啟退款 dialog，退款原因必填，client 只呼叫 `paymentRefund`；可退額仍完全由 server transaction 重查。另提供手動例外收款 dialog，填寫旅客、選填房號、金額、付款方式、訂金標示與原因，client 只呼叫 `paymentManualCreate`。manager/admin 額外看到日結 dialog，先顯示目前投影淨額、再由 `cashierClose` 以伺服器日期重新計算和鎖定。讀取失敗或 gateway 不完整時停用送出，不回退展示帳務資料。
 - `costs/CostManagementPage.tsx` + `costs/cost-gateway.ts` + `domain/cost-list.ts`：桌機／手機共用成本頁；以 property-scoped Firestore listener 讀取成本，提供本月成本／筆數／前二分類摘要、月份與分類篩選、完整成本欄位表單與明細。只有 admin 顯示新增、修改、封存按鈕；修改透過 ResponsiveDialog 並帶 document version，封存要求原因且不移除 Firestore 文件。gateway 或 listener 失敗時停用寫入且不回退展示資料。
-- `bookings/BookingEditPage.tsx` + `booking-update.ts`：從預約明細進入修改；房間／住客／電話／入住／方案／天數／折扣／自動或手動金額均預填，桌機雙欄、手機單欄共用。儲存會維持 operation UUID；成功後由即時清單反映結果。既有訂金不能在此頁修改，送出前 quote／availability 顯示仍待補。
+- `bookings/BookingEditPage.tsx` + `booking-update.ts` + `booking-update-preview.ts`：從預約明細進入修改；房間／住客／電話／入住／方案／天數／折扣／自動或手動金額均預填，桌機雙欄、手機單欄共用。儲存會維持 operation UUID；成功後由即時清單反映結果。編輯前可呼叫 server-authoritative `bookingUpdatePreview` 顯示 quote／availability，且文案明確說明只會排除目前這筆預約；既有訂金不能在此頁修改。
 - `styles.css`：產品／domain 版面樣式；基礎 token 已移到 design system。維持 44px target、safe-area、320／375／430px 單欄、768px 三欄、>=1100px v3 式桌機頂部導覽與三欄房卡，無水平溢位。
 - 「今日房態」以單一 room view model 同步輸出兩種 view：桌機卡片直接展開 v3 詳細欄位與快捷操作；手機卡片只保留房號／狀態／摘要，點擊後於詳細面板顯示完整欄位與操作。後續接 Firestore 時不得維護兩份資料邏輯。
 - `domain/room-overview.ts` + `web/src/rooms/room-overview.ts` 已接 property-scoped Firestore 即時讀取：rooms／bookings／stays／payments／maintenanceSchedules 全部取得首次 snapshot 後才輸出，且每 60 秒重算。projection 保留 v3 七種房態、active-stay 款項範圍與維修覆蓋；下一筆預約只取有效未來資料。AuthGate 才注入真實 gateway，`ui-preview` 無 gateway 時使用匿名 fixture；真實讀取失敗不回退 fixture。
@@ -92,7 +93,7 @@
 ### 驗證與部署結果
 
 ```text
-npm test                       185/185 passed
+npm test                       188/188 passed
 npm run test:deploy-guard       6/6 passed
 npm run test:rules             47/47 passed（Firestore Emulator）
 npm run typecheck              passed
@@ -100,7 +101,7 @@ npm run lint                   passed
 npm run build                  passed
 npm run guard:functions-package passed
 npm run guard:hosting-package   passed
-DEV Functions                  37/37 listed, asia-east1, nodejs22; costCreate/costUpdate/costArchive/reportExportCsv/holidayManualUpsert/holidayDelete/holidayResync/propertyList/propertyCreate/bookingPreview/bookingMultiCreate ACTIVE, 512 MiB
+DEV Functions                  38/38 listed, asia-east1, nodejs22; costCreate/costUpdate/costArchive/reportExportCsv/holidayManualUpsert/holidayDelete/holidayResync/propertyList/propertyCreate/bookingPreview/bookingMultiCreate/bookingUpdatePreview ACTIVE, 512 MiB
 DEV bookingCreate              callable, 512 MiB, nodejs22
 DEV bookingCancel              callable, 512 MiB, nodejs22
 DEV bookingUpdate              callable, 512 MiB, nodejs22
@@ -115,19 +116,20 @@ DEV costCreate                 callable, ACTIVE, 512 MiB, nodejs22; MFA＋costs 
 DEV costUpdate                 callable, ACTIVE, 512 MiB, nodejs22; version conflict protection/audit/replay
 DEV costArchive                callable, ACTIVE, 512 MiB, nodejs22; required reason/immutable history/audit/replay
 DEV bookingMultiCreate         callable, ACTIVE, 512 MiB, nodejs22; v3 partial-success multi-slot transaction/audit/replay
-DEV Hosting                    index-al3h5LFF.js live; bundle contains bookingMultiCreate/Multi-slot booking/first-slot availability markers
+DEV bookingUpdatePreview       callable, ACTIVE, 512 MiB, nodejs22; self-excluding advisory quote/conflict preview
+DEV Hosting                    index-EsxyP5ZS.js live; bundle contains bookingUpdatePreview/self-excluding edit preview markers
 DEV HTTP smoke                 home/manifest/favicon/PWA 192 icon = 200
 ```
 
 Functions 會將 shared contract 用 esbuild 打入 self-contained bundle，部署 runtime dependencies 不含私有 `@bini/*` package。Firebase 部署曾提示舊 GCR build image 清理錯誤；唯讀檢查顯示 `asia.gcr.io/bini-transient-dev` repository 不存在，未發現可刪除的舊 GCR 映像。
 
-PowerShell 呼叫 Firebase CLI 時，含逗號的 `--only` 值不可裸寫：它會被解析成多個引數。需以 `--only "hosting"` 或完整引號值執行，並於部署後核對 Hosting 的最新 bundle hash 與所需 callable 字串；本輪 `bookingMultiCreate` 先單獨建立並輪詢至 ACTIVE，再以明確 Hosting target 發布 `index-al3h5LFF.js`。
+PowerShell 呼叫 Firebase CLI 時，含逗號的 `--only` 值不可裸寫：它會被解析成多個引數。需以 `--only "hosting"` 或完整引號值執行，並於部署後核對 Hosting 的最新 bundle hash 與所需 callable 字串；本輪 `bookingUpdatePreview` 先單獨建立並輪詢至 ACTIVE，再以明確 Hosting target 發布 `index-EsxyP5ZS.js`。
 
 ### 下一張工作單（全功能範圍）
 
 1. 管理員完成密碼設定後登入，首次綁定 TOTP；正式 pilot 前建立第二位 admin 並演練遺失驗證器恢復。
 2. promotion repository 與批次確認已完成；接續為 promotion 加入 Firestore export／按批次 restore drill，並以匿名化 snapshot 執行一次完整 DEV 匯入驗收。所有權威寫入仍須由 Admin SDK／operation processor 執行，不可由 UI 直寫 Firestore。
-3. room overview 即時讀取、check-in、extend、checkout、active-stay 一般收款、追加式退款、手動例外收款、日結、成本 CRUD、reports 核心 KPI/P&L/CSV、audit 唯讀軌跡、holidays 維護、館別建立與新增預約的前置 quote／availability／多時段已完成；接續完成訂金調整／刪除／CSV、房務／維修其餘 server-authoritative operations，再補 reports 的付款日摘要／圖表／館別切換與完整分區，以及 properties 跨館別 session 切換、新館別房間初始化、編輯／停用、預約費率參考與甘特圖剩餘控制。每個 domain 要有 role matrix、payload schema、idempotency/conflict tests。
+3. room overview 即時讀取、check-in、extend、checkout、active-stay 一般收款、追加式退款、手動例外收款、日結、成本 CRUD、reports 核心 KPI/P&L/CSV、audit 唯讀軌跡、holidays 維護、館別建立與預約新增／修改的前置 quote／availability／多時段已完成；接續完成訂金調整／刪除／CSV、房務／維修其餘 server-authoritative operations，再補 reports 的付款日摘要／圖表／館別切換與完整分區，以及 properties 跨館別 session 切換、新館別房間初始化、編輯／停用、預約費率參考與甘特圖剩餘控制。每個 domain 要有 role matrix、payload schema、idempotency/conflict tests。
 4. 每個 domain 同步交付 v3 等價桌機頁與完整手機 adaptive view；不得只做靜態畫面或無作用按鈕。
 5. 加入 IndexedDB operation queue、離線／衝突 UI、App Check、預算警示、日誌與 Firestore 匯出／還原演練。
 6. 使用匿名化 v3 snapshot 匯入 DEV，核對筆數、狀態、金額、`property-main` 映射與多裝置衝突。

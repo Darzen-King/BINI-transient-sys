@@ -4,6 +4,7 @@ import {
   bookingCancelInputSchema,
   bookingCreateInputSchema,
   bookingMultiCreateInputSchema,
+  bookingUpdatePreviewInputSchema,
   bookingUpdateInputSchema,
   findBookingAvailabilityConflict,
   quoteBooking,
@@ -154,6 +155,27 @@ describe('booking update contract', () => {
     });
     expect(quoteBooking(updated, calendar).amountNts).toBe(1_500);
     expect(() => bookingUpdateInputSchema.parse({ ...updated, pricingMode: 'automatic', manualAmountNts: 1_500 })).toThrow(/自動計價/);
+  });
+});
+
+describe('booking update preview contract', () => {
+  it('requires the specific booking identity before a server can exclude it from conflicts', () => {
+    expect(bookingUpdatePreviewInputSchema.parse({
+      propertyId: 'property-main',
+      bookingId: 'RSV-260914-ABC12345',
+      roomId: '203',
+      checkInAt: '2026-09-14T13:00:00+08:00',
+      plan: '24hrs',
+      days: 1,
+      discountNts: 0,
+      pricingMode: 'automatic',
+    })).toMatchObject({ bookingId: 'RSV-260914-ABC12345', pricingMode: 'automatic' });
+    expect(() => bookingUpdatePreviewInputSchema.parse({
+      propertyId: 'property-main',
+      roomId: '203',
+      checkInAt: '2026-09-14T13:00:00+08:00',
+      plan: '24hrs', days: 1, discountNts: 0, pricingMode: 'automatic',
+    })).toThrow();
   });
 });
 

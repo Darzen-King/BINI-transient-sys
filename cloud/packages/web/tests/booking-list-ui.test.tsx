@@ -9,6 +9,7 @@ import { App } from '../src/App.js';
 import type { BookingCancelGateway } from '../src/bookings/booking-cancel.js';
 import type { BookingListGateway } from '../src/bookings/booking-list.js';
 import type { BookingUpdateGateway } from '../src/bookings/booking-update.js';
+import type { BookingUpdatePreviewGateway } from '../src/bookings/booking-update-preview.js';
 import type { BookingRoomGateway } from '../src/rooms/booking-room-options.js';
 import type { BookingSoonGateway } from '../src/bookings/booking-soon.js';
 
@@ -133,6 +134,35 @@ describe('live booking list UI', () => {
       propertyId: 'property-main', bookingId: 'RSV-live-203', roomId: '203', guestName: 'Changed Guest', plan: '24hrs', days: 1, pricingMode: 'automatic', operationId: expect.any(String),
     })));
     expect(await screen.findByText('預約已更新')).toBeInTheDocument();
+  });
+
+  it('uses the self-excluding server preview before saving a booking edit', async () => {
+    const preview = vi.fn().mockResolvedValue({
+      available: true,
+      reason: 'available',
+      quote: {
+        checkInAt: '2026-09-14T05:00:00.000Z', checkOutAt: '2026-09-15T05:00:00.000Z',
+        grossAmountNts: 1_200, amountNts: 1_200, discountNts: 0, rateType: '非假日',
+      },
+      conflict: null,
+    });
+    render(<App
+      bookingListGateway={gateway(bookings)}
+      bookingUpdateGateway={{ update: vi.fn() } satisfies BookingUpdateGateway}
+      bookingUpdatePreviewGateway={{ preview } satisfies BookingUpdatePreviewGateway}
+      bookingRoomGateway={roomGateway()}
+    />);
+    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(await screen.findByText('203 · Live Guest'));
+    fireEvent.click(screen.getByRole('button', { name: '修改預約' }));
+    await screen.findByText('修改預約 · RSV-live-203');
+    fireEvent.click(screen.getByRole('button', { name: '檢查可用性與報價' }));
+
+    await waitFor(() => expect(preview).toHaveBeenCalledWith(expect.objectContaining({
+      propertyId: 'property-main', bookingId: 'RSV-live-203', roomId: '203', pricingMode: 'automatic',
+    })));
+    expect(await screen.findByText('此時段可修改')).toBeInTheDocument();
+    expect(screen.getByText(/排除目前這筆預約/)).toBeInTheDocument();
   });
 
   it('reuses the update operation id when a save is retried', async () => {

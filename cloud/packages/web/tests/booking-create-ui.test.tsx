@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/App.js';
 import type { StaffSession } from '../src/auth/session.js';
 import type { BookingCreateGateway } from '../src/bookings/booking-create.js';
+import type { BookingMultiCreateGateway } from '../src/bookings/booking-multi-create.js';
 import type { BookingPreviewGateway } from '../src/bookings/booking-preview.js';
 import type { BookingRoomGateway } from '../src/rooms/booking-room-options.js';
 
@@ -130,5 +131,56 @@ describe('new booking UI', () => {
     })));
     expect(await screen.findByText('此時段可預約')).toBeInTheDocument();
     expect(screen.getByText(/建立時伺服器仍會重新驗證/)).toBeInTheDocument();
+  });
+
+  it('submits all slots as one authorized multi-slot request and displays partial success', async () => {
+    const create = vi.fn();
+    const multiCreate = vi.fn().mockResolvedValue({
+      status: 'created',
+      created: [{
+        slotNumber: 1, bookingId: 'RSV-260914-MULTI001',
+        checkInAt: '2026-09-14T05:00:00.000Z', checkOutAt: '2026-09-15T05:00:00.000Z',
+        amountNts: 1_000, discountNts: 0, rateType: '非假日',
+      }],
+      conflicts: [{
+        slotNumber: 2, reason: 'conflict',
+        conflict: {
+          id: 'RSV-existing', source: 'booking', status: '已預約', guestName: 'Other guest',
+          startAt: '2026-09-15T05:00:00.000Z', endAt: '2026-09-16T05:00:00.000Z',
+        },
+      }],
+      paymentId: 'PAY-260914-MULTI001',
+    });
+    render(<App
+      bookingCreateGateway={{ create } satisfies BookingCreateGateway}
+      bookingMultiCreateGateway={{ create: multiCreate } satisfies BookingMultiCreateGateway}
+      bookingRoomGateway={roomGateway()}
+      session={fullAccessSession}
+    />);
+
+    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('button', { name: '＋ 新增預約' }));
+    fireEvent.change(await screen.findByLabelText('房間'), { target: { value: '203' } });
+    fireEvent.change(screen.getByLabelText('住客姓名'), { target: { value: 'Chris' } });
+    fireEvent.change(screen.getByLabelText('入住時間'), { target: { value: '2026-09-14T13:00' } });
+    fireEvent.change(screen.getByLabelText('押金（NT$）'), { target: { value: '300' } });
+    fireEvent.click(screen.getByRole('button', { name: /新增時段/ }));
+    const rooms = screen.getAllByLabelText('房間');
+    const checkIns = screen.getAllByLabelText('入住時間');
+    fireEvent.change(rooms[1]!, { target: { value: '203' } });
+    fireEvent.change(checkIns[1]!, { target: { value: '2026-09-15T13:00' } });
+    fireEvent.click(screen.getByRole('button', { name: '建立預約' }));
+
+    await waitFor(() => expect(multiCreate).toHaveBeenCalledWith(expect.objectContaining({
+      propertyId: 'property-main', guestName: 'Chris',
+      deposit: { amountNts: 300, paymentType: 'cash' },
+      slots: [
+        expect.objectContaining({ roomId: '203', checkInAt: '2026-09-14T13:00:00+08:00' }),
+        expect.objectContaining({ roomId: '203', checkInAt: '2026-09-15T13:00:00+08:00' }),
+      ],
+    })));
+    expect(create).not.toHaveBeenCalled();
+    expect(await screen.findByText('多時段預約完成：建立 1 筆')).toBeInTheDocument();
+    expect(screen.getByText(/未建立時段：#2（與 RSV-existing 衝突）/)).toBeInTheDocument();
   });
 });

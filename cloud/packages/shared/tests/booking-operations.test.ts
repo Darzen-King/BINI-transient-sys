@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   bookingCancelInputSchema,
   bookingCreateInputSchema,
+  bookingMultiCreateInputSchema,
   bookingUpdateInputSchema,
   findBookingAvailabilityConflict,
   quoteBooking,
@@ -22,6 +23,25 @@ const input = (overrides: Record<string, unknown> = {}) => bookingCreateInputSch
   days: 1,
   discountNts: 100,
   pricingMode: 'automatic',
+  ...overrides,
+});
+
+const multiInput = (overrides: Record<string, unknown> = {}) => bookingMultiCreateInputSchema.parse({
+  propertyId: 'property-main',
+  operationId: 'a6a2fd51-7d17-42e1-9e15-dba1f762d248',
+  guestName: 'Chris',
+  phone: '0900-000-000',
+  slots: [
+    {
+      roomId: '203', checkInAt: '2026-09-14T13:00:00+08:00', plan: '24hrs', days: 1,
+      discountNts: 0, pricingMode: 'automatic',
+    },
+    {
+      roomId: '205', checkInAt: '2026-09-15T13:00:00+08:00', plan: '12hrs', days: 1,
+      discountNts: 100, pricingMode: 'manual', manualAmountNts: 900,
+    },
+  ],
+  deposit: { amountNts: 300, paymentType: 'cash' },
   ...overrides,
 });
 
@@ -70,6 +90,27 @@ describe('booking creation contract', () => {
       id: 'MAINT-3', source: 'maintenance', roomId: '203', guestName: null, status: 'scheduled',
       startAt: '2026-09-14T07:00:00Z', endAt: '2026-09-14T08:00:00Z',
     }])).toMatchObject({ id: 'MAINT-3', source: 'maintenance' });
+  });
+});
+
+describe('multi-slot booking contract', () => {
+  it('accepts two or more independently priced slots with one shared guest and deposit', () => {
+    expect(multiInput()).toMatchObject({
+      guestName: 'Chris',
+      deposit: { amountNts: 300, paymentType: 'cash' },
+      slots: [
+        { roomId: '203', pricingMode: 'automatic' },
+        { roomId: '205', pricingMode: 'manual', manualAmountNts: 900 },
+      ],
+    });
+  });
+
+  it('requires at least two slots and retains the manual-pricing guard per slot', () => {
+    const parsed = multiInput();
+    expect(() => multiInput({ slots: [parsed.slots[0]] })).toThrow();
+    expect(() => multiInput({
+      slots: [parsed.slots[0], { ...parsed.slots[1], pricingMode: 'automatic' }],
+    })).toThrow(/自動計價/);
   });
 });
 

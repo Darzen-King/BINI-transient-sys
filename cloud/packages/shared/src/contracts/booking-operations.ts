@@ -76,6 +76,37 @@ export const bookingPreviewInputSchema = z.object({
 
 export type BookingPreviewInput = z.infer<typeof bookingPreviewInputSchema>;
 
+const bookingSlotSchema = z.object({
+  roomId: roomIdSchema,
+  checkInAt: dateTimeSchema,
+  plan: z.enum(BOOKING_PLANS),
+  days: z.number().int().min(1).max(366),
+  discountNts: ntsAmountSchema,
+  pricingMode: z.enum(['automatic', 'manual']),
+  manualAmountNts: ntsAmountSchema.optional(),
+}).strict().superRefine((input, context) => {
+  if (input.pricingMode === 'manual' && input.manualAmountNts === undefined) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['manualAmountNts'], message: '手動金額模式必須提供金額。' });
+  }
+  if (input.pricingMode === 'automatic' && input.manualAmountNts !== undefined) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['manualAmountNts'], message: '自動計價不可附帶手動金額。' });
+  }
+});
+
+export const bookingMultiCreateInputSchema = z.object({
+  propertyId: propertyIdSchema,
+  operationId: operationIdSchema,
+  guestName: z.string().trim().min(1).max(300),
+  phone: z.string().trim().max(100).nullable().optional(),
+  slots: z.array(bookingSlotSchema).min(2).max(12),
+  deposit: z.object({
+    amountNts: ntsAmountSchema.min(1),
+    paymentType: z.enum(BOOKING_PAYMENT_TYPES),
+  }).strict().nullable().optional(),
+}).strict();
+
+export type BookingMultiCreateInput = z.infer<typeof bookingMultiCreateInputSchema>;
+
 export const bookingCreateResultSchema = z.object({
   status: z.enum(['created', 'replayed']),
   bookingId: z.string().min(1).max(128),
@@ -212,6 +243,36 @@ export const bookingPreviewResultSchema = z.object({
 }).strict();
 
 export type BookingPreviewResult = z.infer<typeof bookingPreviewResultSchema>;
+
+const bookingMultiConflictSchema = z.object({
+  slotNumber: z.number().int().min(1).max(12),
+  reason: z.enum(['past_time', 'room_unavailable', 'conflict']),
+  conflict: z.object({
+    id: z.string().min(1).max(128),
+    source: z.enum(['booking', 'stay', 'maintenance']),
+    status: z.string().min(1).max(80),
+    guestName: z.string().nullable(),
+    startAt: dateTimeSchema,
+    endAt: dateTimeSchema,
+  }).strict().nullable(),
+}).strict();
+
+export const bookingMultiCreateResultSchema = z.object({
+  status: z.enum(['created', 'replayed']),
+  created: z.array(z.object({
+    slotNumber: z.number().int().min(1).max(12),
+    bookingId: bookingIdSchema,
+    checkInAt: dateTimeSchema,
+    checkOutAt: dateTimeSchema,
+    amountNts: ntsAmountSchema,
+    discountNts: ntsAmountSchema,
+    rateType: z.enum(['非假日', '假日']),
+  }).strict()).max(12),
+  conflicts: z.array(bookingMultiConflictSchema).max(12),
+  paymentId: z.string().min(1).max(128).nullable(),
+}).strict();
+
+export type BookingMultiCreateResult = z.infer<typeof bookingMultiCreateResultSchema>;
 
 const V3_STATIC_HOLIDAY_DATES = new Set([
   '2025-01-01', '2025-01-27', '2025-01-28', '2025-01-29', '2025-01-30', '2025-01-31', '2025-02-03',

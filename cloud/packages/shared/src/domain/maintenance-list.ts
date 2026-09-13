@@ -1,7 +1,7 @@
 import { z } from 'zod';
 const schedule = z.object({ roomId: z.string().trim().min(1).max(128), title: z.string().trim().min(1).max(500), startAt: z.string().refine((value) => Number.isFinite(Date.parse(value))), endAt: z.string().refine((value) => Number.isFinite(Date.parse(value))), note: z.string().max(2_000).nullable().optional(), status: z.enum(['scheduled', 'in_progress', 'done']) }).passthrough();
 export interface MaintenanceScheduleItem { scheduleId: string; roomId: string; title: string; startAt: string; endAt: string; note: string | null; status: 'scheduled' | 'in_progress' | 'done'; }
-export function buildMaintenanceScheduleItems(documents: readonly { id: string; data: unknown }[]): MaintenanceScheduleItem[] { return documents.map((document) => { const value = schedule.parse(document.data); return { scheduleId: document.id, roomId: value.roomId, title: value.title, startAt: value.startAt, endAt: value.endAt, note: value.note ?? null, status: value.status }; }).sort((left, right) => left.startAt.localeCompare(right.startAt)); }
+export function buildMaintenanceScheduleItems(documents: readonly { id: string; data: unknown }[]): MaintenanceScheduleItem[] { return documents.map((document) => { const value = schedule.parse(document.data); return { scheduleId: document.id, roomId: value.roomId, title: value.title, startAt: value.startAt, endAt: value.endAt, note: value.note ?? null, status: value.status }; }).sort((left, right) => Date.parse(left.startAt) - Date.parse(right.startAt)); }
 
 /** A room currently in the v3 `維修中` state, as shown on the maintenance page cards. */
 export interface MaintenanceRoomItem {

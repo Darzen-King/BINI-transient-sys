@@ -82,7 +82,7 @@ export function buildCostListItems(
     .sort(
       (left, right) =>
         right.costDate.localeCompare(left.costDate) ||
-        right.updatedAt.localeCompare(left.updatedAt),
+        Date.parse(right.updatedAt) - Date.parse(left.updatedAt),
     );
 }
 

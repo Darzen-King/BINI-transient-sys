@@ -16,3 +16,15 @@ describe('audit list projection', () => {
     expect(result.items[0]?.before).toEqual({ status: '可入住' }); expect(result.items[0]?.after).toEqual({ status: '使用中' });
   });
 });
+
+describe('audit list ordering across promoted and cloud timestamps', () => {
+  it('orders by the real instant when v3 +08:00 rows sit beside cloud UTC rows', () => {
+    const mixed = [
+      { id: 'v3-late-morning', data: { createdAt: '2026-09-13T09:00:00+08:00', action: 'checkin' } },
+      { id: 'cloud-afternoon', data: { createdAt: '2026-09-13T05:00:00.000Z', action: 'booking.create' } },
+      { id: 'cloud-dawn', data: { createdAt: '2026-09-13T00:30:00.000Z', action: 'booking.create' } },
+    ];
+    const result = buildAuditList(mixed, { action: '', targetId: '', keyword: '', page: 1 });
+    expect(result.items.map((item) => item.auditId)).toEqual(['cloud-afternoon', 'v3-late-morning', 'cloud-dawn']);
+  });
+});

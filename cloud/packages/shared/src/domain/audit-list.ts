@@ -29,7 +29,7 @@ export function buildAuditList(documents: readonly AuditSourceDocument[], query:
     if (!parsed.success) throw new Error(`auditLogs/${document.id} does not match the audit schema`);
     const value = parsed.data; const detail = record(value.details);
     return { auditId: document.id, createdAt: value.createdAt, action: value.action, targetId: value.targetId ?? null, targetType: value.targetType ?? null, actor: value.actorUid ?? value.actorLegacyId ?? '—', description: value.description ?? null, before: value.originalValue ?? detail?.before ?? null, after: value.newValue ?? detail?.after ?? null, details: value.details ?? null } satisfies AuditListItem;
-  }).sort((left, right) => right.createdAt.localeCompare(left.createdAt) || right.auditId.localeCompare(left.auditId));
+  }).sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt) || right.auditId.localeCompare(left.auditId));
   const action = query.action.trim(); const targetId = query.targetId.trim().toLocaleLowerCase(); const keyword = query.keyword.trim().toLocaleLowerCase();
   const filtered = all.filter((item) => (!action || item.action === action) && (!targetId || item.targetId?.toLocaleLowerCase().includes(targetId)) && (!keyword || [item.action, item.targetId, item.targetType, item.actor, item.description, item.before, item.after, item.details].some((value) => includes(value, keyword))));
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize)); const page = Math.min(query.page, totalPages); const start = (page - 1) * pageSize;

@@ -361,6 +361,18 @@ h1, h2, p { margin-top: 0; }
 .report-kpis strong, .report-pnl strong { color: var(--brand-dark); font-size: 19px; font-variant-numeric: tabular-nums; }
 .report-pnl { display: flex; flex-wrap: wrap; align-items: stretch; margin-top: 12px; padding: 12px; border: 1px solid var(--bds-color-berry-200); border-radius: var(--bds-radius-md); background: var(--bds-color-surface-brand); gap: 10px; }
 .report-pnl > div { display: grid; flex: 1 1 110px; padding-right: 10px; gap: 3px; }.report-pnl small, .report-pnl > span { color: var(--muted); font-size: 11px; }.report-pnl > span { padding: 5px 8px; border-radius: 999px; background: white; }.report-pnl .negative { color: var(--danger); }
+.checkout-summary .struck { color: var(--muted); text-decoration: line-through; }
+.checkout-summary .indent span { padding-left: 14px; color: var(--muted); font-size: 12px; }
+.checkout-note { margin: 2px 0; padding: 6px 9px; border-radius: var(--bds-radius-sm, 6px); background: var(--bds-color-feedback-success-bg); color: var(--bds-color-feedback-success); font-size: 12px; }
+.checkout-note.free { background: var(--bds-color-feedback-info-bg); color: var(--bds-color-feedback-info); }
+.checkout-total { padding-top: 8px; border-top: 1px solid var(--line); }
+.checkout-total b { color: var(--brand-dark); font-size: 17px; }
+.checkout-balance { padding: 7px 9px; border-radius: var(--bds-radius-sm, 6px); }
+.checkout-balance.due { background: var(--bds-color-feedback-danger-bg); color: var(--bds-color-feedback-danger); }
+.checkout-balance.settled { background: var(--bds-color-feedback-success-bg); color: var(--bds-color-feedback-success); }
+.checkout-dialog-hint { margin: 10px 0; color: var(--muted); font-size: 12px; }
+.checkout-dialog-fee { margin: 10px 0; font-size: 14px; }
+.checkout-dialog-fee strong { color: var(--bds-color-feedback-danger); font-size: 18px; }
 .rate-reference { display: grid; margin: 12px 0; padding: 12px; border: 1px solid var(--line); border-radius: var(--bds-radius-md); background: var(--bds-color-surface); gap: 8px; }
 .rate-reference strong { color: var(--brand-dark); font-size: 13px; }
 .rate-reference table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }

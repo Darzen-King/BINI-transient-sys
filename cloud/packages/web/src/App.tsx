@@ -654,7 +654,7 @@ function ActiveView({ view, onAction, paymentRoomId, onOpenPayment, onPaymentRoo
   if (view === 'bookings_new') return <BookingCreatePage gateway={bookingCreateGateway} holidayGateway={holidayCalendarGateway} multiGateway={bookingMultiCreateGateway} onViewBookings={() => onOpenPage('bookings')} previewGateway={bookingPreviewGateway} roomGateway={bookingRoomGateway} session={session} />;
   if (view === 'checkin') return <StayCheckInPage bookingGateway={bookingListGateway} gateway={stayCheckInGateway} onBack={() => onOpenPage('rooms')} roomGateway={bookingRoomGateway} session={session} />;
   if (view === 'extend') return <StayExtendPage gateway={stayExtendGateway} holidayGateway={holidayCalendarGateway} onBack={() => onOpenPage('rooms')} session={session} staysGateway={activeStaysGateway} />;
-  if (view === 'checkout') return <StayCheckoutPage gateway={stayCheckoutGateway} onBack={() => onOpenPage('rooms')} session={session} staysGateway={activeStaysGateway} />;
+  if (view === 'checkout') return <StayCheckoutPage gateway={stayCheckoutGateway} holidayGateway={holidayCalendarGateway} onBack={() => onOpenPage('rooms')} paymentListGateway={paymentListGateway} session={session} staysGateway={activeStaysGateway} />;
   if (view === 'housekeeping') return <HousekeepingPage gateway={housekeepingGateway} session={session} />;
   if (view === 'maintenance') return <MaintenancePage gateway={maintenanceGateway} session={session} />;
   if (view === 'room_management') return <RoomManagementPage gateway={roomManagementGateway} session={session} />;

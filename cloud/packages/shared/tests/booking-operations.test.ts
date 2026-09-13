@@ -8,8 +8,10 @@ import {
   bookingUpdateInputSchema,
   findBookingAvailabilityConflict,
   quoteBooking,
+  quoteStayCheckoutCorrection,
   quoteStayCheckoutOverdue,
   quoteStayExtension,
+  stayExtendInputSchema,
 } from '@bini/cloud-shared';
 
 const calendar = { days: new Map<string, boolean>(), coveredYears: new Set<number>() };
@@ -188,17 +190,41 @@ describe('stay extension pricing', () => {
     expect(quote.breakdown).toEqual([expect.objectContaining({ hours: 12, ceilingNts: 200, feeNts: 200 })]);
   });
 
-  it('uses the correct subsequent 12-hour block and accepts half-hour extensions', () => {
-    const quote = quoteStayExtension('2026-09-14T13:00:00+08:00', '2026-09-15T13:00:00+08:00', 0.5, calendar);
-    expect(quote.extensionFeeNts).toBe(100);
-    expect(quote.breakdown).toEqual([expect.objectContaining({ hours: 0.5, ceilingNts: 800, feeNts: 100 })]);
+  it('uses the correct subsequent 12-hour block for a one-hour extension', () => {
+    const quote = quoteStayExtension('2026-09-14T13:00:00+08:00', '2026-09-15T13:00:00+08:00', 1, calendar);
+    expect(quote.extensionFeeNts).toBe(200);
+    expect(quote.breakdown).toEqual([expect.objectContaining({ hours: 1, ceilingNts: 800, feeNts: 200 })]);
   });
 
-  it('applies the v3 checkout grace window then rounds overdue time up to half hours', () => {
+  it('bills extensions in whole hours only (store rule: NT$200 per hour, no half hours)', () => {
+    expect(stayExtendInputSchema.safeParse({ propertyId: 'property-main', operationId: '4d6d61d5-b1f8-42eb-8104-0521bc05dd01', stayId: 'STY-1', extensionHours: 0.5 }).success).toBe(false);
+    expect(stayExtendInputSchema.safeParse({ propertyId: 'property-main', operationId: '4d6d61d5-b1f8-42eb-8104-0521bc05dd01', stayId: 'STY-1', extensionHours: 1.5 }).success).toBe(false);
+    expect(stayExtendInputSchema.safeParse({ propertyId: 'property-main', operationId: '4d6d61d5-b1f8-42eb-8104-0521bc05dd01', stayId: 'STY-1', extensionHours: 2 }).success).toBe(true);
+  });
+
+  it('applies the v3 checkout grace window then rounds overdue time up to whole hours', () => {
     const onTime = quoteStayCheckoutOverdue('2026-09-14T13:00:00+08:00', '2026-09-15T01:00:00+08:00', 0, '2026-09-15T01:15:00+08:00', calendar);
     const overdue = quoteStayCheckoutOverdue('2026-09-14T13:00:00+08:00', '2026-09-15T01:00:00+08:00', 0, '2026-09-15T01:16:00+08:00', calendar);
-    expect(onTime).toEqual({ systemOverdueFeeNts: 0, totalExtensionFeeNts: 0 });
-    expect(overdue).toEqual({ systemOverdueFeeNts: 100, totalExtensionFeeNts: 100 });
+    expect(onTime).toEqual({ overdue: false, overdueMinutes: 0, overdueHours: 0, systemOverdueFeeNts: 0, totalExtensionFeeNts: 0 });
+    expect(overdue).toEqual({ overdue: true, overdueMinutes: 1, overdueHours: 1, systemOverdueFeeNts: 200, totalExtensionFeeNts: 200 });
+  });
+
+  it('starts the grace window from the extended check-out, so a guest who extended is not billed inside it', () => {
+    // 24h stay Mon 13:00 → Tue 13:00, extended 1h to 14:00 (NT$200 charged). Leaving at 14:10 is inside v3's grace window.
+    const withinGrace = quoteStayCheckoutOverdue('2026-09-14T13:00:00+08:00', '2026-09-15T14:00:00+08:00', 200, '2026-09-15T14:10:00+08:00', calendar);
+    expect(withinGrace).toMatchObject({ overdue: false, systemOverdueFeeNts: 0, totalExtensionFeeNts: 200 });
+    const late = quoteStayCheckoutOverdue('2026-09-14T13:00:00+08:00', '2026-09-15T14:00:00+08:00', 200, '2026-09-15T15:20:00+08:00', calendar);
+    // 26h20m since check-in rounds up to 27h: two billable hours past the extended check-out.
+    expect(late).toEqual({ overdue: true, overdueMinutes: 65, overdueHours: 2, systemOverdueFeeNts: 400, totalExtensionFeeNts: 600 });
+  });
+
+  it('prices a staff correction as the incremental fee after the current check-out', () => {
+    expect(quoteStayCheckoutCorrection('2026-09-14T13:00:00+08:00', '2026-09-15T13:00:00+08:00', 0, calendar)).toBe(0);
+    expect(quoteStayCheckoutCorrection('2026-09-14T13:00:00+08:00', '2026-09-15T13:00:00+08:00', 1, calendar)).toBe(200);
+    // A partial hour is billed as a full hour.
+    expect(quoteStayCheckoutCorrection('2026-09-14T13:00:00+08:00', '2026-09-15T13:00:00+08:00', 1.5, calendar)).toBe(400);
+    // The 12-hour block ceiling still caps the fee, as in v3.
+    expect(quoteStayCheckoutCorrection('2026-09-14T13:00:00+08:00', '2026-09-15T13:00:00+08:00', 12, calendar)).toBe(800);
   });
 });
 

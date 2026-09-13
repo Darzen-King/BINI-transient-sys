@@ -76,15 +76,42 @@ export function quoteStayExtension(checkInAt: string, currentCheckOutAt: string,
   return { extensionHours, fromHours, toHours, extensionFeeNts, breakdown };
 }
 
-/** v3 checkout rule: a 15-minute grace period, then round the elapsed stay up to a half-hour. */
-export function quoteStayCheckoutOverdue(checkInAt: string, originalCheckOutAt: string, currentExtensionFeeNts: number, checkedOutAt: string, calendar: BookingHolidayCalendar): { systemOverdueFeeNts: number; totalExtensionFeeNts: number } {
+export interface StayCheckoutOverdueQuote {
+  overdue: boolean;
+  /** Whole minutes past the grace window, as the v3 overdue dialog shows. */
+  overdueMinutes: number;
+  /** Billable hours past the current check-out, rounded up to whole hours. */
+  overdueHours: number;
+  systemOverdueFeeNts: number;
+  totalExtensionFeeNts: number;
+}
+
+const GRACE_MS = 15 * 60 * 1_000;
+
+/**
+ * v3 `/api/overdue-check`: a 15-minute grace period after the CURRENT (possibly extended) check-out,
+ * then the stay is rounded up to whole hours (store rule: no half-hour billing) and only the timeline charge beyond that check-out is added.
+ */
+export function quoteStayCheckoutOverdue(checkInAt: string, currentCheckOutAt: string, currentExtensionFeeNts: number, checkedOutAt: string, calendar: BookingHolidayCalendar): StayCheckoutOverdueQuote {
   const checkInMillis = Date.parse(checkInAt);
-  const originalCheckOutMillis = Date.parse(originalCheckOutAt);
+  const currentCheckOutMillis = Date.parse(currentCheckOutAt);
   const checkedOutMillis = Date.parse(checkedOutAt);
-  if (![checkInMillis, originalCheckOutMillis, checkedOutMillis].every(Number.isFinite) || originalCheckOutMillis <= checkInMillis) throw new Error('在住房日期區間無效。');
-  if (checkedOutMillis <= originalCheckOutMillis + (15 * 60 * 1_000)) return { systemOverdueFeeNts: 0, totalExtensionFeeNts: currentExtensionFeeNts };
-  const totalStayHours = Math.ceil((checkedOutMillis - checkInMillis) / (30 * 60 * 1_000)) * 0.5;
-  const baseHours = (originalCheckOutMillis - checkInMillis) / HOUR_MS;
-  const totalExtensionFeeNts = quoteStayExtension(checkInAt, originalCheckOutAt, totalStayHours - baseHours, calendar).extensionFeeNts;
-  return { systemOverdueFeeNts: Math.max(0, totalExtensionFeeNts - currentExtensionFeeNts), totalExtensionFeeNts };
+  if (![checkInMillis, currentCheckOutMillis, checkedOutMillis].every(Number.isFinite) || currentCheckOutMillis <= checkInMillis) throw new Error('在住房日期區間無效。');
+  const pastGraceMs = checkedOutMillis - (currentCheckOutMillis + GRACE_MS);
+  if (pastGraceMs <= 0) return { overdue: false, overdueMinutes: 0, overdueHours: 0, systemOverdueFeeNts: 0, totalExtensionFeeNts: currentExtensionFeeNts };
+  const totalStayHours = Math.ceil((checkedOutMillis - checkInMillis) / HOUR_MS);
+  const plannedHours = (currentCheckOutMillis - checkInMillis) / HOUR_MS;
+  const systemOverdueFeeNts = Math.max(0, totalStayCharge(checkInMillis, totalStayHours, calendar) - totalStayCharge(checkInMillis, plannedHours, calendar));
+  return { overdue: true, overdueMinutes: Math.round(pastGraceMs / 60_000), overdueHours: Math.round((totalStayHours - plannedHours) * 100) / 100, systemOverdueFeeNts, totalExtensionFeeNts: currentExtensionFeeNts + systemOverdueFeeNts };
+}
+
+/** v3 `/api/overdue-correction-preview`: staff enter the real hours past the current check-out (0 = forgot to check out). */
+export function quoteStayCheckoutCorrection(checkInAt: string, currentCheckOutAt: string, correctionHours: number, calendar: BookingHolidayCalendar): number {
+  const checkInMillis = Date.parse(checkInAt);
+  const currentCheckOutMillis = Date.parse(currentCheckOutAt);
+  if (!Number.isFinite(checkInMillis) || !Number.isFinite(currentCheckOutMillis) || currentCheckOutMillis <= checkInMillis) throw new Error('在住房日期區間無效。');
+  const plannedHours = (currentCheckOutMillis - checkInMillis) / HOUR_MS;
+  // A partial hour is billed as a full hour.
+  const correction = Number.isFinite(correctionHours) ? Math.ceil(Math.max(0, correctionHours)) : 0;
+  return Math.max(0, totalStayCharge(checkInMillis, plannedHours + correction, calendar) - totalStayCharge(checkInMillis, plannedHours, calendar));
 }

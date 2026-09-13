@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { summarizeStayPayments } from './stay-payments.js';
+
 export const CLOUD_ROOM_STATUSES = [
   '可入住',
   '使用中',
@@ -203,28 +205,7 @@ export function buildRoomOverviewProjection(
       let balanceDueNts: number | null = null;
 
       if (stay) {
-        const paymentFloor = stay.createdAt ?? stay.checkInAt ?? '';
-        const scopedPayments = payments.filter((payment) => (
-          payment.data.status !== 'voided'
-          && (
-          payment.data.roomId === roomId
-          && (
-            (paymentFloor !== '' && Date.parse(payment.data.createdAt) >= Date.parse(paymentFloor))
-            || (stay.bookingId != null && payment.data.bookingId === stay.bookingId)
-          )
-          )
-        ));
-        const received = scopedPayments
-          .filter((payment) => !payment.data.refund)
-          .reduce((sum, payment) => sum + payment.data.amountNts, 0);
-        const refunded = scopedPayments
-          .filter((payment) => payment.data.refund)
-          .reduce((sum, payment) => sum + payment.data.amountNts, 0);
-        totalPaidNts = Math.max(0, received - refunded);
-        depositPaidNts = scopedPayments
-          .filter((payment) => payment.data.deposit && !payment.data.refund)
-          .reduce((sum, payment) => sum + payment.data.amountNts, 0);
-        balanceDueNts = Math.max(0, stay.totalDueNts - totalPaidNts);
+        ({ totalPaidNts, depositPaidNts, balanceDueNts } = summarizeStayPayments({ ...stay, roomId }, payments.map((payment) => payment.data)));
       }
 
       const status = maintenance ? '維修中' : room.data.status;

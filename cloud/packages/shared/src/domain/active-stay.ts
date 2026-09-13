@@ -15,6 +15,8 @@ export interface ActiveStayItem {
   extensionFeeNts: number;
   extraFeeNts: number;
   totalDueNts: number;
+  bookingId: string | null;
+  createdAt: string | null;
 }
 
 const activeStayDocumentSchema = z.object({
@@ -29,6 +31,9 @@ const activeStayDocumentSchema = z.object({
   extensionFeeNts: z.number().int().safe().min(0),
   extraFeeNts: z.number().int().safe().min(0),
   totalDueNts: z.number().int().safe().min(0),
+  bookingId: z.string().trim().min(1).max(128).nullable().optional(),
+  // Tolerant: only a readable timestamp narrows the payment scope; anything else falls back to check-in.
+  createdAt: z.unknown().optional(),
 }).passthrough();
 
 export function buildActiveStayItems(documents: readonly { id: string; data: unknown }[]): ActiveStayItem[] {
@@ -47,6 +52,8 @@ export function buildActiveStayItems(documents: readonly { id: string; data: unk
       extensionFeeNts: stay.extensionFeeNts,
       extraFeeNts: stay.extraFeeNts,
       totalDueNts: stay.totalDueNts,
+      bookingId: stay.bookingId ?? null,
+      createdAt: typeof stay.createdAt === 'string' && Number.isFinite(Date.parse(stay.createdAt)) ? stay.createdAt : null,
     };
   }).sort((left, right) => left.roomId.localeCompare(right.roomId, 'zh-Hant'));
 }

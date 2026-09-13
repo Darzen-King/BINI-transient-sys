@@ -11,10 +11,8 @@ const dateTimeSchema = z.string().trim().min(20).max(64).regex(
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/,
   '日期時間必須是帶時區的 ISO 格式。',
 ).refine((value) => Number.isFinite(Date.parse(value)), '日期時間格式不正確。');
-const extensionHoursSchema = z.number().finite().min(0.5).max(168).refine(
-  (value) => Math.abs((value * 2) - Math.round(value * 2)) < Number.EPSILON,
-  '延住時數必須以半小時為單位。',
-);
+/** Store rule (2026-09-14): extensions are billed per whole hour at NT$200; there is no half-hour unit. */
+const extensionHoursSchema = z.number().int('延住時數必須以 1 小時為單位。').min(1).max(168);
 
 /** Server-authoritative v3-compatible check-in: a selected booking or a walk-in. */
 export const stayCheckInInputSchema = z.object({

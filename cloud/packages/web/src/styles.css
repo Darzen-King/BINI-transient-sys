@@ -298,6 +298,8 @@ h1, h2, p { margin-top: 0; }
 .booking-create-grid { display: grid; gap: 12px; }
 .booking-deposit { min-width: 0; padding: 13px; border: 1px solid var(--line); border-radius: var(--bds-radius-md); background: var(--bds-color-surface-subtle); }
 .booking-deposit legend { padding: 0 5px; color: var(--brand-dark); font-size: 13px; font-weight: 850; }
+.booking-preview-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+.booking-preview-actions small { color: var(--muted); font-size: 11px; }
 .booking-create-actions { display: grid; gap: 9px; }
 .stay-extension-details { display: grid; gap: 12px; }
 .stay-extension-details .room-detail-list { padding: 13px; border: 1px solid var(--line); border-radius: var(--bds-radius-md); background: var(--bds-color-surface-subtle); }

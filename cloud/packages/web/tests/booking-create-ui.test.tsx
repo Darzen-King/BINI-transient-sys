@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/App.js';
 import type { StaffSession } from '../src/auth/session.js';
 import type { BookingCreateGateway } from '../src/bookings/booking-create.js';
+import type { BookingPreviewGateway } from '../src/bookings/booking-preview.js';
 import type { BookingRoomGateway } from '../src/rooms/booking-room-options.js';
 
 const fullAccessSession: StaffSession = {
@@ -99,5 +100,35 @@ describe('new booking UI', () => {
 
     await waitFor(() => expect(create).toHaveBeenCalledTimes(2));
     expect(create.mock.calls[1]?.[0].operationId).toBe(create.mock.calls[0]?.[0].operationId);
+  });
+
+  it('uses the guarded server preview without treating it as the final write check', async () => {
+    const preview = vi.fn().mockResolvedValue({
+      available: true,
+      reason: 'available',
+      quote: {
+        checkInAt: '2026-09-14T05:00:00.000Z',
+        checkOutAt: '2026-09-15T05:00:00.000Z',
+        grossAmountNts: 1_000,
+        amountNts: 900,
+        discountNts: 100,
+        rateType: '非假日',
+      },
+      conflict: null,
+    });
+    render(<App bookingCreateGateway={{ create: vi.fn() } satisfies BookingCreateGateway} bookingPreviewGateway={{ preview } satisfies BookingPreviewGateway} bookingRoomGateway={roomGateway()} session={fullAccessSession} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('button', { name: '＋ 新增預約' }));
+    fireEvent.change(await screen.findByLabelText('房間'), { target: { value: '203' } });
+    fireEvent.change(screen.getByLabelText('入住時間'), { target: { value: '2026-09-14T13:00' } });
+    fireEvent.change(screen.getByLabelText('折扣（NT$）'), { target: { value: '100' } });
+    fireEvent.click(screen.getByRole('button', { name: '檢查可用性與報價' }));
+
+    await waitFor(() => expect(preview).toHaveBeenCalledWith(expect.objectContaining({
+      propertyId: 'property-main', roomId: '203', checkInAt: '2026-09-14T13:00:00+08:00', discountNts: 100,
+    })));
+    expect(await screen.findByText('此時段可預約')).toBeInTheDocument();
+    expect(screen.getByText(/建立時伺服器仍會重新驗證/)).toBeInTheDocument();
   });
 });

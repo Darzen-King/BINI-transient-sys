@@ -56,6 +56,26 @@ export const bookingCreateInputSchema = z.object({
 
 export type BookingCreateInput = z.infer<typeof bookingCreateInputSchema>;
 
+export const bookingPreviewInputSchema = z.object({
+  propertyId: propertyIdSchema,
+  roomId: roomIdSchema,
+  checkInAt: dateTimeSchema,
+  plan: z.enum(BOOKING_PLANS),
+  days: z.number().int().min(1).max(366),
+  discountNts: ntsAmountSchema,
+  pricingMode: z.enum(['automatic', 'manual']),
+  manualAmountNts: ntsAmountSchema.optional(),
+}).strict().superRefine((input, context) => {
+  if (input.pricingMode === 'manual' && input.manualAmountNts === undefined) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['manualAmountNts'], message: '手動金額模式必須提供金額。' });
+  }
+  if (input.pricingMode === 'automatic' && input.manualAmountNts !== undefined) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['manualAmountNts'], message: '自動計價不可附帶手動金額。' });
+  }
+});
+
+export type BookingPreviewInput = z.infer<typeof bookingPreviewInputSchema>;
+
 export const bookingCreateResultSchema = z.object({
   status: z.enum(['created', 'replayed']),
   bookingId: z.string().min(1).max(128),
@@ -169,6 +189,29 @@ export interface BookingAvailabilityConflict {
   startAt: string;
   endAt: string;
 }
+
+export const bookingPreviewResultSchema = z.object({
+  available: z.boolean(),
+  reason: z.enum(['available', 'past_time', 'room_unavailable', 'conflict']),
+  quote: z.object({
+    checkInAt: dateTimeSchema,
+    checkOutAt: dateTimeSchema,
+    grossAmountNts: ntsAmountSchema,
+    amountNts: ntsAmountSchema,
+    discountNts: ntsAmountSchema,
+    rateType: z.enum(['非假日', '假日']),
+  }).strict(),
+  conflict: z.object({
+    id: z.string().min(1).max(128),
+    source: z.enum(['booking', 'stay', 'maintenance']),
+    status: z.string().min(1).max(80),
+    guestName: z.string().nullable(),
+    startAt: dateTimeSchema,
+    endAt: dateTimeSchema,
+  }).strict().nullable(),
+}).strict();
+
+export type BookingPreviewResult = z.infer<typeof bookingPreviewResultSchema>;
 
 const V3_STATIC_HOLIDAY_DATES = new Set([
   '2025-01-01', '2025-01-27', '2025-01-28', '2025-01-29', '2025-01-30', '2025-01-31', '2025-02-03',

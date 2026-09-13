@@ -1,10 +1,11 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { type BookingCreateResult, type BookingRoomOption } from '@bini/cloud-shared';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { type BookingCreateResult, type BookingPreviewResult, type BookingRoomOption } from '@bini/cloud-shared';
 
 import type { StaffSession } from '../auth/session.js';
 import { Button, Field, Notice, SectionCard } from '../design-system/index.js';
 import { useLocale } from '../i18n/locale.js';
 import type { BookingCreateGateway } from './booking-create.js';
+import type { BookingPreviewGateway } from './booking-preview.js';
 import type { BookingRoomGateway } from '../rooms/booking-room-options.js';
 
 function toTaipeiIso(value: string): string {
@@ -35,11 +36,13 @@ function roomStatusLabel(status: BookingRoomOption['status'], text: (zhTw: strin
 export function BookingCreatePage({
   session,
   gateway,
+  previewGateway,
   roomGateway,
   onViewBookings,
 }: {
   session: StaffSession;
   gateway: BookingCreateGateway | undefined;
+  previewGateway: BookingPreviewGateway | undefined;
   roomGateway: BookingRoomGateway | undefined;
   onViewBookings: () => void;
 }) {
@@ -50,7 +53,11 @@ export function BookingCreatePage({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [created, setCreated] = useState<BookingCreateResult | null>(null);
+  const [preview, setPreview] = useState<BookingPreviewResult | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [previewError, setPreviewError] = useState('');
   const [pendingOperationId, setPendingOperationId] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (!roomGateway) return undefined;
@@ -110,6 +117,30 @@ export function BookingCreatePage({
     }
   };
 
+  const runPreview = async () => {
+    if (!previewGateway || !formRef.current) return;
+    const data = new FormData(formRef.current);
+    setPreviewBusy(true);
+    setPreviewError('');
+    setPreview(null);
+    try {
+      setPreview(await previewGateway.preview({
+        propertyId: session.propertyId,
+        roomId: String(data.get('roomId') ?? ''),
+        checkInAt: toTaipeiIso(String(data.get('checkInAt') ?? '')),
+        plan: String(data.get('plan')) === '12hrs' ? '12hrs' : '24hrs',
+        days: Number(data.get('days') || 0),
+        discountNts: Number(data.get('discountNts') || 0),
+        pricingMode,
+        ...(pricingMode === 'manual' ? { manualAmountNts: Number(data.get('manualAmountNts') || 0) } : {}),
+      }));
+    } catch (previewFailure) {
+      setPreviewError(functionErrorMessage(previewFailure, text));
+    } finally {
+      setPreviewBusy(false);
+    }
+  };
+
   return (
     <SectionCard hint={text('伺服器即時驗證', 'Server-validated')} title={text('新增預約', 'New booking')}>
       <p className="booking-create-intro">{text(
@@ -124,7 +155,7 @@ export function BookingCreatePage({
         <p>{text(`入住 ${created.checkInAt}，退房 ${created.checkOutAt}，金額 NT$ ${created.amountNts.toLocaleString()}`, `Check-in ${created.checkInAt}, check-out ${created.checkOutAt}, total NT$ ${created.amountNts.toLocaleString()}`)}</p>
         <Button onClick={onViewBookings} variant="outline">{text('查看預約管理', 'View bookings')}</Button>
       </Notice> : null}
-      <form className="booking-create-form" onSubmit={(event) => void submit(event)}>
+      <form className="booking-create-form" ref={formRef} onSubmit={(event) => void submit(event)}>
         <div className="booking-create-grid">
           <Field label={text('房間', 'Room')}><select disabled={!gateway || rooms === null || roomError} name="roomId" required defaultValue="">
             <option disabled value="">{text('選擇房間', 'Select a room')}</option>
@@ -143,6 +174,12 @@ export function BookingCreatePage({
           <Field label={text('押金（NT$）', 'Deposit (NT$)')}><input defaultValue="0" disabled={!gateway} min="0" name="depositAmountNts" type="number" /></Field>
           <Field label={text('付款方式', 'Payment method')}><select disabled={!gateway} name="depositPaymentType" defaultValue="cash"><option value="cash">{text('現金', 'Cash')}</option><option value="transfer">{text('轉帳', 'Transfer')}</option><option value="card">{text('刷卡', 'Card')}</option><option value="other">{text('其他', 'Other')}</option></select></Field>
         </div></fieldset>
+        <div className="booking-preview-actions"><Button disabled={!previewGateway || !gateway || rooms === null || roomError} loading={previewBusy} onClick={() => void runPreview()} type="button" variant="outline">{text('檢查可用性與報價', 'Check availability & quote')}</Button><small>{text('此為送出前預覽；建立時伺服器仍會重新驗證。', 'This is a pre-submit preview; the server validates again on creation.')}</small></div>
+        {previewError ? <Notice tone="danger" title={text('無法取得預覽', 'Preview unavailable')}>{previewError}</Notice> : null}
+        {preview ? <Notice tone={preview.available ? 'success' : 'warning'} title={preview.available ? text('此時段可預約', 'This slot is available') : text('此時段不可預約', 'This slot is unavailable')}>
+          <p>{text(`入住 ${preview.quote.checkInAt}，退房 ${preview.quote.checkOutAt}，${preview.quote.rateType}，原價 NT$ ${preview.quote.grossAmountNts.toLocaleString()}，折扣 NT$ ${preview.quote.discountNts.toLocaleString()}，應收 NT$ ${preview.quote.amountNts.toLocaleString()}`, `Check-in ${preview.quote.checkInAt}, check-out ${preview.quote.checkOutAt}, ${preview.quote.rateType}, gross NT$ ${preview.quote.grossAmountNts.toLocaleString()}, discount NT$ ${preview.quote.discountNts.toLocaleString()}, total NT$ ${preview.quote.amountNts.toLocaleString()}`)}</p>
+          {!preview.available ? <p>{preview.reason === 'past_time' ? text('入住時間不可早於目前時間五分鐘以上。', 'Check-in cannot be more than five minutes in the past.') : preview.reason === 'room_unavailable' ? text('找不到房間或此房為月租套房，不能建立短期預約。', 'The room is unavailable or monthly-only.') : text(`與 ${preview.conflict?.id ?? ''} 的既有時段衝突。`, `Conflicts with ${preview.conflict?.id ?? ''}.`)}</p> : null}
+        </Notice> : null}
         {error ? <Notice tone="danger" title={text('無法建立預約', 'Booking could not be created')}>{error}</Notice> : null}
         <div className="booking-create-actions"><Button disabled={!gateway || rooms === null || roomError} loading={busy} size="lg" type="submit">{text('建立預約', 'Create booking')}</Button><Button onClick={onViewBookings} type="button" variant="outline">{text('返回預約管理', 'Back to bookings')}</Button></div>
       </form>

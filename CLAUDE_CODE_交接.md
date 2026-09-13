@@ -8,7 +8,7 @@
 - Firebase：DEV `bini-transient-dev`；PROD `bini-transient`（顯示名稱 `BINI-Transient`）。只部署 DEV，PROD 未部署、未修改。
 - DEV Firestore `(default)`：`asia-east1`、Native mode、Standard edition、delete protection。
 - Identity Platform：email/password、email enumeration protection、關閉公開註冊／自助刪除、TOTP MFA 強制流程。
-- DEV Hosting、Firestore Rules/indexes、三十五個 Node.js 22 Functions 已部署；網址：`https://bini-transient-dev.web.app`。
+- DEV Hosting、Firestore Rules/indexes、三十六個 Node.js 22 Functions 已部署；網址：`https://bini-transient-dev.web.app`。
 - 首位 admin `biniblooms250808@gmail.com` 已以 server-side bootstrap 建立，`emailVerified=true`、active、`property-main/admin`、17 個頁面權限、`mfaRequired=true`，並已寄出繁中一次性密碼設定信。
 - 實際 Web SDK 設定與 alias 保存在 Git 忽略的 `cloud/.env.local`、`cloud/.firebaserc`；禁止提交或輸出內容。
 
@@ -58,7 +58,7 @@
 - 品牌資產：登入／MFA／桌機頂部改用 `/bini-blooms-logo.png`；PWA 使用 `/pwa-192.png`、`/pwa-512.png` 與獨立 `/pwa-512-maskable.png`，另提供 Apple touch icon 與 favicon。`manifest.webmanifest`、`index.html`、`sw.js` 均已更新，舊 `/bini-mark.svg` 已移除。
 - `AccountManagement.tsx`：admin 專用手機卡片與 bottom sheet，可新增、啟停、選角色、勾分頁與重設密碼。
 - `App.tsx`：桌機依 v3 順序顯示 Prototype Hub＋17 個權限分頁的頂部導覽；手機為今日、預約、房務、款項、更多，且「更多」可到達全部低頻功能；沒有雲端備份，使用者管理只對 admin 顯示。若即時房態讀到 0 間房，admin 會看到「開啟初始資料導入」入口；目前 DEV 已唯讀確認 `properties/property-main/rooms` 為 0，未完成真實 Dropbox promotion 前不得用展示房號替代。
-- `bookings/BookingCreatePage.tsx`：新增預約已接真實 Firebase callable；房間選項由 property-scoped listener 驗證後提供，月租房不可選；自動／手動計價、天數、折扣與選填訂金共用桌機雙欄／手機單欄表單。失敗重送須維持同一 operation ID，不能重新產生 UUID；目前沒有 multi 與前置 quote／availability UI。
+- `bookings/BookingCreatePage.tsx`：新增預約已接真實 Firebase callable；房間選項由 property-scoped listener 驗證後提供，月租房不可選；自動／手動計價、天數、折扣與選填訂金共用桌機雙欄／手機單欄表單。`bookingPreview` 以同一個 v3 quote／衝突模型提供送出前唯讀可用性與金額預覽，但只能改善 UX；`bookingCreate` transaction 仍是唯一權威。失敗重送須維持同一 operation ID，不能重新產生 UUID；多時段建立尚未實作。
 - `bookings/booking-cancel.ts` + `App.tsx` 預約明細：預約清單點擊後在桌機 dialog／手機 bottom sheet 顯示相同明細；取消先二次確認再呼叫 callable，失敗重送保持同 UUID。成功後 Firestore 即時清單與房態 projection 自行移除取消預約；預覽模式明確不寫入。
 - `bookings/booking-soon.ts` + `BookingSoonBanner.tsx`：全域 listener 只投影嚴格位於未來 15 分鐘內的有效預約並每 60 秒重算。保留預約僅存 sessionStorage；桌機／手機共用提醒卡與二次確認 UI，標記 No-show 後沿用 `bookingCancel`、保留 retry UUID 並由 audit 區分。尚未搬移提示音。
 - `stays/StayCheckInPage.tsx` + `stays/stay-checkin.ts`：桌機／手機共用入住表單；可選有效預約以鎖定來源欄位帶入，或選 walk-in 編輯房間／住客／時間／方案／天數／折扣／手動金額與押金。房間總覽快捷「辦理入住」直接導向該頁；讀取 rooms／bookings 失敗時 fail closed，重送維持 UUID。
@@ -91,7 +91,7 @@
 ### 驗證與部署結果
 
 ```text
-npm test                       180/180 passed
+npm test                       181/181 passed
 npm run test:deploy-guard       6/6 passed
 npm run test:rules             47/47 passed（Firestore Emulator）
 npm run typecheck              passed
@@ -99,7 +99,7 @@ npm run lint                   passed
 npm run build                  passed
 npm run guard:functions-package passed
 npm run guard:hosting-package   passed
-DEV Functions                  35/35 listed, asia-east1, nodejs22; costCreate/costUpdate/costArchive/reportExportCsv/holidayManualUpsert/holidayDelete/holidayResync/propertyList/propertyCreate ACTIVE, 512 MiB
+DEV Functions                  36/36 listed, asia-east1, nodejs22; costCreate/costUpdate/costArchive/reportExportCsv/holidayManualUpsert/holidayDelete/holidayResync/propertyList/propertyCreate/bookingPreview ACTIVE, 512 MiB
 DEV bookingCreate              callable, 512 MiB, nodejs22
 DEV bookingCancel              callable, 512 MiB, nodejs22
 DEV bookingUpdate              callable, 512 MiB, nodejs22
@@ -113,7 +113,7 @@ DEV cashierClose               callable, ACTIVE, 512 MiB, nodejs22; manager/admi
 DEV costCreate                 callable, ACTIVE, 512 MiB, nodejs22; MFA＋costs page＋property admin、create/audit/replay
 DEV costUpdate                 callable, ACTIVE, 512 MiB, nodejs22; version conflict protection/audit/replay
 DEV costArchive                callable, ACTIVE, 512 MiB, nodejs22; required reason/immutable history/audit/replay
-DEV Hosting                    index-CKgG4FYU.js live; bundle contains User Management/adminUpdateStaff/Last login markers
+DEV Hosting                    index-10Lw00K8.js live; bundle contains Check availability & quote/bookingPreview/pre-submit preview markers
 DEV HTTP smoke                 home/manifest/favicon/PWA 192 icon = 200
 ```
 
@@ -125,7 +125,7 @@ PowerShell 呼叫 Firebase CLI 時，含逗號的 `--only` 值不可裸寫：它
 
 1. 管理員完成密碼設定後登入，首次綁定 TOTP；正式 pilot 前建立第二位 admin 並演練遺失驗證器恢復。
 2. promotion repository 與批次確認已完成；接續為 promotion 加入 Firestore export／按批次 restore drill，並以匿名化 snapshot 執行一次完整 DEV 匯入驗收。所有權威寫入仍須由 Admin SDK／operation processor 執行，不可由 UI 直寫 Firestore。
-3. room overview 即時讀取、check-in、extend、checkout、active-stay 一般收款、追加式退款、手動例外收款、日結、成本 CRUD、reports 核心 KPI/P&L/CSV、audit 唯讀軌跡、holidays 維護與館別建立已完成；接續完成訂金調整／刪除／CSV、房務／維修其餘 server-authoritative operations，再補 reports 的付款日摘要／圖表／館別切換與完整分區，以及 properties 跨館別 session 切換、新館別房間初始化、編輯／停用，之後處理 gantt、bookings 多時段與前置 quote。每個 domain 要有 role matrix、payload schema、idempotency/conflict tests。
+3. room overview 即時讀取、check-in、extend、checkout、active-stay 一般收款、追加式退款、手動例外收款、日結、成本 CRUD、reports 核心 KPI/P&L/CSV、audit 唯讀軌跡、holidays 維護、館別建立與新增預約的前置 quote／availability 已完成；接續完成訂金調整／刪除／CSV、房務／維修其餘 server-authoritative operations，再補 reports 的付款日摘要／圖表／館別切換與完整分區，以及 properties 跨館別 session 切換、新館別房間初始化、編輯／停用，之後處理 gantt 與 bookings 多時段。每個 domain 要有 role matrix、payload schema、idempotency/conflict tests。
 4. 每個 domain 同步交付 v3 等價桌機頁與完整手機 adaptive view；不得只做靜態畫面或無作用按鈕。
 5. 加入 IndexedDB operation queue、離線／衝突 UI、App Check、預算警示、日誌與 Firestore 匯出／還原演練。
 6. 使用匿名化 v3 snapshot 匯入 DEV，核對筆數、狀態、金額、`property-main` 映射與多裝置衝突。

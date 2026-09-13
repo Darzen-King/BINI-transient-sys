@@ -74,7 +74,7 @@ function deterministicBookingId(input: BookingCreateInput, checkInAt: string): s
   return `RSV-${taipeiDateParts(checkInAt).yyMMdd}-${suffix}`;
 }
 
-function calendarFromDocuments(documents: readonly QueryDocumentSnapshot[]): BookingHolidayCalendar {
+export function calendarFromDocuments(documents: readonly QueryDocumentSnapshot[]): BookingHolidayCalendar {
   const days = new Map<string, boolean>();
   const countByYear = new Map<number, number>();
   for (const document of documents) {
@@ -99,7 +99,7 @@ function calendarFromDocuments(documents: readonly QueryDocumentSnapshot[]): Boo
   };
 }
 
-function bookingCandidate(document: QueryDocumentSnapshot): BookingAvailabilityCandidate | null {
+export function bookingCandidate(document: QueryDocumentSnapshot): BookingAvailabilityCandidate | null {
   const data = document.data();
   const status = requiredText(data, 'status', `bookings/${document.id}`);
   if (!BOOKING_STATUSES.includes(status as (typeof BOOKING_STATUSES)[number])) {
@@ -119,7 +119,7 @@ function bookingCandidate(document: QueryDocumentSnapshot): BookingAvailabilityC
   };
 }
 
-function stayCandidate(document: QueryDocumentSnapshot): BookingAvailabilityCandidate | null {
+export function stayCandidate(document: QueryDocumentSnapshot): BookingAvailabilityCandidate | null {
   const data = document.data();
   const startAt = optionalText(data, 'checkInAt', `stays/${document.id}`);
   const endAt = optionalText(data, 'checkOutAt', `stays/${document.id}`);
@@ -135,7 +135,7 @@ function stayCandidate(document: QueryDocumentSnapshot): BookingAvailabilityCand
   };
 }
 
-function maintenanceCandidate(document: QueryDocumentSnapshot): BookingAvailabilityCandidate | null {
+export function maintenanceCandidate(document: QueryDocumentSnapshot): BookingAvailabilityCandidate | null {
   const data = document.data();
   const status = requiredText(data, 'status', `maintenanceSchedules/${document.id}`);
   if (!['scheduled', 'in_progress', 'done'].includes(status)) {

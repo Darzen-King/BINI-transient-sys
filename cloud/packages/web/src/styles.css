@@ -395,6 +395,7 @@ h1, h2, p { margin-top: 0; }
 .room-management-dialog { display: grid; padding-bottom: 4px; gap: 4px; }
 
 .timeline-legend { display: flex; flex-wrap: wrap; margin: 0 0 12px; gap: 7px 12px; color: var(--muted); font-size: 11px; font-weight: 750; }
+.timeline-controls { display: flex; align-items: end; gap: 8px; }.timeline-controls .bds-field { min-width: 150px; }.timeline-controls .bds-field__label { font-size: 10px; }.timeline-hint { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
 .timeline-legend--stay { color: var(--bds-color-green-700); }.timeline-legend--booking { color: var(--bds-color-amber-700); }.timeline-legend--maintenance { color: var(--danger); }.timeline-legend--monthly { color: var(--bds-color-neutral-700); }
 .timeline-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--bds-radius-md); background: var(--bds-color-surface); }
 .timeline-canvas { min-width: 960px; }

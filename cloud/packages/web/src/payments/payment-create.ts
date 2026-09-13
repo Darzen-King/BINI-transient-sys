@@ -3,12 +3,16 @@ import {
   cashierCloseResultSchema,
   paymentCreateInputSchema,
   paymentCreateResultSchema,
+  paymentExportInputSchema,
+  paymentExportResultSchema,
   paymentManualCreateInputSchema,
   paymentManualCreateResultSchema,
   paymentRefundInputSchema,
   paymentRefundResultSchema,
   type PaymentCreateInput,
   type PaymentCreateResult,
+  type PaymentExportInput,
+  type PaymentExportResult,
   type CashierCloseInput,
   type CashierCloseResult,
   type PaymentManualCreateInput,
@@ -25,6 +29,7 @@ export interface PaymentCreateGateway {
     input: PaymentManualCreateInput,
   ): Promise<PaymentManualCreateResult>;
   refund?(input: PaymentRefundInput): Promise<PaymentRefundResult>;
+  exportCsv?(input: PaymentExportInput): Promise<PaymentExportResult>;
 }
 
 export function createPaymentCreateGateway(
@@ -65,6 +70,15 @@ export function createPaymentCreateGateway(
       );
       return paymentRefundResultSchema.parse(
         (await call(paymentRefundInputSchema.parse(input))).data,
+      );
+    },
+    async exportCsv(input) {
+      const call = httpsCallable<PaymentExportInput, unknown>(
+        functions,
+        "paymentExportCsv",
+      );
+      return paymentExportResultSchema.parse(
+        (await call(paymentExportInputSchema.parse(input))).data,
       );
     },
   };

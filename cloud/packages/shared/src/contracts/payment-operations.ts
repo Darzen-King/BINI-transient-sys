@@ -9,6 +9,7 @@ const propertyIdSchema = z
   .max(128)
   .regex(/^[^/]+$/);
 const operationIdSchema = z.string().uuid();
+const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u);
 const stayIdSchema = z
   .string()
   .trim()
@@ -137,3 +138,18 @@ export const paymentRefundResultSchema = z
   })
   .strict();
 export type PaymentRefundResult = z.infer<typeof paymentRefundResultSchema>;
+
+/** Server-produced v3-compatible payment ledger export. */
+export const paymentExportInputSchema = z.object({
+  propertyId: propertyIdSchema,
+  operationId: operationIdSchema,
+  dateFrom: dateSchema,
+  dateTo: dateSchema,
+}).strict().refine((input) => input.dateFrom <= input.dateTo, 'date range is invalid');
+export type PaymentExportInput = z.infer<typeof paymentExportInputSchema>;
+
+export const paymentExportResultSchema = z.object({
+  filename: z.string().regex(/^bini_blooms_payments_\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}\.csv$/u),
+  csv: z.string().min(1).max(5_000_000),
+}).strict();
+export type PaymentExportResult = z.infer<typeof paymentExportResultSchema>;

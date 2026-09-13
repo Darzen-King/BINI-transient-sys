@@ -28,6 +28,7 @@ export { stayExtend } from './stays/extend.js';
 export { stayCheckout } from './stays/checkout.js';
 export { stayTransfer } from './stays/transfer.js';
 export { paymentRefund } from './payments/refund-payment.js';
+export { paymentExportCsv } from './payments/export-payments.js';
 export { paymentManualCreate } from './payments/create-manual-payment.js';
 export { cashierClose } from './payments/close-cashier.js';
 export { costArchive, costCreate, costUpdate } from './costs/cost-operations.js';

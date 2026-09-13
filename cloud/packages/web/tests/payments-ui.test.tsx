@@ -68,7 +68,7 @@ const listGateway: PaymentListGateway = {
   },
 };
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("payments UI", () => {
   it("uses the guarded callable for an active-stay payment and retains live history", async () => {
@@ -239,5 +239,30 @@ describe("payments UI", () => {
         note: "交班完成",
       }),
     );
+  });
+
+  it("exports a server-produced payment ledger for the selected Taiwan date range", async () => {
+    const exportCsv = vi.fn().mockResolvedValue({
+      filename: "bini_blooms_payments_2026-09-01_2026-09-13.csv",
+      csv: '\uFEFF"id"\r\n"PAY-old"\r\n',
+    });
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn(() => "blob:payment-export") });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    render(
+      <App
+        activeStaysGateway={staysGateway}
+        paymentCreateGateway={{ create: vi.fn(), exportCsv } satisfies PaymentCreateGateway}
+        paymentListGateway={listGateway}
+        session={session}
+      />,
+    );
+    fireEvent.click(screen.getByRole("link", { name: "付款管理" }));
+    fireEvent.click(await screen.findByRole("button", { name: "匯出 CSV" }));
+
+    await waitFor(() => expect(exportCsv).toHaveBeenCalledWith(expect.objectContaining({
+      propertyId: "property-main", operationId: expect.any(String), dateFrom: expect.stringMatching(/^\d{4}-\d{2}-01$/), dateTo: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+    })));
+    expect(await screen.findByText(/已匯出/)).toBeInTheDocument();
   });
 });

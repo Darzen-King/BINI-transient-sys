@@ -39,6 +39,14 @@ const displayDate = (value: string, locale: "zh-TW" | "en") =>
     minute: "2-digit",
     hourCycle: "h23",
   }).format(new Date(value));
+const monthStart = (day: string) => `${day.slice(0, 8)}01`;
+function download(filename: string, csv: string) {
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
 
 export function PaymentsPage({
   session,
@@ -81,6 +89,11 @@ export function PaymentsPage({
   const [manualNote, setManualNote] = useState("");
   const [cashierOpen, setCashierOpen] = useState(false);
   const [cashierNote, setCashierNote] = useState("");
+  const [exportRange, setExportRange] = useState(() => {
+    const today = taipeiDay();
+    return { dateFrom: monthStart(today), dateTo: today };
+  });
+  const [exporting, setExporting] = useState(false);
   useEffect(
     () =>
       listGateway?.subscribe(
@@ -128,6 +141,24 @@ export function PaymentsPage({
     () => summarizePayments(payments ?? [], day),
     [day, payments],
   );
+  const exportCsv = async () => {
+    if (!createGateway?.exportCsv) return;
+    setExporting(true);
+    setError("");
+    try {
+      const result = await createGateway.exportCsv({
+        propertyId: session.propertyId,
+        operationId: crypto.randomUUID(),
+        ...exportRange,
+      });
+      download(result.filename, result.csv);
+      setSuccess(text(`已匯出 ${exportRange.dateFrom} 至 ${exportRange.dateTo} 的付款帳本。`, `Exported the payment ledger for ${exportRange.dateFrom} through ${exportRange.dateTo}.`));
+    } catch (failure) {
+      setError(errorMessage(failure, text("無法匯出付款 CSV。", "Payment CSV export could not be completed.")));
+    } finally {
+      setExporting(false);
+    }
+  };
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!createGateway || !selectedStay || amountNts < 1) return;
@@ -302,6 +333,7 @@ export function PaymentsPage({
     Boolean(createGateway?.cashierClose);
   return (
     <SectionCard
+      actions={<Button disabled={!createGateway?.exportCsv} loading={exporting} onClick={() => void exportCsv()} size="sm" variant="outline">{text("匯出 CSV", "Export CSV")}</Button>}
       hint={text("即時帳務資料", "Live payment data")}
       title={text("付款管理", "Payments")}
     >
@@ -491,6 +523,10 @@ export function PaymentsPage({
           {error}
         </Notice>
       ) : null}
+      <div className="report-filters">
+        <Field label={text("匯出開始日期", "Export from")}><input max={exportRange.dateTo} onChange={(event) => setExportRange((current) => ({ ...current, dateFrom: event.target.value }))} type="date" value={exportRange.dateFrom} /></Field>
+        <Field label={text("匯出結束日期", "Export to")}><input min={exportRange.dateFrom} onChange={(event) => setExportRange((current) => ({ ...current, dateTo: event.target.value }))} type="date" value={exportRange.dateTo} /></Field>
+      </div>
       <section className="payment-history">
         <div className="payment-history-heading">
           <strong>{text("付款紀錄", "Payment history")}</strong>

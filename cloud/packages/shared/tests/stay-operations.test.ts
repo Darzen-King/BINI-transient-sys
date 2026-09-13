@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   cashierCloseInputSchema,
   paymentCreateInputSchema,
+  paymentExportInputSchema,
   paymentManualCreateInputSchema,
   paymentRefundInputSchema,
   stayCheckInInputSchema,
@@ -195,5 +196,22 @@ describe("cashier close contract", () => {
         operationId: "not-a-uuid",
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("payment ledger export contract", () => {
+  it("requires a property-scoped operation and an ordered Taiwan date range", () => {
+    expect(paymentExportInputSchema.safeParse({
+      propertyId: "property-main",
+      operationId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      dateFrom: "2026-09-01",
+      dateTo: "2026-09-13",
+    }).success).toBe(true);
+    expect(paymentExportInputSchema.safeParse({
+      propertyId: "property-main",
+      operationId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      dateFrom: "2026-09-14",
+      dateTo: "2026-09-13",
+    }).success).toBe(false);
   });
 });

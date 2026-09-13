@@ -14,7 +14,7 @@
 - 交接文件記錄的最近驗證：`npm test` 195/195、Rules 47/47、DEV Functions 40 支
 
 ### 階段 3：維修管理——維修中房間進度備註／解除維修
-- **狀態：** 程式碼完成；部署見本段末
+- **狀態：** 已部署 DEV（commit `6890052`；`maintenanceRoomUpdate` ACTIVE；Hosting `index-DT727GWk.js`）
 - 盤點：v3 `/maintenance` 除排程外，還列出「維修中」房卡（`maintenance_note`、`maintenance_due` 逾期徽章），`/maintenance/update` 可存非空備註或 `resolve` 回 `可入住` 並清除維修欄位。v3 無維修篩選。雲端維修頁只有排程。
 - 測試先行（紅燈已確認）：`shared/tests/maintenance-rooms.test.ts`（7）、`functions/tests/maintenance-room-update.test.ts`（4）、`web/tests/maintenance-ui.test.tsx`（7）。
 - 實作：契約 `maintenanceRoomUpdateInputSchema`、投影 `buildMaintenanceRoomItems`、純函式 `room-update-plan.ts`、callable `maintenanceRoomUpdate`、gateway `subscribeRooms`／`roomUpdate`、改寫 `MaintenancePage`、樣式與審計標籤。

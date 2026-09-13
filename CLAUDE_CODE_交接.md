@@ -22,6 +22,7 @@
   - 修正既有 bug：建立維修排程在 `await` 後才呼叫 `event.currentTarget.reset()`，React 已把 `currentTarget` 清為 null，導致成功建立卻顯示失敗。已改為先保存 form；新增的測試在暫時還原舊寫法時確實失敗。
   - 同一 bug 也存在於 `BookingCreatePage`（單筆與多時段兩處 `reset`）：成功建立後拋錯，畫面同時顯示預約編號與「無法建立預約」，且 `pendingOperationId` 未清除，下一筆預約會沿用舊 operation ID（相同內容回放舊結果、不同內容被拒）。已修正並新增先紅後綠的測試。`RoomManagementPage`／`AuthGate` 為同步讀取 `currentTarget`，無此問題。
   - 驗證：`npm test` 220/220＋deploy guard 6/6、typecheck、lint、build 通過；Rules 未變更（rooms 同館別讀取原本已開放）。
+  - **已部署 DEV（2026-09-13 21:50）**：commit `6890052` 已 push；新建 `maintenanceRoomUpdate` 為 ACTIVE／nodejs22／512Mi，Cloud Run invoker 與既有 callable 相同（`allUsers` → 仍由 callable 內 MFA／頁面權限把關）。Hosting bundle `index-DT727GWk.js` 含 `maintenanceRoomUpdate`、「維修中房間」、「確認解除維修」與前一切片的訂金字串。部署後第一次 curl 首頁仍拿到舊 `index.html`（CDN 快取），加 no-cache 後即為新版；手機 PWA 可能需重新整理才看到。部署時 CLI 另提示 `firebase-functions` 版本過舊（升級有 breaking changes，未處理）。
 - 同時更新了過時的 `task_plan.md`、`progress.md`、`findings.md`（原本停在 9/12，仍寫退款／日結待完成），並修正本文件中房間數、Functions 數量與「尚未雲端化」等前後矛盾的敘述。
 
 ### 已完成範圍

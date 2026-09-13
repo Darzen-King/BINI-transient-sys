@@ -19,6 +19,8 @@
 - v3 的「訂金」並非獨立調整功能，而是 `payments.html` 新增付款表單的 `is_deposit` 核取框：選在住房客時帶入 booking_id，`create_payment` 以 `deposit_create` 寫 audit。v3 `get_balance`／`_stay_payment_floor` 依 `is_deposit` 與 booking_id 或入住時間範圍納入押金。
 - 雲端下游早已依 `deposit` 旗標計算：`room-overview.ts` 的 `depositPaidNts`、`close-cashier.ts` 的 `totalDepositsNts`、`checkout.ts` 免費取消的押金退款範圍（同 booking 或入住後建立）。因此只需讓 `paymentCreate` 能寫 `deposit: true`，不需新增 callable 或改投影。
 - `paymentCreate` 的 fingerprint 是 `sha256(JSON.stringify({ operationType, ...input }))`。直接加欄位會使「顯式送 `deposit: false`」的請求指紋改變；做法是 `deposit` 非 true 時不納入，並以測試鎖定與舊公式逐位元相同。
+- v3 維修頁有兩塊：排程表與「維修中」房卡。房卡的 resolve 呼叫 `update_room_status(..., "可入住")`，該函式離開維修狀態時會清除 `maintenance_note` 與 `maintenance_due`；雲端 resolve 必須同步清除，否則房間管理頁的「非維修房不可附帶維修欄位」契約會被既有資料打破。v3 沒有維修篩選，parity matrix 原列的「篩選待實作」不是 v3 功能。
+- 雲端 `MaintenancePage` 既有 bug：`submit` 在 `await gateway.create(...)` 之後才呼叫 `event.currentTarget.reset()`；React 在處理器讓出執行後會把合成事件的 `currentTarget` 設為 null，因此每次成功建立都拋錯並顯示失敗。已掃描全部 `currentTarget` 用法：`BookingCreatePage` 有相同 bug（且會殘留 operation ID），已一併修正；`RoomManagementPage`、`AuthGate` 為同步讀取，安全。
 - v3 實體刪除付款（admin）在雲端已以 `paymentVoid` 取代：保留原紀錄、原因與 audit，拒絕已退款或已日結的付款。parity matrix 已明確標註為刻意替代。
 - 2026-09-11 已完成 BINI Design System v1 與共用 locale foundation，並部署 DEV。
 - 目前雲端首頁與部分管理畫面仍屬 foundation／preview，不能據此宣稱完整單機版移轉完成。

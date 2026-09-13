@@ -72,6 +72,37 @@ describe('new booking UI', () => {
     expect(await screen.findByText('預約編號：RSV-260914-1234ABCD')).toBeInTheDocument();
   });
 
+  it('does not report a failure after a successful booking and starts the next booking with a fresh operation ID', async () => {
+    const create = vi.fn().mockResolvedValue({
+      status: 'created',
+      bookingId: 'RSV-260914-1234ABCD',
+      paymentId: null,
+      checkInAt: '2026-09-14T05:00:00.000Z',
+      checkOutAt: '2026-09-15T05:00:00.000Z',
+      amountNts: 1_000,
+      discountNts: 0,
+      rateType: '非假日',
+    });
+    render(<App bookingCreateGateway={{ create } satisfies BookingCreateGateway} bookingRoomGateway={roomGateway()} session={fullAccessSession} />);
+    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('button', { name: '＋ 新增預約' }));
+    const fill = async () => {
+      fireEvent.change(await screen.findByLabelText('房間'), { target: { value: '203' } });
+      fireEvent.change(screen.getByLabelText('住客姓名'), { target: { value: 'Chris' } });
+      fireEvent.change(screen.getByLabelText('入住時間'), { target: { value: '2026-09-14T13:00' } });
+      fireEvent.click(screen.getByRole('button', { name: '建立預約' }));
+    };
+
+    await fill();
+    expect(await screen.findByText('預約編號：RSV-260914-1234ABCD')).toBeInTheDocument();
+    expect(screen.queryByText('無法建立預約')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('住客姓名')).toHaveValue('');
+
+    await fill();
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(2));
+    expect(create.mock.calls[1]?.[0].operationId).not.toBe(create.mock.calls[0]?.[0].operationId);
+  });
+
   it('does not expose create controls when the administrator did not allow bookings_new', () => {
     render(<App roomOverviewGateway={undefined} session={{ ...fullAccessSession, allowedPages: ['rooms', 'bookings'] }} />);
 

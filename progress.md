@@ -13,8 +13,17 @@
 - 預約：送出前 availability preview、多時段建立、修改預覽
 - 交接文件記錄的最近驗證：`npm test` 195/195、Rules 47/47、DEV Functions 40 支
 
+### 階段 3：維修管理——維修中房間進度備註／解除維修
+- **狀態：** 程式碼完成；部署見本段末
+- 盤點：v3 `/maintenance` 除排程外，還列出「維修中」房卡（`maintenance_note`、`maintenance_due` 逾期徽章），`/maintenance/update` 可存非空備註或 `resolve` 回 `可入住` 並清除維修欄位。v3 無維修篩選。雲端維修頁只有排程。
+- 測試先行（紅燈已確認）：`shared/tests/maintenance-rooms.test.ts`（7）、`functions/tests/maintenance-room-update.test.ts`（4）、`web/tests/maintenance-ui.test.tsx`（7）。
+- 實作：契約 `maintenanceRoomUpdateInputSchema`、投影 `buildMaintenanceRoomItems`、純函式 `room-update-plan.ts`、callable `maintenanceRoomUpdate`、gateway `subscribeRooms`／`roomUpdate`、改寫 `MaintenancePage`、樣式與審計標籤。
+- 順手修正：建立排程成功後因 `event.currentTarget` 在 `await` 後為 null 而誤顯示失敗；以暫時還原舊寫法確認新測試會失敗。
+- 同 bug 亦見於 `BookingCreatePage`（成功後顯示失敗且保留舊 operation ID），已加紅燈測試並修正。
+- 驗證：`npm test` 220/220＋deploy guard 6/6、typecheck、lint、build 通過。
+
 ### 階段 3：付款管理——在住房訂金收款
-- **狀態：** 程式碼完成、已本機 commit；**尚未部署 DEV**
+- **狀態：** 已部署 DEV（commit `cfcf033`；`paymentCreate` ACTIVE；Hosting `index-G_u6yCT6.js`）
 - 盤點：v3 `payments.html` 新增付款表單在選擇在住房客時可勾選 `is_deposit`，`create_payment` 以 booking_id 歸戶並寫 `deposit_create` audit。雲端 `paymentCreate` 原本寫死 `deposit: false`，是 parity matrix 第 5 列最後缺口。v3 實體刪除付款已由 Codex 的 admin `paymentVoid` 取代。
 - 測試先行（紅燈已確認）：
   - `functions/tests/stay-payment-record.test.ts`（4 項）：一般收款、訂金紀錄與 audit 動作、無 booking 的 walk-in、fingerprint 與舊公式逐位元相同
@@ -177,8 +186,8 @@
 ## 五問重啟檢查
 | 問題 | 答案 |
 |------|------|
-| 我在哪裡？ | 階段 3／4 收尾：付款 parity 已補齊（訂金待部署） |
-| 我要去哪裡？ | 部署訂金切片 → 維修解除／備註 → 審計日期篩選 → 多館別切換 → 階段 5 驗收 |
+| 我在哪裡？ | 階段 3／4 收尾：付款與維修 parity 已補齊 |
+| 我要去哪裡？ | 審計日期篩選 → 報表付款日摘要 → 多館別切換 → 階段 5 驗收 |
 | 目標是什麼？ | 單機版所有介面、功能、權限與資料完整移轉至 Firebase DEV |
 | 我學到了什麼？ | 見 `findings.md` |
 | 我做了什麼？ | 見上方記錄 |

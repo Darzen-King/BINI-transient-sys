@@ -104,7 +104,9 @@ export function BookingCreatePage({
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!gateway) return;
-    const data = new FormData(event.currentTarget);
+    // Capture the form now: React clears `event.currentTarget` once the handler yields at `await`.
+    const form = event.currentTarget;
+    const data = new FormData(form);
     const depositAmountNts = Number(data.get('depositAmountNts') || 0);
     const operationId = pendingOperationId ?? crypto.randomUUID();
     if (!pendingOperationId) setPendingOperationId(operationId);
@@ -148,7 +150,7 @@ export function BookingCreatePage({
           ...(deposit ? { deposit } : {}),
         });
         setMultiCreated(result);
-        event.currentTarget.reset();
+        form.reset();
         setMultiSlots([]);
         setPricingMode('automatic');
         setPendingOperationId(null);
@@ -163,7 +165,7 @@ export function BookingCreatePage({
         ...(deposit ? { deposit } : {}),
       });
       setCreated(result);
-      event.currentTarget.reset();
+      form.reset();
       setPricingMode('automatic');
       setPendingOperationId(null);
     } catch (submitError) {

@@ -4,6 +4,9 @@
 
 ## Unreleased — Firebase v4 全介面／全功能雲端搬移（DEV）
 
+- 「維修管理」補回 v3 的**維修中房間**區塊：即時列出房態為「維修中」的房間，顯示維修說明、預計完成日與「已逾期」標示（依台北日期），可更新維修進度備註，或二次確認後「標記已解決」讓房間回到「可入住」並清除維修說明與預計完成日。寫入由新的 `maintenanceRoomUpdate` callable 處理，要求 MFA 與 `maintenance` 頁面權限，在 transaction 內重讀房間、只允許仍為維修中的房間，並寫入 audit（「維修進度備註」／「解除維修」）與 UUID 重送保護；空白備註會被拒絕。
+- 修正「維修管理」建立排程與「新增預約」建立成功後卻同時顯示失敗訊息的問題：原程式在非同步呼叫後才讀取已被 React 清除的表單事件目標，導致成功的建立被誤判為失敗；新增預約還會因此保留舊的 operation ID，使下一筆預約可能被誤判為重送。
+
 - 「付款管理」補回 v3「新增付款」的**訂金**選項：在住房收款表單新增「記為訂金」，勾選後送出按鈕改為「確認收取訂金」，仍由同一支受 MFA 與 `payments` 頁面權限保護的 `paymentCreate` transaction 寫入。付款紀錄標記 `deposit: true` 並沿用在住房的 booking 關聯，因此房卡押金、日結訂金小計與免費取消押金退款都會納入；audit 動作為 `payment.deposit_create`，審計軌跡顯示「收取訂金」。一般收款的 operation 指紋維持不變，既有重送仍可正確回放。v3 的實體刪除付款不搬移，改由既有 admin「作廢付款」保留原紀錄與原因。
 
 - 建立 BINI Design System v1：將既有粉色品牌演進為 primitive／semantic 雙層 Tokens，涵蓋色彩、字級、4px 間距、圓角、陰影、motion、44px touch target 與房態語意；新增 Button、Badge、SectionCard、Field、Notice、ResponsiveDialog 六個 React 核心元件與 contract tests，並開始套用到登入、MFA、今日房態、帳號管理及首次資料導入。
@@ -62,7 +65,7 @@
 - 修正 Hosting 空白頁：workspace Vite 明確由 `cloud/.env.local` 讀取 DEV 設定；新增 bundle guard，缺設定、placeholder 或非 DEV project 時禁止部署。
 - DEV 預覽：`https://bini-transient-dev.web.app`。實際手機瀏覽器確認登入卡正常、無目前版本 console error，且頁面沒有註冊或外部備份入口。
 - 驗證：145 項 Vitest、6 項 DEV 部署防護、typecheck、lint 與 production build 通過；Rules Emulator 最近完整結果為 41/41（本次未改 Rules）。DEV live function list 確認十五個 Functions 全位於 `asia-east1`，其中新增的 `paymentCreate` 為 Node.js 22／512 MiB、ACTIVE。首頁與最新線上 bundle `index-DfdlN6xD.js` 均 HTTP 200，bundle 已包含付款頁與 `paymentCreate`。瀏覽器版面契約涵蓋 320／375／430／768／1100px；未登入 UI preview 未進 production build。
-- 限制（2026-09-13 更新）：預約（單筆／多時段／修改／取消／No-show）、入住、延住、退房、付款（一般收款、訂金、退款、手動例外、作廢、日結、CSV）、房間管理／月租／換房、清潔、維修排程、成本、報表、審計、假日、館別建立與使用者管理均已接入 DEV 的 server-authoritative handlers。仍缺多館別切換、維修解除與進度備註、報表付款日摘要與圖表、審計日期篩選與匯出、預約費率參考與提示音、離線佇列、App Check 與 Firestore 匯出／還原演練，因此仍不可作為正式營運版。
+- 限制（2026-09-13 更新）：預約（單筆／多時段／修改／取消／No-show）、入住、延住、退房、付款（一般收款、訂金、退款、手動例外、作廢、日結、CSV）、房間管理／月租／換房、清潔、維修（排程、進度備註、解除）、成本、報表、審計、假日、館別建立與使用者管理均已接入 DEV 的 server-authoritative handlers。仍缺多館別切換、報表付款日摘要與圖表、審計日期篩選與匯出、預約費率參考與提示音、離線佇列、App Check 與 Firestore 匯出／還原演練，因此仍不可作為正式營運版。
 
 ---
 

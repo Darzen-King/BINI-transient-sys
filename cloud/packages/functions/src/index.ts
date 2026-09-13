@@ -40,6 +40,7 @@ export { paymentCreate } from './payments/create-payment.js';
 export { housekeepingUpdate } from './housekeeping/update-housekeeping.js';
 export { maintenanceScheduleCreate } from './maintenance/create-schedule.js';
 export { maintenanceScheduleAction } from './maintenance/schedule-action.js';
+export { maintenanceRoomUpdate } from './maintenance/room-update.js';
 export { roomManagementUpdate } from './rooms/manage-room.js';
 export { monthlyRentalCreate, monthlyRentalRenew, monthlyRentalCheckout } from './monthly/manage-monthly.js';
 

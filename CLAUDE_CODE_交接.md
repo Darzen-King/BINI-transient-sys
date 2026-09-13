@@ -13,7 +13,15 @@
   - 下游不需修改：房卡押金、日結 `totalDepositsNts`、免費取消押金退款原本就依 `deposit` 旗標與 booking／入住時間範圍計算。
   - v3 的**實體刪除付款刻意不搬移**，由既有 admin `paymentVoid`（保留原紀錄＋原因＋audit）取代，已在 parity matrix 註明。
 - 驗證：`npm test` 201/201（新增 6 項）＋deploy guard 6/6、`npm run typecheck`、`npm run lint`、`npm run build`、`guard:functions-package`、`guard:hosting-package` 均通過；Rules 未變更，未重跑 emulator。
-- **尚未部署**：本切片只在本機 commit，`paymentCreate` 與 Hosting 需要重新部署到 DEV 才會生效（`functions:operations:paymentCreate` ＋ `--only "hosting"`）。
+- **已部署 DEV（2026-09-13 21:20）**：commit `cfcf033` 已 push；`paymentCreate` 為 ACTIVE／nodejs22／512Mi，Hosting bundle `index-G_u6yCT6.js` 含 `payment.deposit_create` 與「確認收取訂金」，首頁／manifest／favicon／PWA 192 icon 皆 HTTP 200。部署仍出現已知的 build image 清理警告。
+- 第二個切片：**維修中房間（進度備註／解除維修）**，parity matrix 第 14 列。
+  - v3 `/maintenance/update`：「維修中」房卡可更新 `maintenance_note`（空白時不存）或 `resolve` → `update_room_status(..., "可入住")`，同時清除維修說明與 `maintenance_due`。v3 沒有維修篩選，故從缺口移除。
+  - 新增 `maintenanceRoomUpdateInputSchema`（`update_note` 必填非空備註；`resolve` 的 `maintenanceNote` 必為 null）與 `buildMaintenanceRoomItems`（只投影 `維修中`、台北日期判斷逾期、roomId 與文件 ID 不符即 fail closed）。
+  - 新 callable `maintenanceRoomUpdate`（`functions/src/maintenance/room-update.ts`）：MFA＋`maintenance` 頁面權限；transaction 內重讀房間，由純函式 `room-update-plan.ts` 決定寫入；房間已不是維修中則 `failed-precondition`，避免舊畫面把已入住房改回可入住。寫 room version、`maintenanceOperations` replay、audit `maintenance.room.note`／`maintenance.room.resolve`。
+  - `MaintenancePage` 改寫為可讀格式並新增維修中房卡（手機單欄、≥768px 兩欄）、進度備註、ResponsiveDialog 二次確認；失敗重送沿用同一 operation ID。審計軌跡新增兩個動作標籤。
+  - 修正既有 bug：建立維修排程在 `await` 後才呼叫 `event.currentTarget.reset()`，React 已把 `currentTarget` 清為 null，導致成功建立卻顯示失敗。已改為先保存 form；新增的測試在暫時還原舊寫法時確實失敗。
+  - 同一 bug 也存在於 `BookingCreatePage`（單筆與多時段兩處 `reset`）：成功建立後拋錯，畫面同時顯示預約編號與「無法建立預約」，且 `pendingOperationId` 未清除，下一筆預約會沿用舊 operation ID（相同內容回放舊結果、不同內容被拒）。已修正並新增先紅後綠的測試。`RoomManagementPage`／`AuthGate` 為同步讀取 `currentTarget`，無此問題。
+  - 驗證：`npm test` 220/220＋deploy guard 6/6、typecheck、lint、build 通過；Rules 未變更（rooms 同館別讀取原本已開放）。
 - 同時更新了過時的 `task_plan.md`、`progress.md`、`findings.md`（原本停在 9/12，仍寫退款／日結待完成），並修正本文件中房間數、Functions 數量與「尚未雲端化」等前後矛盾的敘述。
 
 ### 已完成範圍
@@ -107,7 +115,7 @@
 ### 驗證與部署結果
 
 ```text
-npm test                       201/201 passed（2026-09-13 訂金切片後；接手前 195/195）
+npm test                       220/220 passed（2026-09-13 維修房間切片＋表單 bug 修正後；訂金切片後 201；接手前 195）
 npm run test:deploy-guard       6/6 passed
 npm run test:rules             47/47 passed（Firestore Emulator）
 npm run typecheck              passed
@@ -145,7 +153,7 @@ PowerShell 呼叫 Firebase CLI 時，含逗號的 `--only` 值不可裸寫：它
 
 1. 管理員完成密碼設定後登入，首次綁定 TOTP；正式 pilot 前建立第二位 admin 並演練遺失驗證器恢復。
 2. promotion repository 與批次確認已完成；接續為 promotion 加入 Firestore export／按批次 restore drill，並以匿名化 snapshot 執行一次完整 DEV 匯入驗收。所有權威寫入仍須由 Admin SDK／operation processor 執行，不可由 UI 直寫 Firestore。
-3. room overview 即時讀取、check-in、extend、checkout、active-stay 一般收款與訂金、追加式退款、手動例外收款、作廢、日結、付款 CSV、成本 CRUD、reports 核心 KPI/P&L/CSV、audit 唯讀軌跡、holidays 維護、館別建立與預約新增／修改的前置 quote／availability／多時段已完成（訂金切片待部署 DEV）；接續完成房務／維修其餘 server-authoritative operations（維修解除、進度備註、篩選），再補 reports 的付款日摘要／圖表／館別切換與完整分區，以及 properties 跨館別 session 切換、新館別房間初始化、編輯／停用、預約費率參考與甘特圖剩餘控制。每個 domain 要有 role matrix、payload schema、idempotency/conflict tests。
+3. room overview 即時讀取、check-in、extend、checkout、active-stay 一般收款與訂金、追加式退款、手動例外收款、作廢、日結、付款 CSV、成本 CRUD、reports 核心 KPI/P&L/CSV、audit 唯讀軌跡、holidays 維護、館別建立與預約新增／修改的前置 quote／availability／多時段已完成，維修中房間的進度備註與解除維修亦已完成（2026-09-13）；接續再補 reports 的付款日摘要／圖表／館別切換與完整分區，以及 properties 跨館別 session 切換、新館別房間初始化、編輯／停用、預約費率參考與甘特圖剩餘控制。每個 domain 要有 role matrix、payload schema、idempotency/conflict tests。
 4. 每個 domain 同步交付 v3 等價桌機頁與完整手機 adaptive view；不得只做靜態畫面或無作用按鈕。
 5. 加入 IndexedDB operation queue、離線／衝突 UI、App Check、預算警示、日誌與 Firestore 匯出／還原演練。
 6. 使用匿名化 v3 snapshot 匯入 DEV，核對筆數、狀態、金額、`property-main` 映射與多裝置衝突。

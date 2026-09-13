@@ -89,6 +89,28 @@ export type PaymentManualCreateResult = z.infer<
   typeof paymentManualCreateResultSchema
 >;
 
+export const cashierCloseInputSchema = z
+  .object({
+    propertyId: propertyIdSchema,
+    operationId: operationIdSchema,
+    note: z.string().trim().max(2_000).nullable().optional(),
+  })
+  .strict();
+export type CashierCloseInput = z.infer<typeof cashierCloseInputSchema>;
+export const cashierCloseResultSchema = z
+  .object({
+    status: z.enum(["closed", "replayed"]),
+    sessionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    sessionId: z.string().min(1).max(128),
+    transactionCount: z.number().int().min(0),
+    totalExpectedNts: z.number().int().min(0),
+    totalRefundsNts: z.number().int().min(0),
+    netNts: z.number().int(),
+    closedAt: z.string().datetime(),
+  })
+  .strict();
+export type CashierCloseResult = z.infer<typeof cashierCloseResultSchema>;
+
 export const paymentRefundInputSchema = z
   .object({
     propertyId: propertyIdSchema,

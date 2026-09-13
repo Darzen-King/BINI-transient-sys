@@ -151,16 +151,14 @@ describe("payments UI", () => {
   });
 
   it("creates a server-validated manual exception payment", async () => {
-    const manualCreate = vi
-      .fn()
-      .mockResolvedValue({
-        status: "created",
-        paymentId: "PAY-MAN-123",
-        bookingId: null,
-        roomId: "203",
-        amountNts: 250,
-        createdAt: "2026-09-12T09:00:00.000Z",
-      });
+    const manualCreate = vi.fn().mockResolvedValue({
+      status: "created",
+      paymentId: "PAY-MAN-123",
+      bookingId: null,
+      roomId: "203",
+      amountNts: 250,
+      createdAt: "2026-09-12T09:00:00.000Z",
+    });
     render(
       <App
         activeStaysGateway={staysGateway}
@@ -199,6 +197,46 @@ describe("payments UI", () => {
         paymentType: "cash",
         deposit: false,
         note: "補登櫃檯現金收款",
+      }),
+    );
+  });
+
+  it("shows day close only to a manager and calls the guarded transaction", async () => {
+    const cashierClose = vi
+      .fn()
+      .mockResolvedValue({
+        status: "closed",
+        sessionDate: "2026-09-13",
+        sessionId: "2026-09-13",
+        transactionCount: 1,
+        totalExpectedNts: 200,
+        totalRefundsNts: 0,
+        netNts: 200,
+        closedAt: "2026-09-12T09:00:00.000Z",
+      });
+    render(
+      <App
+        activeStaysGateway={staysGateway}
+        paymentCreateGateway={
+          { create: vi.fn(), cashierClose } satisfies PaymentCreateGateway
+        }
+        paymentListGateway={listGateway}
+        session={{ ...session, role: "manager" }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("link", { name: "付款管理" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "執行今日日結" }),
+    );
+    fireEvent.change(screen.getByLabelText("日結備註（選填）"), {
+      target: { value: "交班完成" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "確認日結" }));
+    await waitFor(() =>
+      expect(cashierClose).toHaveBeenCalledWith({
+        propertyId: "property-main",
+        operationId: expect.any(String),
+        note: "交班完成",
       }),
     );
   });

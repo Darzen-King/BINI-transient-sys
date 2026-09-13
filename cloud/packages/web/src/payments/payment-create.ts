@@ -1,4 +1,6 @@
 import {
+  cashierCloseInputSchema,
+  cashierCloseResultSchema,
   paymentCreateInputSchema,
   paymentCreateResultSchema,
   paymentManualCreateInputSchema,
@@ -7,6 +9,8 @@ import {
   paymentRefundResultSchema,
   type PaymentCreateInput,
   type PaymentCreateResult,
+  type CashierCloseInput,
+  type CashierCloseResult,
   type PaymentManualCreateInput,
   type PaymentManualCreateResult,
   type PaymentRefundInput,
@@ -16,6 +20,7 @@ import { httpsCallable, type Functions } from "firebase/functions";
 
 export interface PaymentCreateGateway {
   create(input: PaymentCreateInput): Promise<PaymentCreateResult>;
+  cashierClose?(input: CashierCloseInput): Promise<CashierCloseResult>;
   manualCreate?(
     input: PaymentManualCreateInput,
   ): Promise<PaymentManualCreateResult>;
@@ -42,6 +47,15 @@ export function createPaymentCreateGateway(
       );
       return paymentManualCreateResultSchema.parse(
         (await call(paymentManualCreateInputSchema.parse(input))).data,
+      );
+    },
+    async cashierClose(input) {
+      const call = httpsCallable<CashierCloseInput, unknown>(
+        functions,
+        "cashierClose",
+      );
+      return cashierCloseResultSchema.parse(
+        (await call(cashierCloseInputSchema.parse(input))).data,
       );
     },
     async refund(input) {

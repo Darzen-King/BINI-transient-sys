@@ -79,6 +79,8 @@ export function PaymentsPage({
   >("cash");
   const [manualDeposit, setManualDeposit] = useState(false);
   const [manualNote, setManualNote] = useState("");
+  const [cashierOpen, setCashierOpen] = useState(false);
+  const [cashierNote, setCashierNote] = useState("");
   useEffect(
     () =>
       listGateway?.subscribe(
@@ -261,6 +263,43 @@ export function PaymentsPage({
       setBusy(false);
     }
   };
+  const closeCashier = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!createGateway?.cashierClose) return;
+    setBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      const result = await createGateway.cashierClose({
+        propertyId: session.propertyId,
+        operationId: crypto.randomUUID(),
+        note: cashierNote.trim() || null,
+      });
+      setCashierOpen(false);
+      setCashierNote("");
+      setSuccess(
+        text(
+          `已完成 ${result.sessionDate} 日結：淨額 NT$ ${result.netNts.toLocaleString()}。`,
+          `Closed ${result.sessionDate}: net NT$ ${result.netNts.toLocaleString()}.`,
+        ),
+      );
+    } catch (failure) {
+      setError(
+        errorMessage(
+          failure,
+          text(
+            "日結未完成，請重新確認今日狀態。",
+            "Cashier close was not completed. Confirm today's status.",
+          ),
+        ),
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+  const canCloseCashier =
+    (session.role === "admin" || session.role === "manager") &&
+    Boolean(createGateway?.cashierClose);
   return (
     <SectionCard
       hint={text("即時帳務資料", "Live payment data")}
@@ -331,6 +370,21 @@ export function PaymentsPage({
             variant="outline"
           >
             {text("手動例外收款", "Manual exception payment")}
+          </Button>
+        </div>
+      ) : null}
+      {canCloseCashier ? (
+        <div className="booking-create-actions">
+          <Button
+            onClick={() => {
+              setCashierOpen(true);
+              setError("");
+              setSuccess("");
+            }}
+            type="button"
+            variant="danger"
+          >
+            {text("執行今日日結", "Close today's cashier")}
           </Button>
         </div>
       ) : null}
@@ -677,13 +731,51 @@ export function PaymentsPage({
           </form>
         </ResponsiveDialog>
       ) : null}
+      {cashierOpen ? (
+        <ResponsiveDialog
+          onClose={() => {
+            if (!busy) setCashierOpen(false);
+          }}
+          title={text("確認今日日結", "Confirm today's cashier close")}
+        >
+          <form
+            className="booking-create-form"
+            onSubmit={(event) => void closeCashier(event)}
+          >
+            <Notice
+              tone="warning"
+              title={text(
+                `今日淨額預覽：NT$ ${summary.netNts.toLocaleString()}`,
+                `Today's net preview: NT$ ${summary.netNts.toLocaleString()}`,
+              )}
+            >
+              {text(
+                "日結會以伺服器台北日期重新彙總付款，並鎖定今日 session；付款歷史不會被修改。",
+                "The server recalculates Taipei-day payments and closes today's session; payment history is not changed.",
+              )}
+            </Notice>
+            <Field label={text("日結備註（選填）", "Close note (optional)")}>
+              <input
+                maxLength={2000}
+                onChange={(event) => setCashierNote(event.target.value)}
+                value={cashierNote}
+              />
+            </Field>
+            <div className="booking-create-actions">
+              <Button loading={busy} type="submit" variant="danger">
+                {text("確認日結", "Confirm close")}
+              </Button>
+            </div>
+          </form>
+        </ResponsiveDialog>
+      ) : null}
       <Notice
         tone="warning"
         title={text("後續帳務項目", "Next accounting items")}
       >
         {text(
-          "訂金調整、刪除紀錄與日結仍會以獨立交易切片接入；目前不會用前端直接修改帳務資料。",
-          "Deposit adjustments, deletion, and cashier close will be delivered as separate transactions; this screen never edits accounting data directly from the browser.",
+          "訂金調整與刪除紀錄仍會以獨立交易切片接入；目前不會用前端直接修改帳務資料。",
+          "Deposit adjustments and deletion will be delivered as separate transactions; this screen never edits accounting data directly from the browser.",
         )}
       </Notice>
     </SectionCard>

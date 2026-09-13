@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  cashierCloseInputSchema,
   paymentCreateInputSchema,
   paymentManualCreateInputSchema,
   paymentRefundInputSchema,
@@ -174,6 +175,24 @@ describe("manual payment contract", () => {
         paymentType: "cash",
         deposit: false,
         note: "",
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("cashier close contract", () => {
+  it("requires a property-scoped idempotency key and permits an optional note", () => {
+    expect(
+      cashierCloseInputSchema.safeParse({
+        propertyId: "property-main",
+        operationId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        note: "交班完成",
+      }).success,
+    ).toBe(true);
+    expect(
+      cashierCloseInputSchema.safeParse({
+        propertyId: "property-main",
+        operationId: "not-a-uuid",
       }).success,
     ).toBe(false);
   });

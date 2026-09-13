@@ -38,6 +38,8 @@ import type { StayCheckoutGateway } from './stays/stay-checkout.js';
 import { PaymentsPage } from './payments/PaymentsPage.js';
 import type { PaymentCreateGateway } from './payments/payment-create.js';
 import type { PaymentListGateway } from './payments/payment-list.js';
+import { CostManagementPage } from './costs/CostManagementPage.js';
+import type { CostGateway } from './costs/cost-gateway.js';
 import { HousekeepingPage } from './housekeeping/HousekeepingPage.js';
 import type { HousekeepingGateway } from './housekeeping/housekeeping-gateway.js';
 import { MaintenancePage } from './maintenance/MaintenancePage.js';
@@ -571,7 +573,7 @@ function FoundationPage({ pageId, isAdmin, allowedPages, onOpenInitialImport, on
   );
 }
 
-function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingCreateGateway, bookingRoomGateway, roomOverviewGateway, roomTimelineGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
+function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingCreateGateway, bookingRoomGateway, roomOverviewGateway, roomTimelineGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, costGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
   view: ViewId;
   onAction: (action: string) => void;
   session: StaffSession;
@@ -589,6 +591,7 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   stayCheckoutGateway: StayCheckoutGateway | undefined;
   paymentCreateGateway: PaymentCreateGateway | undefined;
   paymentListGateway: PaymentListGateway | undefined;
+  costGateway: CostGateway | undefined;
   housekeepingGateway: HousekeepingGateway | undefined;
   maintenanceGateway: MaintenanceGateway | undefined;
   roomManagementGateway: RoomManagementGateway | undefined;
@@ -608,6 +611,7 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   if (view === 'room_management') return <RoomManagementPage gateway={roomManagementGateway} session={session} />;
   if (view === 'gantt') return <RoomTimelinePage gateway={roomTimelineGateway} session={session} />;
   if (view === 'payments') return <PaymentsPage createGateway={paymentCreateGateway} listGateway={paymentListGateway} session={session} staysGateway={activeStaysGateway} />;
+  if (view === 'costs') return <CostManagementPage gateway={costGateway} session={session} />;
   if (view === 'accounts' || view === 'users') return <AccountManagement session={session} gateway={accountGateway} />;
   if (view === 'initial_import') return <InitialDataImport session={session} gateway={dataImportGateway} />;
   if (view === 'more') return <MoreView isAdmin={session.role === 'admin'} allowedPages={session.allowedPages} onOpenPage={onOpenPage} onLogout={onLogout} />;
@@ -649,6 +653,7 @@ export function App({
   stayCheckoutGateway,
   paymentCreateGateway,
   paymentListGateway,
+  costGateway,
   housekeepingGateway,
   maintenanceGateway,
   roomManagementGateway,
@@ -673,6 +678,7 @@ export function App({
   stayCheckoutGateway?: StayCheckoutGateway;
   paymentCreateGateway?: PaymentCreateGateway;
   paymentListGateway?: PaymentListGateway;
+  costGateway?: CostGateway;
   housekeepingGateway?: HousekeepingGateway;
   maintenanceGateway?: MaintenanceGateway;
   roomManagementGateway?: RoomManagementGateway;
@@ -752,6 +758,7 @@ export function App({
           stayCheckoutGateway={stayCheckoutGateway}
           paymentCreateGateway={paymentCreateGateway}
           paymentListGateway={paymentListGateway}
+          costGateway={costGateway}
           housekeepingGateway={housekeepingGateway}
           maintenanceGateway={maintenanceGateway}
           roomManagementGateway={roomManagementGateway}

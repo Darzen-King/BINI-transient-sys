@@ -47,4 +47,8 @@ describe('firestore.rules stays in sync with the shared contract', () => {
     expect(normalise(rules)).not.toContain('allow write: if request.auth != null;');
     expect(normalise(rules)).not.toContain('allow read, write: if request.auth != null;');
   });
+
+  it('keeps authoritative cost records server-written', () => {
+    expect(normalise(rules)).toContain('match /costEntries/{docId} { allow read: if hasProperty(propertyId); allow write: if false; }');
+  });
 });

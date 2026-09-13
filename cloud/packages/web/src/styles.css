@@ -327,6 +327,23 @@ h1, h2, p { margin-top: 0; }
 .payment-history-list article strong, .payment-history-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .payment-amount { color: var(--bds-color-green-700); font-variant-numeric: tabular-nums; }
 .payment-amount.refund { color: var(--danger); }
+.cost-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: hidden; margin: 14px 0; border: 1px solid var(--line); border-radius: var(--bds-radius-md); background: var(--bds-color-surface); }
+.cost-summary > div { display: grid; min-height: 70px; padding: 11px; gap: 4px; }
+.cost-summary > div:nth-child(even) { border-left: 1px solid var(--line); }
+.cost-summary > div:nth-child(n + 3) { border-top: 1px solid var(--line); }
+.cost-summary small, .cost-history small { color: var(--muted); font-size: 11px; }
+.cost-summary strong { color: var(--brand-dark); font-size: 16px; font-variant-numeric: tabular-nums; }
+.cost-filters { display: grid; margin-bottom: 14px; gap: 10px; }
+.cost-recurring { display: flex; align-items: center; min-height: 42px; padding-top: 20px; color: var(--ink); font-size: 13px; font-weight: 750; gap: 8px; }
+.cost-recurring input { width: 20px; height: 20px; }
+.cost-history { display: grid; margin-top: 18px; gap: 9px; }
+.cost-history-list { display: grid; overflow: hidden; border: 1px solid var(--line); border-radius: var(--bds-radius-md); }
+.cost-history-list article { display: flex; align-items: center; justify-content: space-between; padding: 11px 12px; gap: 12px; }
+.cost-history-list article + article { border-top: 1px solid var(--line); }
+.cost-history-list article > div:first-child { display: grid; min-width: 0; gap: 3px; }
+.cost-history-list article strong, .cost-history-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cost-entry-actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+.cost-dialog-form { display: grid; padding-bottom: 4px; gap: 13px; }
 .housekeeping-summary { display: flex; align-items: baseline; padding: 12px 14px; margin: 14px 0; border-radius: var(--bds-radius-md); background: var(--bds-color-feedback-warning-bg); color: var(--bds-color-feedback-warning); gap: 6px; }
 .housekeeping-summary strong { color: var(--brand-dark); font-size: 24px; }
 .housekeeping-list { display: grid; overflow: hidden; border: 1px solid var(--line); border-radius: var(--bds-radius-md); }
@@ -387,6 +404,10 @@ h1, h2, p { margin-top: 0; }
   .payment-summary-grid > div:nth-child(even) { border-left: 1px solid var(--line); }
   .payment-summary-grid > div:nth-child(n + 3) { border-top: 0; }
   .payment-type-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .cost-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .cost-summary > div:nth-child(even) { border-left: 1px solid var(--line); }
+  .cost-summary > div:nth-child(n + 3) { border-top: 0; }
+  .cost-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .room-management-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 

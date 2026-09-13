@@ -182,6 +182,11 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      match /costEntries/{docId} {
+        allow read: if hasProperty(propertyId);
+        allow write: if false;
+      }
+
       match /maintenanceSchedules/{docId} {
         allow read: if hasProperty(propertyId);
         allow write: if false;

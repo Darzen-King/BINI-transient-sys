@@ -189,6 +189,12 @@ describe('authoritative collections are server-only', () => {
     );
   });
 
+  it('an admin cannot write a cost record directly either', async () => {
+    await assertFails(
+      setDoc(doc(asAdmin(), `properties/${PROPERTY}/costEntries/cost-1`), { amountNts: 100 }),
+    );
+  });
+
   it('a member cannot write a monthly rental directly', async () => {
     await assertFails(setDoc(doc(asStaff(), `properties/${PROPERTY}/monthlyRentals/mr2`), { roomId: '205', status: 'active' }));
   });

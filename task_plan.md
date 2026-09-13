@@ -33,7 +33,7 @@
 - [x] Rules emulator 驗證（最近一次 47/47）
 - [x] 12 類 v3 transformer、reconciliation、prepare callable
 - [x] MFA/admin 確認的 promotion callable，並已於 2026-09-12 對真實 Dropbox 批次 `93ba8b3ce620…` 成功 promotion（6 rooms／97 bookings／3 stays／140 stayLogs／93 payments／34 monthlyRentals／241 holidays）
-- [ ] Firestore export／按批次 restore drill
+- [x] Firestore 資料保護與還原演練（2026-09-14：PITR 7 天、每日／每週排程備份；PITR clone 演練 13 集合 1,602 文件全數一致，見 `docs/cloud/firestore-backup-restore-runbook.md`）
 - **狀態：** in_progress（僅剩匯出／還原演練）
 
 ### 階段 3：前台核心營運流程

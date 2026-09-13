@@ -214,4 +214,30 @@ describe('new booking UI', () => {
     expect(await screen.findByText('多時段預約完成：建立 1 筆')).toBeInTheDocument();
     expect(screen.getByText(/未建立時段：#2（與 RSV-existing 衝突）/)).toBeInTheDocument();
   });
+
+  it('detects the v3 rate type from the check-in date and only sends a manual relabel', async () => {
+    const create = vi.fn().mockResolvedValue({ status: 'created', bookingId: 'RSV-1', paymentId: null, checkInAt: '2026-09-18T05:00:00.000Z', checkOutAt: '2026-09-19T05:00:00.000Z', amountNts: 1_200, discountNts: 0, rateType: '假日' });
+    render(<App bookingCreateGateway={{ create } satisfies BookingCreateGateway} bookingRoomGateway={roomGateway()} session={fullAccessSession} />);
+    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('button', { name: '＋ 新增預約' }));
+    fireEvent.change(await screen.findByLabelText('房間'), { target: { value: '203' } });
+    fireEvent.change(screen.getByLabelText('住客姓名'), { target: { value: 'Chris' } });
+    expect(screen.getByText('費率參考')).toBeInTheDocument();
+    // 2026-09-17 is a Thursday; 2026-09-18 is a Friday, which v3 prices as a holiday.
+    fireEvent.change(screen.getByLabelText('入住時間'), { target: { value: '2026-09-17T13:00' } });
+    expect(screen.getByLabelText('費率類型')).toHaveValue('非假日');
+    fireEvent.change(screen.getByLabelText('入住時間'), { target: { value: '2026-09-18T13:00' } });
+    expect(screen.getByLabelText('費率類型')).toHaveValue('假日');
+    fireEvent.click(screen.getByRole('button', { name: '建立預約' }));
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    expect(create.mock.calls[0]?.[0]).not.toHaveProperty('rateType');
+
+    fireEvent.change(await screen.findByLabelText('房間'), { target: { value: '203' } });
+    fireEvent.change(screen.getByLabelText('住客姓名'), { target: { value: 'Chris' } });
+    fireEvent.change(screen.getByLabelText('入住時間'), { target: { value: '2026-09-18T13:00' } });
+    fireEvent.change(screen.getByLabelText('費率類型'), { target: { value: '非假日' } });
+    fireEvent.click(screen.getByRole('button', { name: '建立預約' }));
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(2));
+    expect(create.mock.calls[1]?.[0]).toMatchObject({ rateType: '非假日' });
+  });
 });

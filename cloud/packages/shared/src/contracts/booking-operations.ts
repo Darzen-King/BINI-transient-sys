@@ -4,6 +4,8 @@ export const BOOKING_PLANS = ['12hrs', '24hrs'] as const;
 export const BOOKING_PAYMENT_TYPES = ['cash', 'transfer', 'card', 'other'] as const;
 export const BOOKING_STATUSES = ['已預約', '已取消', 'No-show', '已入住'] as const;
 export const BOOKING_CANCELLATION_REASONS = ['manual', 'no_show'] as const;
+/** v3 rate-type label. Pricing always follows the holiday engine; staff may relabel a booking like the v3 selector. */
+export const BOOKING_RATE_TYPES = ['非假日', '假日'] as const;
 
 export type BookingPlan = (typeof BOOKING_PLANS)[number];
 export type BookingPaymentType = (typeof BOOKING_PAYMENT_TYPES)[number];
@@ -33,6 +35,7 @@ export const bookingCreateInputSchema = z.object({
   discountNts: ntsAmountSchema,
   pricingMode: z.enum(['automatic', 'manual']),
   manualAmountNts: ntsAmountSchema.optional(),
+  rateType: z.enum(BOOKING_RATE_TYPES).optional(),
   deposit: z.object({
     amountNts: ntsAmountSchema.min(1),
     paymentType: z.enum(BOOKING_PAYMENT_TYPES),
@@ -155,6 +158,7 @@ export const bookingUpdateInputSchema = z.object({
   discountNts: ntsAmountSchema,
   pricingMode: z.enum(['automatic', 'manual']),
   manualAmountNts: ntsAmountSchema.optional(),
+  rateType: z.enum(BOOKING_RATE_TYPES).optional(),
 }).strict().superRefine((input, context) => {
   if (input.pricingMode === 'manual' && input.manualAmountNts === undefined) {
     context.addIssue({

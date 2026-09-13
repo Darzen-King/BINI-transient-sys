@@ -237,7 +237,7 @@ export const bookingUpdate = onCall(callableOptions, async (request): Promise<Bo
       checkOutAt: quote.checkOutAt,
       amountNts: quote.amountNts,
       discountNts: quote.discountNts,
-      rateType: quote.rateType,
+      rateType: input.rateType ?? quote.rateType,
     };
     transaction.update(bookingRef, {
       roomId: input.roomId,
@@ -248,7 +248,7 @@ export const bookingUpdate = onCall(callableOptions, async (request): Promise<Bo
       plan: input.plan,
       amountNts: quote.amountNts,
       discountNts: quote.discountNts,
-      rateType: quote.rateType,
+      rateType: input.rateType ?? quote.rateType,
       pricingMode: input.pricingMode,
       grossAmountNts: quote.grossAmountNts,
       version: requiredVersion(booking, bookingLabel) + 1,

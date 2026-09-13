@@ -234,7 +234,7 @@ export const bookingCreate = onCall(callableOptions, async (request): Promise<Bo
       checkOutAt: quote.checkOutAt,
       amountNts: quote.amountNts,
       discountNts: quote.discountNts,
-      rateType: quote.rateType,
+      rateType: input.rateType ?? quote.rateType,
     };
     const occurredAt = now.toISOString();
     transaction.create(bookingRef, {
@@ -250,7 +250,7 @@ export const bookingCreate = onCall(callableOptions, async (request): Promise<Bo
       plan: input.plan,
       amountNts: quote.amountNts,
       discountNts: quote.discountNts,
-      rateType: quote.rateType,
+      rateType: input.rateType ?? quote.rateType,
       status: '已預約',
       pricingMode: input.pricingMode,
       grossAmountNts: quote.grossAmountNts,

@@ -16,6 +16,7 @@ export * from './domain/booking-room-options.js';
 export * from './domain/booking-soon.js';
 export * from './domain/stay-extension.js';
 export * from './domain/active-stay.js';
+export * from './domain/checkout-soon.js';
 export * from './domain/payment-list.js';
 export * from './domain/cost-list.js';
 export * from './domain/holiday-list.js';

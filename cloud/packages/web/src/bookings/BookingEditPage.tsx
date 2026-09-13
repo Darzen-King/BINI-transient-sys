@@ -7,6 +7,8 @@ import { useLocale } from '../i18n/locale.js';
 import type { BookingRoomGateway } from '../rooms/booking-room-options.js';
 import type { BookingUpdateGateway } from './booking-update.js';
 import type { BookingUpdatePreviewGateway } from './booking-update-preview.js';
+import type { HolidayCalendarGateway } from '../stays/holiday-calendar.js';
+import { RateReference, RateTypeField, useBookingRateType } from './rate-type.js';
 
 function toTaipeiIso(value: string): string {
   const normalized = value.length === 16 ? `${value}:00` : value;
@@ -50,6 +52,7 @@ export function BookingEditPage({
   gateway,
   previewGateway,
   roomGateway,
+  holidayGateway,
   onBack,
 }: {
   booking: BookingListItem;
@@ -57,12 +60,15 @@ export function BookingEditPage({
   gateway: BookingUpdateGateway | undefined;
   previewGateway: BookingUpdatePreviewGateway | undefined;
   roomGateway: BookingRoomGateway | undefined;
+  holidayGateway?: HolidayCalendarGateway | undefined;
   onBack: () => void;
 }) {
   const { text } = useLocale();
   const [rooms, setRooms] = useState<BookingRoomOption[] | null>(null);
   const [roomError, setRoomError] = useState(false);
   const [pricingMode, setPricingMode] = useState<'automatic' | 'manual'>(booking.pricingMode ?? 'automatic');
+  // Keep the stored label (possibly a v3 manual pick) until staff change the check-in date.
+  const rate = useBookingRateType(holidayGateway, session.propertyId, { checkInLocal: taipeiLocalInputValue(booking.checkInAt), manual: booking.rateType === '假日' || booking.rateType === '非假日' ? booking.rateType : null });
   const [pendingOperationId, setPendingOperationId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -108,6 +114,7 @@ export function BookingEditPage({
         discountNts: Number(data.get('discountNts') || 0),
         pricingMode,
         ...(pricingMode === 'manual' ? { manualAmountNts: Number(data.get('manualAmountNts') || 0) } : {}),
+        ...(rate.manual ? { rateType: rate.manual } : {}),
       });
       setUpdated(result);
       setPendingOperationId(null);
@@ -158,13 +165,15 @@ export function BookingEditPage({
           <Field label={text('房間', 'Room')}><select defaultValue={booking.roomId} disabled={!gateway || rooms === null || roomError} name="roomId" required>{(rooms ?? []).map((room) => <option disabled={room.status === '月租套房' && room.roomId !== booking.roomId} key={room.roomId} value={room.roomId}>{room.roomId} · {roomStatusLabel(room.status, text)}</option>)}</select></Field>
           <Field label={text('住客姓名', 'Guest name')}><input defaultValue={booking.guestName} disabled={!gateway} maxLength={300} name="guestName" required /></Field>
           <Field label={text('電話', 'Phone')}><input defaultValue={booking.phone ?? ''} disabled={!gateway} maxLength={100} name="phone" inputMode="tel" /></Field>
-          <Field label={text('入住時間', 'Check-in')}><input defaultValue={taipeiLocalInputValue(booking.checkInAt)} disabled={!gateway} name="checkInAt" required type="datetime-local" /></Field>
+          <Field label={text('入住時間', 'Check-in')}><input defaultValue={taipeiLocalInputValue(booking.checkInAt)} disabled={!gateway} name="checkInAt" onChange={(event) => rate.onCheckInChange(event.target.value)} required type="datetime-local" /></Field>
           <Field label={text('方案', 'Plan')}><select defaultValue={booking.plan === '12hrs' ? '12hrs' : '24hrs'} disabled={!gateway} name="plan"><option value="12hrs">12hrs</option><option value="24hrs">24hrs</option></select></Field>
           <Field label={text('天數', 'Days')}><input defaultValue={bookingDays(booking)} disabled={!gateway} max="366" min="1" name="days" required type="number" /></Field>
           <Field label={text('折扣（NT$）', 'Discount (NT$)')}><input defaultValue={booking.discountNts} disabled={!gateway} min="0" name="discountNts" required type="number" /></Field>
           <Field label={text('計價方式', 'Pricing')}><select disabled={!gateway} name="pricingMode" onChange={(event) => setPricingMode(event.target.value === 'manual' ? 'manual' : 'automatic')} value={pricingMode}><option value="automatic">{text('自動計價', 'Automatic')}</option><option value="manual">{text('手動覆寫', 'Manual override')}</option></select></Field>
           {pricingMode === 'manual' ? <Field label={text('手動金額（NT$）', 'Manual amount (NT$)')}><input defaultValue={booking.amountNts} disabled={!gateway} min="0" name="manualAmountNts" required type="number" /></Field> : null}
+          <RateTypeField disabled={!gateway} rate={rate} />
         </div>
+        <RateReference />
         <div className="booking-preview-actions"><Button disabled={!previewGateway || !gateway || rooms === null || roomError} loading={previewBusy} onClick={() => void runPreview()} type="button" variant="outline">{text('檢查可用性與報價', 'Check availability & quote')}</Button><small>{text('此預覽會排除目前這筆預約；儲存時伺服器仍會重新驗證。', 'This preview excludes this booking; the server validates again on save.')}</small></div>
         {previewError ? <Notice tone="danger" title={text('無法取得預覽', 'Preview unavailable')}>{previewError}</Notice> : null}
         {preview ? <Notice tone={preview.available ? 'success' : 'warning'} title={preview.available ? text('此時段可修改', 'This slot can be updated') : text('此時段不可修改', 'This slot cannot be updated')}>

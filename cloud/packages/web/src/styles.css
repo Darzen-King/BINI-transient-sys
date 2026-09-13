@@ -361,6 +361,12 @@ h1, h2, p { margin-top: 0; }
 .report-kpis strong, .report-pnl strong { color: var(--brand-dark); font-size: 19px; font-variant-numeric: tabular-nums; }
 .report-pnl { display: flex; flex-wrap: wrap; align-items: stretch; margin-top: 12px; padding: 12px; border: 1px solid var(--bds-color-berry-200); border-radius: var(--bds-radius-md); background: var(--bds-color-surface-brand); gap: 10px; }
 .report-pnl > div { display: grid; flex: 1 1 110px; padding-right: 10px; gap: 3px; }.report-pnl small, .report-pnl > span { color: var(--muted); font-size: 11px; }.report-pnl > span { padding: 5px 8px; border-radius: 999px; background: white; }.report-pnl .negative { color: var(--danger); }
+.rate-reference { display: grid; margin: 12px 0; padding: 12px; border: 1px solid var(--line); border-radius: var(--bds-radius-md); background: var(--bds-color-surface); gap: 8px; }
+.rate-reference strong { color: var(--brand-dark); font-size: 13px; }
+.rate-reference table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.rate-reference th, .rate-reference td { padding: 6px 8px; border: 1px solid var(--line); text-align: center; }
+.rate-reference thead th { background: var(--bds-color-surface-brand); color: var(--brand-dark); font-weight: 600; }
+.rate-reference small { color: var(--muted); font-size: 11px; }
 .property-switcher { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; }
 .property-switcher select { min-height: 34px; max-width: 150px; padding: 0 8px; border: 1px solid var(--bds-color-berry-300); border-radius: var(--bds-radius-full); background: var(--bds-color-surface); color: var(--brand-dark); font-size: 12px; font-weight: 600; }
 .mobile-property-switch span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }

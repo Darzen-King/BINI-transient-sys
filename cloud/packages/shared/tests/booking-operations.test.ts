@@ -201,3 +201,13 @@ describe('stay extension pricing', () => {
     expect(overdue).toEqual({ systemOverdueFeeNts: 100, totalExtensionFeeNts: 100 });
   });
 });
+
+describe('v3 rate-type label override', () => {
+  it('accepts an optional weekday or holiday label on create and update, and rejects anything else', () => {
+    expect(input({ rateType: '假日' }).rateType).toBe('假日');
+    expect(input().rateType).toBeUndefined();
+    expect(() => input({ rateType: 'weekend' })).toThrow();
+    const updated = bookingUpdateInputSchema.parse({ ...input(), bookingId: 'RSV-1', rateType: '非假日' });
+    expect(updated.rateType).toBe('非假日');
+  });
+});

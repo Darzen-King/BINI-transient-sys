@@ -8,6 +8,8 @@ import type { BookingCreateGateway } from './booking-create.js';
 import type { BookingMultiCreateGateway } from './booking-multi-create.js';
 import type { BookingPreviewGateway } from './booking-preview.js';
 import type { BookingRoomGateway } from '../rooms/booking-room-options.js';
+import type { HolidayCalendarGateway } from '../stays/holiday-calendar.js';
+import { RateReference, RateTypeField, useBookingRateType } from './rate-type.js';
 
 function toTaipeiIso(value: string): string {
   const normalized = value.length === 16 ? `${value}:00` : value;
@@ -57,6 +59,7 @@ export function BookingCreatePage({
   gateway,
   multiGateway,
   previewGateway,
+  holidayGateway,
   roomGateway,
   onViewBookings,
 }: {
@@ -64,6 +67,7 @@ export function BookingCreatePage({
   gateway: BookingCreateGateway | undefined;
   multiGateway: BookingMultiCreateGateway | undefined;
   previewGateway: BookingPreviewGateway | undefined;
+  holidayGateway?: HolidayCalendarGateway | undefined;
   roomGateway: BookingRoomGateway | undefined;
   onViewBookings: () => void;
 }) {
@@ -81,6 +85,7 @@ export function BookingCreatePage({
   const [previewError, setPreviewError] = useState('');
   const [pendingOperationId, setPendingOperationId] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const rate = useBookingRateType(holidayGateway, session.propertyId);
 
   const updateMultiSlot = (key: string, patch: Partial<MultiSlotDraft>) => setMultiSlots((current) => current.map((slot) => slot.key === key ? { ...slot, ...patch } : slot));
 
@@ -162,10 +167,12 @@ export function BookingCreatePage({
         guestName: String(data.get('guestName') ?? ''),
         phone: String(data.get('phone') ?? '').trim() || null,
         ...primarySlot,
+        ...(rate.manual ? { rateType: rate.manual } : {}),
         ...(deposit ? { deposit } : {}),
       });
       setCreated(result);
       form.reset();
+      rate.reset();
       setPricingMode('automatic');
       setPendingOperationId(null);
     } catch (submitError) {
@@ -227,13 +234,15 @@ export function BookingCreatePage({
           </select></Field>
           <Field label={text('住客姓名', 'Guest name')}><input disabled={!gateway} maxLength={300} name="guestName" required /></Field>
           <Field label={text('電話', 'Phone')}><input disabled={!gateway} maxLength={100} name="phone" inputMode="tel" /></Field>
-          <Field label={text('入住時間', 'Check-in')}><input disabled={!gateway} name="checkInAt" required type="datetime-local" /></Field>
+          <Field label={text('入住時間', 'Check-in')}><input disabled={!gateway} name="checkInAt" onChange={(event) => rate.onCheckInChange(event.target.value)} required type="datetime-local" /></Field>
           <Field label={text('方案', 'Plan')}><select disabled={!gateway} name="plan" defaultValue="24hrs"><option value="12hrs">12hrs</option><option value="24hrs">24hrs</option></select></Field>
           <Field label={text('天數', 'Days')}><input defaultValue="1" disabled={!gateway} max="366" min="1" name="days" required type="number" /></Field>
           <Field label={text('折扣（NT$）', 'Discount (NT$)')}><input defaultValue="0" disabled={!gateway} min="0" name="discountNts" required type="number" /></Field>
           <Field label={text('計價方式', 'Pricing')}><select disabled={!gateway} name="pricingMode" onChange={(event) => setPricingMode(event.target.value === 'manual' ? 'manual' : 'automatic')} value={pricingMode}><option value="automatic">{text('自動計價', 'Automatic')}</option><option value="manual">{text('手動覆寫', 'Manual override')}</option></select></Field>
           {pricingMode === 'manual' ? <Field label={text('手動金額（NT$）', 'Manual amount (NT$)')}><input defaultValue="0" disabled={!gateway} min="0" name="manualAmountNts" required type="number" /></Field> : null}
+          <RateTypeField disabled={!gateway} rate={rate} />
         </div>
+        <RateReference />
         <fieldset className="booking-deposit"><legend>{text('押金收款（選填）', 'Deposit payment (optional)')}</legend><div className="booking-create-grid">
           <Field label={text('押金（NT$）', 'Deposit (NT$)')}><input defaultValue="0" disabled={!gateway} min="0" name="depositAmountNts" type="number" /></Field>
           <Field label={text('付款方式', 'Payment method')}><select disabled={!gateway} name="depositPaymentType" defaultValue="cash"><option value="cash">{text('現金', 'Cash')}</option><option value="transfer">{text('轉帳', 'Transfer')}</option><option value="card">{text('刷卡', 'Card')}</option><option value="other">{text('其他', 'Other')}</option></select></Field>

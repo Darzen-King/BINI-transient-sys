@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { BookingSoonItem } from '@bini/cloud-shared';
 
+import { playChime, useChimeForNewIds } from '../alerts/chime.js';
 import { Badge, Button, Notice, ResponsiveDialog, SectionCard } from '../design-system/index.js';
 import { useLocale } from '../i18n/locale.js';
 import type { BookingCancelGateway } from './booking-cancel.js';
@@ -26,10 +27,12 @@ export function BookingSoonBanner({
   propertyId,
   gateway,
   cancelGateway,
+  chime = playChime,
 }: {
   propertyId: string;
   gateway: BookingSoonGateway | undefined;
   cancelGateway: BookingCancelGateway | undefined;
+  chime?: () => void;
 }) {
   const { text } = useLocale();
   const [bookings, setBookings] = useState<BookingSoonItem[]>([]);
@@ -46,6 +49,7 @@ export function BookingSoonBanner({
   }, [gateway, propertyId]);
 
   const visible = bookings.filter((booking) => !dismissed.has(booking.bookingId));
+  useChimeForNewIds(visible.map((booking) => booking.bookingId), 'bini.booking-soon.alerted', chime);
   const dismiss = (bookingId: string) => {
     setDismissed((current) => {
       const next = new Set(current).add(bookingId);

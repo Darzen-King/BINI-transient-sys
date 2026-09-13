@@ -156,30 +156,60 @@ export const adminUpdateStaff = onCall(callableOptions, async (request) => {
     throw new HttpsError('failed-precondition', '不可停用或移除自己的管理員身分。');
   }
 
+  const auth = getAuth();
+  const authBefore = await auth.getUser(parsed.data.uid).catch(() => {
+    throw new HttpsError('not-found', '找不到人員帳號。');
+  });
+  const previousEmail = authBefore.email ?? '';
+  const changingEmail = previousEmail.toLowerCase() !== parsed.data.email;
+  if (actorUid === parsed.data.uid && changingEmail) {
+    throw new HttpsError('failed-precondition', '不可變更自己的登入帳號。');
+  }
+
   const profileRef = getFirestore().doc(`users/${parsed.data.uid}`);
-  await getFirestore().runTransaction(async (transaction) => {
-    const snapshot = await transaction.get(profileRef);
-    if (!snapshot.exists) throw new HttpsError('not-found', '找不到人員帳號。');
-    const existing = snapshot.data() ?? {};
-    const existingRoles = typeof existing.roles === 'object' && existing.roles !== null
-      ? existing.roles as Record<string, unknown>
-      : {};
-    const existingPages = typeof existing.allowedPages === 'object' && existing.allowedPages !== null
-      ? existing.allowedPages as Record<string, unknown>
-      : {};
-    transaction.set(profileRef, {
+  const profileBefore = await profileRef.get();
+  if (!profileBefore.exists) throw new HttpsError('not-found', '找不到人員帳號。');
+  let authUpdated = false;
+  try {
+    await auth.updateUser(parsed.data.uid, {
       displayName: parsed.data.displayName,
-      active: parsed.data.active,
-      roles: { ...existingRoles, [parsed.data.propertyId]: parsed.data.role },
-      allowedPages: { ...existingPages, [parsed.data.propertyId]: parsed.data.allowedPages },
-      updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-  });
-  await getAuth().updateUser(parsed.data.uid, {
-    displayName: parsed.data.displayName,
-    disabled: !parsed.data.active,
-  });
+      disabled: !parsed.data.active,
+      ...(changingEmail ? { email: parsed.data.email, emailVerified: false } : {}),
+    });
+    authUpdated = true;
+    await getFirestore().runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(profileRef);
+      if (!snapshot.exists) throw new HttpsError('not-found', '找不到人員帳號。');
+      const existing = snapshot.data() ?? {};
+      const existingRoles = typeof existing.roles === 'object' && existing.roles !== null
+        ? existing.roles as Record<string, unknown>
+        : {};
+      const existingPages = typeof existing.allowedPages === 'object' && existing.allowedPages !== null
+        ? existing.allowedPages as Record<string, unknown>
+        : {};
+      transaction.set(profileRef, {
+        email: parsed.data.email,
+        displayName: parsed.data.displayName,
+        active: parsed.data.active,
+        roles: { ...existingRoles, [parsed.data.propertyId]: parsed.data.role },
+        allowedPages: { ...existingPages, [parsed.data.propertyId]: parsed.data.allowedPages },
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
+  } catch (error) {
+    if (authUpdated) {
+      await auth.updateUser(parsed.data.uid, {
+        displayName: authBefore.displayName ?? null,
+        disabled: authBefore.disabled,
+        ...(changingEmail && previousEmail ? { email: previousEmail, emailVerified: authBefore.emailVerified } : {}),
+      }).catch(() => undefined);
+    }
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError('internal', '更新人員帳號失敗。');
+  }
   await writeAudit(parsed.data.propertyId, actorUid, 'staff.update', parsed.data.uid, {
+    email: parsed.data.email,
+    emailChanged: changingEmail,
     role: parsed.data.role,
     active: parsed.data.active,
     allowedPages: parsed.data.allowedPages,

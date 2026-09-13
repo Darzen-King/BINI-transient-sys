@@ -72,6 +72,7 @@ export const staffCreateInputSchema = z.object({
 export const staffUpdateInputSchema = z.object({
   propertyId: propertyIdSchema,
   uid: uidSchema,
+  email: z.string().trim().email().max(254).transform((value) => value.toLowerCase()),
   displayName: displayNameSchema,
   role: roleSchema,
   active: z.boolean(),

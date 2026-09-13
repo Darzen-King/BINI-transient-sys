@@ -39,18 +39,22 @@ describe('closed staff-account contract', () => {
   });
 
   it('protects update and password-reset payloads with strict schemas', () => {
-    expect(staffUpdateInputSchema.parse({
+    const update = {
       propertyId: 'property-main',
       uid: 'firebase-uid-1',
+      email: 'manager@example.com',
       displayName: 'Manager',
       role: 'manager',
       active: true,
       allowedPages: ['rooms', 'reports'],
-    }).active).toBe(true);
+    };
+    expect(staffUpdateInputSchema.parse(update).active).toBe(true);
+    expect(() => staffUpdateInputSchema.parse({ ...update, email: 'not-an-email' })).toThrow();
 
     expect(() => staffUpdateInputSchema.parse({
       propertyId: 'property-main',
       uid: 'firebase-uid-1',
+      email: 'manager@example.com',
       displayName: 'Manager',
       role: 'manager',
       active: true,

@@ -34,7 +34,7 @@
 - Web client 只能建立 append-only `operationRequests/{operationId}` 或呼叫明確授權的 callable；authoritative collections 對 client/admin 前端一律不可直接寫。
 - `processOperationRequest` 位於 `asia-east1`，具 UUID idempotency、`baseVersion` conflict、transaction result 與 audit。
 - 所有 PMS access 要求：email verified、當次登入 token 含 TOTP second-factor、profile active、具 property role。
-- 帳號管理 callables：`adminListStaff`、`adminCreateStaff`、`adminUpdateStaff`、`adminSetStaffPassword`；server 端再次驗證 MFA + property admin。
+- 帳號管理 callables：`adminListStaff`、`adminCreateStaff`、`adminUpdateStaff`、`adminSetStaffPassword`；server 端再次驗證 MFA + property admin。`adminUpdateStaff` 可變更其他人員的登入 email／名稱／角色／啟停／分頁權限，email 改變時會重置 emailVerified，現任管理員不能變更自己的登入 email。
 - 密碼只送 Firebase Auth，不寫 Firestore/audit；重設後 revoke refresh tokens。管理員不能停用自己或移除自己的 admin 身分。
 - `bookingCreate` 是第一個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`bookings_new` page allowlist。它在單一 transaction 驗證 room、有效 booking、active stay、maintenance schedule、月租限制及 holidays，伺服器重算 v3 block-ceiling 報價，原子建立 booking／可選 deposit payment／audit／operation record；相同 UUID 加相同 fingerprint 只回傳原結果。其餘預約寫入與入住／退房／一般付款等仍未雲端化，不可誤認為已可營運。
 - `bookingCancel` 是第二個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`bookings` page allowlist。它在單一 transaction 驗證 property／booking identity／status／version，只允許 `已預約` 改為 `已取消`，並原子寫入 audit 與 operation record；相同 UUID 加相同 fingerprint 只回傳原結果。`cancellationReason` 僅允許 `manual`／`no_show`；後者寫入 `booking.no_show` audit，且只有 No-show 才進 fingerprint，保留已發布手動取消的重送相容性。v3 取消不直接異動 payment、stay 或 room。
@@ -82,6 +82,7 @@
 - `audit/AuditTrailPage.tsx` + `audit/audit-gateway.ts` + `domain/audit-list.ts`：manager/admin 以 property-scoped `auditLogs` listener 讀取 v3 `activity_logs` 移入資料與 v4 append-only audit；支援 action、target ID、關鍵字篩選與每頁 50 筆投影，明細 dialog 顯示時間、操作者、目標、before/after/raw details。Rules 僅允許同館別 manager/admin read，所有 client write 一律拒絕；未知 action 仍保留原始名稱，避免歷史紀錄遺失。
 - `holidays/HolidayManagementPage.tsx` + `holiday-gateway.ts` + `contracts/holiday-operations.ts`：桌機以 12 個月年曆保留 v3 年度、國定／匯入／手動標示與點擊操作；手機維持單欄月卡與 `ResponsiveDialog`。`holidayManualUpsert`／`holidayDelete`／`holidayResync` 都要求 MFA、`holidays` allowlist 與 manager/admin 角色，採 UUID replay、transaction、`holidaySyncRuns`、audit 與 client-write deny。手動資料會覆蓋同日自動資料且重同步永不覆蓋手動項；政府 API 兩來源失敗才使用與 v3 相同的 2025／2026 fallback，若無來源則 fail-closed、不先清除既有資料。這些 dates 繼續供 booking/check-in/extend/checkout 的 server pricing transaction 讀取。
 - `properties/PropertyManagementPage.tsx` + `property-gateway.ts` + `contracts/property-operations.ts`：admin 可由目前來源館別列出自己具 membership 的館別，並保留 v3 的 ID、名稱、地址、電話、備註與啟用狀態。`propertyCreate` 要求 MFA＋來源館別 admin，以 UUID operation replay transaction 建立 TWD／Asia/Taipei 的新館別、原子授予建立者新館別 admin 與 17 個頁面權限，並寫入來源館別 audit；`propertyList` 只傳回該管理員可存取的館別。現有營運 session 仍固定單一 property，尚無跨館別切換、新館別房間初始化、編輯或停用能力，不能宣告多館別營運已完成。
+- `accounts/AccountManagement.tsx`：桌機顯示與 v3 對應的使用者管理表格（帳號、名稱、角色、可檢視分頁、最後登入、狀態、操作）；手機仍顯示人員卡並共用同一個 `ResponsiveDialog`。建立與編輯都由既有 admin callable 驅動，並新增另一名人員的 email 變更支援；更換 email 後登入端會進入既有驗證 email 流程。不可修改自己的登入 email、停用自己或移除自己的 admin 身分。
 - `FoundationPage` 的 Prototype Hub 已替換為 `allowedPages` 驅動的卡片入口；按鈕只呼叫既有 `onOpenPage` router，不自行提高權限。Admin 才有初始資料導入卡，所有其他 foundation 頁仍明確標示尚未搬遷。
 - 實際 dry-run：`bini_backup_20260909_075803.json` 為 579,199 bytes／1,589 筆，清理後 431,817 bytes；排除 5 users，password 欄位傳輸檢查 false。這只是格式相容性證據，正式匯入必須使用操作員從 Dropbox 下載的最新檔。
 - Hosting 曾因 workspace Vite 未讀根目錄 `.env.local` 出現粉色空白頁；已在 `vite.config.ts` 設 `envDir: '../..'`，並新增 `guard:hosting-package`，缺少實際 DEV 設定會在部署前 fail closed。
@@ -90,7 +91,7 @@
 ### 驗證與部署結果
 
 ```text
-npm test                       179/179 passed
+npm test                       180/180 passed
 npm run test:deploy-guard       6/6 passed
 npm run test:rules             47/47 passed（Firestore Emulator）
 npm run typecheck              passed
@@ -106,12 +107,13 @@ DEV stayCheckIn                callable, ACTIVE, 512 MiB, nodejs22
 DEV stayExtend                 callable, ACTIVE, 512 MiB, nodejs22
 DEV stayCheckout               callable, ACTIVE, 512 MiB, nodejs22
 DEV paymentRefund              callable, ACTIVE, 512 MiB, nodejs22; 退款保留原付款並以 refundOfPaymentId 關聯
+DEV adminUpdateStaff           callable, ACTIVE, 256 MiB, nodejs22; 可更新其他人員 email 並重置 emailVerified
 DEV paymentManualCreate        callable, ACTIVE, 512 MiB, nodejs22; 手動例外收款驗證館別、選填房號與 audit
 DEV cashierClose               callable, ACTIVE, 512 MiB, nodejs22; manager/admin 日結、台北日界與 session lock
 DEV costCreate                 callable, ACTIVE, 512 MiB, nodejs22; MFA＋costs page＋property admin、create/audit/replay
 DEV costUpdate                 callable, ACTIVE, 512 MiB, nodejs22; version conflict protection/audit/replay
 DEV costArchive                callable, ACTIVE, 512 MiB, nodejs22; required reason/immutable history/audit/replay
-DEV Hosting                    index-D59Ni7D-.js live; bundle contains New property/propertyCreate/propertyList markers
+DEV Hosting                    index-CKgG4FYU.js live; bundle contains User Management/adminUpdateStaff/Last login markers
 DEV HTTP smoke                 home/manifest/favicon/PWA 192 icon = 200
 ```
 

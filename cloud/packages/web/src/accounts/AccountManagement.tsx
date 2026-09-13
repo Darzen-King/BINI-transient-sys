@@ -66,6 +66,17 @@ function messageFrom(error: unknown, text: (zhTw: string, en: string) => string)
   return error instanceof Error ? error.message : text('操作失敗，請稍後再試。', 'The action failed. Try again later.');
 }
 
+function formatLastLogin(value: string | null, locale: AppLocale): string {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '—';
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Asia/Taipei',
+  }).format(parsed);
+}
+
 function PagePicker({ value, onChange }: {
   value: CloudPageId[];
   onChange: (pages: CloudPageId[]) => void;
@@ -181,6 +192,7 @@ export function AccountManagement({ session, gateway }: {
         await gateway.update({
           propertyId: session.propertyId,
           uid: editor.uid,
+          email: editor.email,
           displayName: editor.displayName,
           role: editor.role,
           active: editor.active,
@@ -206,14 +218,38 @@ export function AccountManagement({ session, gateway }: {
   if (!gateway) return <div className="empty-card">{text('帳號管理服務尚未連線。', 'The account service is not connected.')}</div>;
 
   return (
-    <section className="account-management" aria-label="裝置與帳號">
+    <section className="account-management" aria-label="使用者管理">
       <div className="account-heading">
-        <div><h2>{text('裝置與帳號', 'Staff accounts')}</h2><p>{text('僅管理員可新增、停用及調整人員權限。', 'Only administrators can add staff, disable accounts, or change permissions.')}</p></div>
-        <Button onClick={openCreate}>＋ {text('新增人員', 'Add staff')}</Button>
+        <div><h2>{text('使用者管理', 'User Management')}</h2><p>{text('僅管理員可新增、停用及調整人員權限。', 'Only administrators can add staff, disable accounts, or change permissions.')}</p></div>
+        <Button onClick={openCreate}>＋ {text('新增使用者', 'New user')}</Button>
       </div>
       <Notice tone="info" title={text('封閉式員工系統', 'Closed staff system')}>{text('所有人員均須使用已驗證的電子郵件、密碼與驗證器 MFA；系統不提供自行註冊。', 'Every staff member must use a verified email, password, and authenticator MFA. Self-registration is unavailable.')}</Notice>
       {error ? <Notice tone="danger" title={text('操作失敗', 'Action failed')}>{error}</Notice> : null}
       {busy && users.length === 0 ? <div className="empty-card">{text('讀取中…', 'Loading…')}</div> : null}
+      <div className="staff-table-wrap">
+        <table className="staff-table">
+          <thead><tr>
+            <th>{text('帳號', 'Account')}</th>
+            <th>{text('顯示名稱', 'Display name')}</th>
+            <th>{text('角色', 'Role')}</th>
+            <th>{text('可檢視分頁', 'Page access')}</th>
+            <th>{text('最後登入', 'Last login')}</th>
+            <th>{text('狀態', 'Status')}</th>
+            <th>{text('操作', 'Actions')}</th>
+          </tr></thead>
+          <tbody>{users.map((user) => (
+            <tr className={!user.active ? 'disabled' : ''} key={user.uid}>
+              <td><strong className={user.uid === session.uid ? 'current-user' : undefined}>{user.email}</strong>{user.uid === session.uid ? <small className="you-label">{text('你', 'you')}</small> : null}</td>
+              <td>{user.displayName || user.email}</td>
+              <td><Badge tone="brand">{localized(ROLE_LABELS[user.role], locale)}</Badge></td>
+              <td>{user.allowedPages.length > 0 ? <span className="page-access-count" title={user.allowedPages.map((page) => localized(PAGE_LABELS[page], locale)).join(', ')}>{text('自訂', 'Custom')} {user.allowedPages.length} {text('頁', 'pages')}</span> : <span className="muted-cell">{text('角色預設', 'Role default')}</span>}</td>
+              <td className="muted-cell">{formatLastLogin(user.lastLoginAt, locale)}</td>
+              <td><div className="table-status"><Badge tone={user.active ? 'success' : 'neutral'}>{user.active ? text('啟用', 'Active') : text('停用', 'Disabled')}</Badge><Badge tone={user.mfaEnrolled ? 'success' : 'warning'}>{user.mfaEnrolled ? 'MFA' : text('MFA 待設定', 'MFA pending')}</Badge></div></td>
+              <td><Button onClick={() => openEdit(user)} size="sm" variant="outline">✏️ {text('編輯', 'Edit')}</Button></td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
       <div className="staff-list">
         {users.map((user) => (
           <article className={!user.active ? 'disabled' : ''} key={user.uid}>
@@ -237,7 +273,7 @@ export function AccountManagement({ session, gateway }: {
           <form className="account-editor" onSubmit={(event) => void save(event)}>
             <div className="editor-grid">
               <Field label={text('顯示名稱', 'Display name')}><input required maxLength={80} value={editor.displayName} onChange={(event) => setEditor({ ...editor, displayName: event.target.value })} /></Field>
-              <Field label={text('登入電子郵件', 'Sign-in email')}><input required disabled={!creating} type="email" value={editor.email} onChange={(event) => setEditor({ ...editor, email: event.target.value })} /></Field>
+              <Field hint={!creating && editor.uid === session.uid ? text('為保護目前管理員帳號，登入電子郵件不可在此變更。', 'Your own sign-in email cannot be changed here.') : undefined} label={text('登入電子郵件', 'Sign-in email')}><input required disabled={!creating && editor.uid === session.uid} type="email" value={editor.email} onChange={(event) => setEditor({ ...editor, email: event.target.value })} /></Field>
               <Field hint={text('至少 12 字元，且包含英文字母與數字。', 'At least 12 characters with letters and numbers.')} label={creating ? text('初始密碼', 'Initial password') : text('重設密碼（留空不變）', 'Reset password (leave blank to keep)')}><input required={creating} minLength={12} type="password" autoComplete="new-password" value={editor.password} onChange={(event) => setEditor({ ...editor, password: event.target.value })} /></Field>
               <RoleSelect value={editor.role} disabled={editor.uid === session.uid} onChange={chooseRole} />
             </div>

@@ -41,9 +41,10 @@ describe('administrator-managed staff accounts', () => {
   it('shows staff state and never exposes desktop backup permissions', async () => {
     render(<AccountManagement session={session} gateway={gateway()} />);
 
-    expect(await screen.findByText('front@example.com')).toBeInTheDocument();
-    expect(screen.getByText('MFA 待設定')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '＋ 新增人員' }));
+    expect((await screen.findAllByText('front@example.com')).length).toBe(2);
+    expect(screen.getAllByText('MFA 待設定')).toHaveLength(2);
+    expect(screen.getByRole('columnheader', { name: '最後登入' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '＋ 新增使用者' }));
     expect(screen.queryByText('雲端備份')).not.toBeInTheDocument();
     expect(screen.getByText('甘特圖')).toBeInTheDocument();
   });
@@ -51,8 +52,8 @@ describe('administrator-managed staff accounts', () => {
   it('submits a closed-system account through the admin gateway', async () => {
     const api = gateway();
     render(<AccountManagement session={session} gateway={api} />);
-    await screen.findByText('front@example.com');
-    fireEvent.click(screen.getByRole('button', { name: '＋ 新增人員' }));
+    await screen.findAllByText('front@example.com');
+    fireEvent.click(screen.getByRole('button', { name: '＋ 新增使用者' }));
     fireEvent.change(screen.getByLabelText('顯示名稱'), { target: { value: 'New Staff' } });
     fireEvent.change(screen.getByLabelText('登入電子郵件'), { target: { value: 'new@example.com' } });
     fireEvent.change(screen.getByLabelText(/初始密碼/), { target: { value: 'SecurePassword1' } });
@@ -63,6 +64,21 @@ describe('administrator-managed staff accounts', () => {
       email: 'new@example.com',
       displayName: 'New Staff',
       role: 'front_desk',
+    })));
+  });
+
+  it('allows an administrator to update another staff email through the guarded gateway', async () => {
+    const api = gateway();
+    render(<AccountManagement session={session} gateway={api} />);
+    await screen.findAllByText('front@example.com');
+    fireEvent.click(screen.getAllByRole('button', { name: '編輯' })[0]!);
+    fireEvent.change(screen.getByLabelText('登入電子郵件'), { target: { value: 'renamed@example.com' } });
+    fireEvent.click(screen.getByRole('button', { name: '儲存' }));
+
+    await waitFor(() => expect(api.update).toHaveBeenCalledWith(expect.objectContaining({
+      propertyId: 'property-main',
+      uid: 'front-1',
+      email: 'renamed@example.com',
     })));
   });
 });

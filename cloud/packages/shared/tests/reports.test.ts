@@ -41,3 +41,34 @@ describe('v3-compatible reports', () => {
     expect(report.costByCategoryNts).toBeNull();
   });
 });
+
+describe('v3 report breakdowns', () => {
+  it('counts every in-range booking status and every room status like the v3 breakdown tables', () => {
+    const report = buildReportProjection(source, { dateFrom: '2026-09-10', dateTo: '2026-09-11', includeCosts: false });
+    expect(report.bookingStatusCounts).toEqual({ 已預約: 1, 已入住: 1 });
+    expect(report.roomStatusCounts).toEqual({ 使用中: 1, 維修中: 1 });
+  });
+
+  it('splits revenue into weekday and holiday using the booking rate type and the stay check-in date', () => {
+    const report = buildReportProjection({
+      ...source,
+      bookings: [
+        { id: 'B3', data: { bookingId: 'B3', roomId: '201', checkInAt: '2026-09-12T15:00:00+08:00', plan: '24hrs', amountNts: 1_200, status: '已預約', rateType: '假日' } },
+        { id: 'B4', data: { bookingId: 'B4', roomId: '202', checkInAt: '2026-09-14T15:00:00+08:00', plan: '24hrs', amountNts: 1_000, status: '已預約', rateType: null } },
+      ],
+      stayLogs: [
+        { id: 'S3', data: { roomId: '201', checkInAt: '2026-09-13T10:00:00+08:00', plan: '24hrs', totalChargedNts: 1_300, freeCancel: false, transferred: false } },
+        { id: 'S4', data: { roomId: '202', checkInAt: '2026-09-15T10:00:00+08:00', plan: '12hrs', totalChargedNts: 800, freeCancel: false, transferred: false } },
+        { id: 'S5', data: { roomId: '202', checkInAt: '2026-09-16T10:00:00+08:00', plan: '12hrs', totalChargedNts: 900, freeCancel: false, transferred: false } },
+      ],
+      holidays: [{ id: '2026-09-17', data: { date: '2026-09-17', year: 2026, holiday: true } }],
+    }, { dateFrom: '2026-09-12', dateTo: '2026-09-16', includeCosts: false });
+    // S5 is the eve of a configured holiday, so v3 prices it as a holiday.
+    expect(report.rateRevenueNts).toEqual({ 非假日: 1_800, 假日: 3_400 });
+  });
+
+  it('reports in-house amounts still due as live revenue', () => {
+    const report = buildReportProjection({ ...source, stays: [{ id: 'A', data: { roomId: '201', totalDueNts: 1_500 } }, { id: 'B', data: { roomId: '202', totalDueNts: 700 } }] }, { dateFrom: '2026-09-10', dateTo: '2026-09-11', includeCosts: false });
+    expect(report.liveRevenueNts).toBe(2_200);
+  });
+});

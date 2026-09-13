@@ -7,7 +7,7 @@ import { requirePropertyPage } from '../admin/staff-admin.js';
 
 const options = { region: 'asia-east1', maxInstances: 10, timeoutSeconds: 60, memory: '512MiB' } as const;
 
-async function requireManagerOrAdmin(auth: Parameters<typeof requirePropertyPage>[0], propertyId: string): Promise<string> {
+export async function requireManagerOrAdmin(auth: Parameters<typeof requirePropertyPage>[0], propertyId: string): Promise<string> {
   const uid = await requirePropertyPage(auth, propertyId, 'reports');
   const profile = (await getFirestore().doc(`users/${uid}`).get()).data();
   const roles = profile?.roles;

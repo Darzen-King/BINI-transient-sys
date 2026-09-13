@@ -193,6 +193,12 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Cashier day sessions are closed by the cashierClose callable; staff read the status only.
+      match /cashierSessions/{docId} {
+        allow read: if hasProperty(propertyId);
+        allow write: if false;
+      }
+
       match /costEntries/{docId} {
         // Costs and P&L are administrator-only in the original PMS.
         allow read: if isAdminOf(propertyId);

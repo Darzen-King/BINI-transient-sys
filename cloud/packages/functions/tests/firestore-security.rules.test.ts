@@ -80,6 +80,7 @@ beforeEach(async () => {
     await setDoc(doc(db, `properties/${PROPERTY}/bookings/b1`), { version: 1, room: '202' });
     await setDoc(doc(db, `properties/${PROPERTY}/stayLogs/sl1`), { roomId: '202' });
     await setDoc(doc(db, `properties/${PROPERTY}/costEntries/cost-1`), { amountNts: 100 });
+    await setDoc(doc(db, `properties/${PROPERTY}/cashierSessions/2026-09-13`), { status: 'closed', sessionDate: '2026-09-13' });
     await setDoc(doc(db, `properties/${PROPERTY}/maintenanceSchedules/m1`), { roomId: '202', status: 'scheduled' });
     await setDoc(doc(db, `properties/${PROPERTY}/monthlyRentals/mr1`), { roomId: '206', status: 'active' });
     await setDoc(doc(db, `properties/${PROPERTY}/holidays/2026-10-10`), { date: '2026-10-10', year: 2026, holiday: true });
@@ -207,6 +208,11 @@ describe('authoritative collections are server-only', () => {
     await assertSucceeds(getDoc(doc(asStaff(), `properties/${PROPERTY}/stayLogs/sl1`)));
     await assertFails(getDoc(doc(asStaff(), `properties/${PROPERTY}/costEntries/cost-1`)));
     await assertSucceeds(getDoc(doc(asAdmin(), `properties/${PROPERTY}/costEntries/cost-1`)));
+  });
+
+  it('a property member reads cashier session status for the report, but nobody writes it directly', async () => {
+    await assertSucceeds(getDoc(doc(asStaff(), `properties/${PROPERTY}/cashierSessions/2026-09-13`)));
+    await assertFails(setDoc(doc(asManager(), `properties/${PROPERTY}/cashierSessions/2026-09-14`), { status: 'closed' }));
   });
 
   it('an admin cannot write a cost record directly either', async () => {

@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+import { isV3Holiday } from '../contracts/booking-operations.js';
+import { buildHolidayCalendar } from './holiday-calendar.js';
+
 export interface ReportSourceDocument { id: string; data: unknown; }
 export interface ReportSource {
   rooms: readonly ReportSourceDocument[];
@@ -8,6 +11,8 @@ export interface ReportSource {
   stayLogs: readonly ReportSourceDocument[];
   monthlyRentals: readonly ReportSourceDocument[];
   costEntries?: readonly ReportSourceDocument[];
+  /** Property holiday cache; without it the v3 static fallback decides weekday vs holiday stays. */
+  holidays?: readonly ReportSourceDocument[];
 }
 
 export interface ReportRange { dateFrom: string; dateTo: string; includeCosts: boolean; }
@@ -15,9 +20,10 @@ export interface ReportRoomRental { roomId: string; status: string; note: string
 export interface ReportDailyItem { date: string; revenueNts: number; occupancyPct: number; }
 export interface ReportProjection {
   dateFrom: string; dateTo: string; days: number; rangeRevenueNts: number; staylogRevenueNts: number; monthlyRevenueNts: number;
-  bookingRevenueNts: number; totalOrders: number; cancelledOrders: number; totalRooms: number; occupiedNow: number;
+  bookingRevenueNts: number; liveRevenueNts: number; totalOrders: number; cancelledOrders: number; totalRooms: number; occupiedNow: number;
   occupancyNowPct: number; rangeOccupancyPct: number; repairCount: number; avgStayHours: number; activeStaysCount: number;
   daily: ReportDailyItem[]; planCounts: Record<string, number>; planRevenueNts: Record<string, number>; roomRentals: ReportRoomRental[];
+  bookingStatusCounts: Record<string, number>; roomStatusCounts: Record<string, number>; rateRevenueNts: Record<'非假日' | '假日', number>;
   totalCostNts: number | null; netProfitNts: number | null; costRatioPct: number | null; costByCategoryNts: Record<string, number> | null;
 }
 
@@ -29,7 +35,7 @@ const nullableText = z.string().nullable().optional();
 const amount = z.number().int().safe().min(0);
 const roomSchema = z.object({ roomId: text, status: text, note: nullableText }).passthrough();
 const bookingSchema = z.object({ bookingId: text, roomId: text, checkInAt: dateTime, plan: text, amountNts: amount, status: text, rateType: nullableText }).passthrough();
-const staySchema = z.object({ roomId: text }).passthrough();
+const staySchema = z.object({ roomId: text, totalDueNts: amount.optional() }).passthrough();
 const stayLogSchema = z.object({ roomId: text, plan: nullableText, checkInAt: nullableDateTime, totalChargedNts: amount, freeCancel: z.boolean(), transferred: z.boolean() }).passthrough();
 const monthlySchema = z.object({ roomId: text, rentNts: amount, createdAt: nullableDateTime }).passthrough();
 const costSchema = z.object({ costDate: day, category: text, amountNts: amount, status: z.enum(['active', 'archived']).optional() }).passthrough();
@@ -65,6 +71,7 @@ export function buildReportProjection(source: ReportSource, range: ReportRange):
   const stays = parse(source.stays, staySchema, 'stays');
   const stayLogs = parse(source.stayLogs, stayLogSchema, 'stayLogs');
   const monthlyRentals = parse(source.monthlyRentals, monthlySchema, 'monthlyRentals');
+  const calendar = buildHolidayCalendar(source.holidays ?? []);
   const costs = range.includeCosts ? parse(source.costEntries ?? [], costSchema, 'costEntries') : [];
   const inRangeBookings = bookings.filter(({ data }) => dateInRange(data.checkInAt, range.dateFrom, range.dateTo));
   const activeBookings = inRangeBookings.filter(({ data }) => !['已取消', 'No-show', '已入住'].includes(data.status));
@@ -91,7 +98,16 @@ export function buildReportProjection(source: ReportSource, range: ReportRange):
   const totalCostNts = range.includeCosts ? activeCosts.reduce((total, { data }) => total + data.amountNts, 0) : null;
   const costByCategoryNts = range.includeCosts ? activeCosts.reduce<Record<string, number>>((total, { data }) => ({ ...total, [data.category]: (total[data.category] ?? 0) + data.amountNts }), {}) : null;
   const rangeRevenueNts = staylogRevenueNts + monthlyRevenueNts;
-  return { dateFrom: range.dateFrom, dateTo: range.dateTo, days: daily.length, rangeRevenueNts, staylogRevenueNts, monthlyRevenueNts, bookingRevenueNts, totalOrders: activeBookings.length + eligibleLogs.length + recognisedMonthly.length, cancelledOrders, totalRooms, occupiedNow, occupancyNowPct: percentage(occupiedNow, totalRooms), rangeOccupancyPct: percentage(roomsWithActivity.size, totalRooms), repairCount: rooms.filter(({ data }) => data.status === '維修中').length, avgStayHours: hours.length ? Math.round((hours.reduce((total, value) => total + value, 0) / hours.length) * 10) / 10 : 0, activeStaysCount: stays.length, daily, planCounts, planRevenueNts, roomRentals: [...rentalByRoom.values()].sort((left, right) => right.count - left.count || left.roomId.localeCompare(right.roomId)), totalCostNts, netProfitNts: totalCostNts === null ? null : rangeRevenueNts - totalCostNts, costRatioPct: totalCostNts === null ? null : percentage(totalCostNts, rangeRevenueNts), costByCategoryNts };
+  const bookingStatusCounts: Record<string, number> = {};
+  for (const { data } of inRangeBookings) bookingStatusCounts[data.status] = (bookingStatusCounts[data.status] ?? 0) + 1;
+  const roomStatusCounts: Record<string, number> = {};
+  for (const { data } of rooms) roomStatusCounts[data.status] = (roomStatusCounts[data.status] ?? 0) + 1;
+  // v3: bookings keep their quoted rate type; completed stays derive it from the check-in date.
+  const rateRevenueNts: Record<'非假日' | '假日', number> = { 非假日: 0, 假日: 0 };
+  for (const { data } of activeBookings) rateRevenueNts[data.rateType === '假日' ? '假日' : '非假日'] += data.amountNts;
+  for (const { data } of eligibleLogs) if (data.checkInAt) rateRevenueNts[isV3Holiday(localDay(data.checkInAt), calendar) ? '假日' : '非假日'] += data.totalChargedNts;
+  const liveRevenueNts = stays.reduce((total, { data }) => total + (data.totalDueNts ?? 0), 0);
+  return { dateFrom: range.dateFrom, dateTo: range.dateTo, days: daily.length, rangeRevenueNts, staylogRevenueNts, monthlyRevenueNts, bookingRevenueNts, liveRevenueNts, totalOrders: activeBookings.length + eligibleLogs.length + recognisedMonthly.length, cancelledOrders, totalRooms, occupiedNow, occupancyNowPct: percentage(occupiedNow, totalRooms), rangeOccupancyPct: percentage(roomsWithActivity.size, totalRooms), repairCount: rooms.filter(({ data }) => data.status === '維修中').length, avgStayHours: hours.length ? Math.round((hours.reduce((total, value) => total + value, 0) / hours.length) * 10) / 10 : 0, activeStaysCount: stays.length, daily, planCounts, planRevenueNts, roomRentals: [...rentalByRoom.values()].sort((left, right) => right.count - left.count || left.roomId.localeCompare(right.roomId)), bookingStatusCounts, roomStatusCounts, rateRevenueNts, totalCostNts, netProfitNts: totalCostNts === null ? null : rangeRevenueNts - totalCostNts, costRatioPct: totalCostNts === null ? null : percentage(totalCostNts, rangeRevenueNts), costByCategoryNts };
 }
 
 function csvCell(value: string | number): string { const rendered = String(value); return /[",\r\n]/u.test(rendered) ? `"${rendered.replaceAll('"', '""')}"` : rendered; }

@@ -19,6 +19,7 @@ export * from './domain/active-stay.js';
 export * from './domain/payment-list.js';
 export * from './domain/cost-list.js';
 export * from './domain/holiday-list.js';
+export * from './domain/holiday-calendar.js';
 export * from './domain/property-directory.js';
 export * from './domain/reports.js';
 export * from './domain/audit-list.js';

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildPaymentListItems, renderPaymentCsv, summarizePayments } from '../src/domain/payment-list.js';
+import { buildPaymentListItems, renderPaymentCsv, renderPaymentDailySummaryCsv, summarizePayments } from '../src/domain/payment-list.js';
 
 describe('payment ledger CSV', () => {
   it('keeps v3 ledger column order, Excel BOM, legacy fields and escaped notes', () => {
@@ -36,5 +36,25 @@ describe('payment ledger CSV', () => {
 
     expect(items.map((item) => item.paymentId)).toEqual(['PAY-yesterday', 'PAY-cloud', 'v3-payments-1'].reverse());
     expect(summarizePayments(items, '2026-09-13')).toMatchObject({ receivedNts: 1_700, byType: { cash: 1_200, card: 500 } });
+  });
+});
+
+describe('payment day summary and v3 daily_summary CSV', () => {
+  const items = buildPaymentListItems([
+    { id: 'P1', data: { roomId: '201', guestName: 'A', paymentType: 'cash', amountNts: 1_000, deposit: true, status: 'paid', createdAt: '2026-09-13T09:00:00+08:00' } },
+    { id: 'P2', data: { roomId: '201', guestName: 'A', paymentType: 'card', amountNts: 600, status: 'paid', createdAt: '2026-09-13T03:00:00.000Z' } },
+    { id: 'P3', data: { roomId: '201', guestName: 'A', paymentType: 'cash', amountNts: 200, refund: true, status: 'refunded', createdAt: '2026-09-13T05:00:00.000Z' } },
+    { id: 'P4', data: { roomId: '202', guestName: 'B', paymentType: 'transfer', amountNts: 900, status: 'pending', createdAt: '2026-09-12T05:00:00.000Z' } },
+  ]);
+
+  it('adds deposit and transaction totals to the day summary', () => {
+    expect(summarizePayments(items, '2026-09-13')).toMatchObject({ receivedNts: 1_600, refundsNts: 200, netNts: 1_400, depositsNts: 1_000, transactionCount: 3, outstandingNts: 900 });
+  });
+
+  it('renders one v3 daily_summary row per day with the cashier session status', () => {
+    const csv = renderPaymentDailySummaryCsv(items, new Map([['2026-09-13', 'closed']]), '2026-09-12', '2026-09-13');
+    expect(csv.startsWith('\uFEFFdate,total_received,total_refunds,net_revenue,cash,transfer,card,other,deposits,pending,session_status\r\n')).toBe(true);
+    expect(csv).toContain('2026-09-12,900,0,900,0,900,0,0,0,900,no_session\r\n');
+    expect(csv).toContain('2026-09-13,1600,200,1400,1000,0,600,0,1000,900,closed\r\n');
   });
 });

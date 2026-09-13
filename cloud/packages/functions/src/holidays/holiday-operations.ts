@@ -72,12 +72,18 @@ async function fetchGovernmentHolidays(year: number): Promise<HolidaySeed[] | nu
   return null;
 }
 
-async function holidaySource(year: number): Promise<{ source: HolidaySource; items: readonly HolidaySeed[] }> {
+/** Government data first, then the v3 offline table; `null` when neither covers the year. */
+export async function loadHolidaySource(year: number): Promise<{ source: HolidaySource; items: readonly HolidaySeed[] } | null> {
   const api = await fetchGovernmentHolidays(year);
   if (api) return { source: 'api', items: api };
   const fallback = FALLBACK_HOLIDAYS[year];
-  if (!fallback) throw new HttpsError('unavailable', '政府假日資料暫時無法取得，且此年份沒有離線備援；既有資料未變更。');
-  return { source: 'fallback', items: fallback };
+  return fallback ? { source: 'fallback', items: fallback } : null;
+}
+
+async function holidaySource(year: number): Promise<{ source: HolidaySource; items: readonly HolidaySeed[] }> {
+  const incoming = await loadHolidaySource(year);
+  if (!incoming) throw new HttpsError('unavailable', '政府假日資料暫時無法取得，且此年份沒有離線備援；既有資料未變更。');
+  return incoming;
 }
 
 export const holidayManualUpsert = onCall(options, async (request): Promise<HolidayOperationResult> => {

@@ -47,6 +47,11 @@ service cloud.firestore {
         && userDoc().data.roles[propertyId] == 'admin';
     }
 
+    function isManagerOrAdminOf(propertyId) {
+      return hasProperty(propertyId)
+        && userDoc().data.roles[propertyId] in ['manager', 'admin'];
+    }
+
     // ── operation contract mirror ────────────────────────────────────────────
 
     // CLIENT_FIELDS — mirror of OPERATION_REQUEST_CLIENT_FIELDS. Exactly these keys
@@ -214,7 +219,7 @@ service cloud.firestore {
 
       // Audit trail: admins of the property may read it; nobody may write it.
       match /auditLogs/{docId} {
-        allow read: if isAdminOf(propertyId);
+        allow read: if isManagerOrAdminOf(propertyId);
         allow write: if false;
       }
     }

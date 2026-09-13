@@ -72,6 +72,10 @@ beforeEach(async () => {
       active: true,
       roles: { [PROPERTY]: 'admin' },
     });
+    await setDoc(doc(db, 'users/manager-main'), {
+      active: true,
+      roles: { [PROPERTY]: 'manager' },
+    });
     await setDoc(doc(db, `properties/${PROPERTY}`), { name: 'Main' });
     await setDoc(doc(db, `properties/${PROPERTY}/bookings/b1`), { version: 1, room: '202' });
     await setDoc(doc(db, `properties/${PROPERTY}/stayLogs/sl1`), { roomId: '202' });
@@ -100,6 +104,7 @@ const asStaff = () => env.authenticatedContext('staff-main', MFA_CLAIMS).firesto
 const asOtherStaff = () => env.authenticatedContext('staff-other', MFA_CLAIMS).firestore();
 const asDisabled = () => env.authenticatedContext('staff-disabled', MFA_CLAIMS).firestore();
 const asAdmin = () => env.authenticatedContext('admin-main', MFA_CLAIMS).firestore();
+const asManager = () => env.authenticatedContext('manager-main', MFA_CLAIMS).firestore();
 const asSingleFactorStaff = () => env.authenticatedContext('staff-main', {
   email_verified: true,
   firebase: { sign_in_provider: 'password' },
@@ -162,8 +167,9 @@ describe('authorised reads', () => {
     await assertFails(getDoc(doc(asStaff(), 'users/staff-other')));
   });
 
-  it('only an admin reads the audit log', async () => {
+  it('only a manager or admin reads the audit log', async () => {
     await assertSucceeds(getDoc(doc(asAdmin(), `properties/${PROPERTY}/auditLogs/a1`)));
+    await assertSucceeds(getDoc(doc(asManager(), `properties/${PROPERTY}/auditLogs/a1`)));
     await assertFails(getDoc(doc(asStaff(), `properties/${PROPERTY}/auditLogs/a1`)));
   });
 });

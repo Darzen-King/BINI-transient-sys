@@ -10,11 +10,8 @@ import type { BookingPreviewGateway } from './booking-preview.js';
 import type { BookingRoomGateway } from '../rooms/booking-room-options.js';
 import type { HolidayCalendarGateway } from '../stays/holiday-calendar.js';
 import { RateReference, RateTypeField, useBookingRateType } from './rate-type.js';
+import { AmountField, CheckoutPreviewField, pricingFor, quoteForForm, toTaipeiIso, useHolidayCalendar, useManualAmount } from './auto-pricing.js';
 
-function toTaipeiIso(value: string): string {
-  const normalized = value.length === 16 ? `${value}:00` : value;
-  return `${normalized}+08:00`;
-}
 
 function functionErrorMessage(error: unknown, text: (zhTw: string, en: string) => string): string {
   if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
@@ -43,14 +40,14 @@ interface MultiSlotDraft {
   plan: '12hrs' | '24hrs';
   days: number;
   discountNts: number;
-  pricingMode: 'automatic' | 'manual';
-  manualAmountNts: number;
+  /** `null` while the amount follows the automatic quote. */
+  manualAmountNts: number | null;
 }
 
 function emptyMultiSlot(): MultiSlotDraft {
   return {
     key: crypto.randomUUID(), roomId: '', checkInAt: '', plan: '24hrs', days: 1,
-    discountNts: 0, pricingMode: 'automatic', manualAmountNts: 0,
+    discountNts: 0, manualAmountNts: null,
   };
 }
 
@@ -74,7 +71,10 @@ export function BookingCreatePage({
   const { text } = useLocale();
   const [rooms, setRooms] = useState<BookingRoomOption[] | null>(null);
   const [roomError, setRoomError] = useState(false);
-  const [pricingMode, setPricingMode] = useState<'automatic' | 'manual'>('automatic');
+  const [checkInLocal, setCheckInLocal] = useState('');
+  const [plan, setPlan] = useState<'12hrs' | '24hrs'>('24hrs');
+  const [days, setDays] = useState(1);
+  const [discountNts, setDiscountNts] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [created, setCreated] = useState<BookingCreateResult | null>(null);
@@ -86,8 +86,13 @@ export function BookingCreatePage({
   const [pendingOperationId, setPendingOperationId] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const rate = useBookingRateType(holidayGateway, session.propertyId);
+  const calendar = useHolidayCalendar(holidayGateway, session.propertyId);
+  const quote = quoteForForm(checkInLocal, plan, days, discountNts, calendar);
+  const [manualAmountNts, setManualAmountNts] = useManualAmount(`${checkInLocal}|${plan}|${days}|${discountNts}`);
+  const resetPrimary = () => { setCheckInLocal(''); setPlan('24hrs'); setDays(1); setDiscountNts(0); setManualAmountNts(null); };
 
-  const updateMultiSlot = (key: string, patch: Partial<MultiSlotDraft>) => setMultiSlots((current) => current.map((slot) => slot.key === key ? { ...slot, ...patch } : slot));
+  // Changing a slot's check-in, plan, days or discount returns its amount to automatic pricing, as in v3.
+  const updateMultiSlot = (key: string, patch: Partial<MultiSlotDraft>) => setMultiSlots((current) => current.map((slot) => slot.key === key ? { ...slot, ...patch, ...('checkInAt' in patch || 'plan' in patch || 'days' in patch || 'discountNts' in patch ? { manualAmountNts: null } : {}) } : slot));
 
   useEffect(() => {
     if (!roomGateway) return undefined;
@@ -122,12 +127,11 @@ export function BookingCreatePage({
     try {
       const primarySlot = {
         roomId: String(data.get('roomId') ?? ''),
-        checkInAt: toTaipeiIso(String(data.get('checkInAt') ?? '')),
-        plan: String(data.get('plan')) === '12hrs' ? '12hrs' as const : '24hrs' as const,
-        days: Number(data.get('days') || 0),
-        discountNts: Number(data.get('discountNts') || 0),
-        pricingMode,
-        ...(pricingMode === 'manual' ? { manualAmountNts: Number(data.get('manualAmountNts') || 0) } : {}),
+        checkInAt: toTaipeiIso(checkInLocal),
+        plan,
+        days,
+        discountNts,
+        ...pricingFor(quote, manualAmountNts),
       };
       const deposit = depositAmountNts > 0 ? {
         amountNts: depositAmountNts,
@@ -149,15 +153,14 @@ export function BookingCreatePage({
             plan: slot.plan,
             days: slot.days,
             discountNts: slot.discountNts,
-            pricingMode: slot.pricingMode,
-            ...(slot.pricingMode === 'manual' ? { manualAmountNts: slot.manualAmountNts } : {}),
+            ...pricingFor(quoteForForm(slot.checkInAt, slot.plan, slot.days, slot.discountNts, calendar), slot.manualAmountNts),
           }))],
           ...(deposit ? { deposit } : {}),
         });
         setMultiCreated(result);
         form.reset();
+        resetPrimary();
         setMultiSlots([]);
-        setPricingMode('automatic');
         setPendingOperationId(null);
         return;
       }
@@ -173,7 +176,7 @@ export function BookingCreatePage({
       setCreated(result);
       form.reset();
       rate.reset();
-      setPricingMode('automatic');
+      resetPrimary();
       setPendingOperationId(null);
     } catch (submitError) {
       setError(functionErrorMessage(submitError, text));
@@ -192,12 +195,11 @@ export function BookingCreatePage({
       setPreview(await previewGateway.preview({
         propertyId: session.propertyId,
         roomId: String(data.get('roomId') ?? ''),
-        checkInAt: toTaipeiIso(String(data.get('checkInAt') ?? '')),
-        plan: String(data.get('plan')) === '12hrs' ? '12hrs' : '24hrs',
-        days: Number(data.get('days') || 0),
-        discountNts: Number(data.get('discountNts') || 0),
-        pricingMode,
-        ...(pricingMode === 'manual' ? { manualAmountNts: Number(data.get('manualAmountNts') || 0) } : {}),
+        checkInAt: toTaipeiIso(checkInLocal),
+        plan,
+        days,
+        discountNts,
+        ...pricingFor(quote, manualAmountNts),
       }));
     } catch (previewFailure) {
       setPreviewError(functionErrorMessage(previewFailure, text));
@@ -234,12 +236,12 @@ export function BookingCreatePage({
           </select></Field>
           <Field label={text('住客姓名', 'Guest name')}><input disabled={!gateway} maxLength={300} name="guestName" required /></Field>
           <Field label={text('電話', 'Phone')}><input disabled={!gateway} maxLength={100} name="phone" inputMode="tel" /></Field>
-          <Field label={text('入住時間', 'Check-in')}><input disabled={!gateway} name="checkInAt" onChange={(event) => rate.onCheckInChange(event.target.value)} required type="datetime-local" /></Field>
-          <Field label={text('方案', 'Plan')}><select disabled={!gateway} name="plan" defaultValue="24hrs"><option value="12hrs">12hrs</option><option value="24hrs">24hrs</option></select></Field>
-          <Field label={text('天數', 'Days')}><input defaultValue="1" disabled={!gateway} max="366" min="1" name="days" required type="number" /></Field>
-          <Field label={text('折扣（NT$）', 'Discount (NT$)')}><input defaultValue="0" disabled={!gateway} min="0" name="discountNts" required type="number" /></Field>
-          <Field label={text('計價方式', 'Pricing')}><select disabled={!gateway} name="pricingMode" onChange={(event) => setPricingMode(event.target.value === 'manual' ? 'manual' : 'automatic')} value={pricingMode}><option value="automatic">{text('自動計價', 'Automatic')}</option><option value="manual">{text('手動覆寫', 'Manual override')}</option></select></Field>
-          {pricingMode === 'manual' ? <Field label={text('手動金額（NT$）', 'Manual amount (NT$)')}><input defaultValue="0" disabled={!gateway} min="0" name="manualAmountNts" required type="number" /></Field> : null}
+          <Field label={text('入住時間', 'Check-in')}><input disabled={!gateway} name="checkInAt" onChange={(event) => { setCheckInLocal(event.target.value); rate.onCheckInChange(event.target.value); }} required type="datetime-local" value={checkInLocal} /></Field>
+          <CheckoutPreviewField quote={quote} />
+          <Field label={text('方案', 'Plan')}><select disabled={!gateway} name="plan" onChange={(event) => setPlan(event.target.value === '12hrs' ? '12hrs' : '24hrs')} value={plan}><option value="12hrs">12hrs</option><option value="24hrs">24hrs</option></select></Field>
+          <Field label={text('天數', 'Days')}><input disabled={!gateway} max="366" min="1" name="days" onChange={(event) => setDays(Number(event.target.value) || 0)} required type="number" value={days || ''} /></Field>
+          <Field label={text('折扣（NT$）', 'Discount (NT$)')}><input disabled={!gateway} min="0" name="discountNts" onChange={(event) => setDiscountNts(Number(event.target.value) || 0)} required type="number" value={discountNts} /></Field>
+          <AmountField disabled={!gateway} manualAmountNts={manualAmountNts} onChange={setManualAmountNts} quote={quote} />
           <RateTypeField disabled={!gateway} rate={rate} />
         </div>
         <RateReference />
@@ -254,11 +256,11 @@ export function BookingCreatePage({
             <div className="booking-create-grid">
               <Field label={text('房間', 'Room')}><select disabled={!gateway || !multiGateway || rooms === null || roomError} value={slot.roomId} onChange={(event) => updateMultiSlot(slot.key, { roomId: event.target.value })} required><option disabled value="">{text('選擇房間', 'Select a room')}</option>{(rooms ?? []).map((room) => <option disabled={room.status === '月租套房'} key={room.roomId} value={room.roomId}>{room.roomId} · {roomStatusLabel(room.status, text)}</option>)}</select></Field>
               <Field label={text('入住時間', 'Check-in')}><input disabled={!gateway || !multiGateway} required type="datetime-local" value={slot.checkInAt} onChange={(event) => updateMultiSlot(slot.key, { checkInAt: event.target.value })} /></Field>
+              <CheckoutPreviewField quote={quoteForForm(slot.checkInAt, slot.plan, slot.days, slot.discountNts, calendar)} />
               <Field label={text('方案', 'Plan')}><select disabled={!gateway || !multiGateway} value={slot.plan} onChange={(event) => updateMultiSlot(slot.key, { plan: event.target.value === '12hrs' ? '12hrs' : '24hrs' })}><option value="12hrs">12hrs</option><option value="24hrs">24hrs</option></select></Field>
               <Field label={text('天數', 'Days')}><input disabled={!gateway || !multiGateway} max="366" min="1" required type="number" value={slot.days} onChange={(event) => updateMultiSlot(slot.key, { days: Number(event.target.value) })} /></Field>
               <Field label={text('折扣（NT$）', 'Discount (NT$)')}><input disabled={!gateway || !multiGateway} min="0" required type="number" value={slot.discountNts} onChange={(event) => updateMultiSlot(slot.key, { discountNts: Number(event.target.value) })} /></Field>
-              <Field label={text('計價方式', 'Pricing')}><select disabled={!gateway || !multiGateway} value={slot.pricingMode} onChange={(event) => updateMultiSlot(slot.key, { pricingMode: event.target.value === 'manual' ? 'manual' : 'automatic' })}><option value="automatic">{text('自動計價', 'Automatic')}</option><option value="manual">{text('手動覆寫', 'Manual override')}</option></select></Field>
-              {slot.pricingMode === 'manual' ? <Field label={text('手動金額（NT$）', 'Manual amount (NT$)')}><input disabled={!gateway || !multiGateway} min="0" required type="number" value={slot.manualAmountNts} onChange={(event) => updateMultiSlot(slot.key, { manualAmountNts: Number(event.target.value) })} /></Field> : null}
+              <AmountField disabled={!gateway || !multiGateway} manualAmountNts={slot.manualAmountNts} onChange={(value) => updateMultiSlot(slot.key, { manualAmountNts: value })} quote={quoteForForm(slot.checkInAt, slot.plan, slot.days, slot.discountNts, calendar)} />
             </div>
           </article>)}
         </section>

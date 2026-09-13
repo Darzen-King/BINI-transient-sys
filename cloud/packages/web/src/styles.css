@@ -454,6 +454,18 @@ h1, h2, p { margin-top: 0; }
 .timeline-row { border-top: 1px solid var(--line); }.timeline-track { min-height: 52px; overflow: hidden; background: var(--bds-color-surface-subtle); }
 .timeline-track > i { border-right: 1px solid var(--line); }.timeline-event { position: absolute; z-index: 1; top: 9px; height: 34px; min-width: 8px; overflow: hidden; border: 1px solid currentColor; border-radius: 7px; color: var(--bds-color-neutral-700); cursor: pointer; font: inherit; font-size: 10px; font-weight: 800; text-align: left; }.timeline-event span { display: block; overflow: hidden; padding: 0 7px; text-overflow: ellipsis; white-space: nowrap; }.timeline-event--stay { background: var(--bds-color-green-100); color: var(--bds-color-green-700); }.timeline-event--booking { background: var(--bds-color-amber-100); color: var(--bds-color-amber-700); }.timeline-event--maintenance { background: var(--bds-color-feedback-danger-bg); color: var(--danger); }.timeline-event--monthly { background: var(--bds-color-neutral-100); color: var(--bds-color-neutral-700); }
 
+/* Hourly gantt (v3 36px/hour): hour lines every column, stronger lines at Taipei midnight; the room column stays pinned. */
+.timeline-canvas--hourly { min-width: 0; }
+.timeline-canvas--hourly .timeline-header, .timeline-canvas--hourly .timeline-row { grid-template-columns: 72px auto; }
+.timeline-canvas--hourly .timeline-header { min-height: 44px; }
+.timeline-canvas--hourly .timeline-header > span, .timeline-canvas--hourly .timeline-row > strong { position: sticky; z-index: 3; left: 0; background: var(--bds-color-surface); }
+.timeline-hours { position: relative; display: block; min-height: 44px; background-image: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px var(--timeline-hour)); background-size: 100% 8px; background-position: bottom; background-repeat: repeat-x; }
+.timeline-hour { position: absolute; bottom: 10px; padding-left: 3px; border-left: 1px solid var(--line); color: var(--muted); font-size: 10px; font-weight: 700; white-space: nowrap; }
+.timeline-hour--day { top: 4px; bottom: auto; padding: 0 5px; border-left: 2px solid var(--bds-color-berry-400); color: var(--brand-dark); font-size: 11px; font-weight: 850; }
+.timeline-canvas--hourly .timeline-track { display: block; background-color: var(--bds-color-surface-subtle); background-image: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px var(--timeline-hour)); }
+.timeline-now { position: absolute; z-index: 2; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--danger); pointer-events: none; }
+.timeline-legend--now { color: var(--danger); }
+
 .booking-detail-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 16px 0; }
 .booking-detail-list > div { padding: 11px; border: 1px solid var(--line); border-radius: var(--bds-radius-md); }
 .booking-detail-list dt { color: var(--muted); font-size: 11px; }

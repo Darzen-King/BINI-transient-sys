@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { FirebaseError } from 'firebase/app';
 import {
   TotpMultiFactorGenerator,
@@ -95,6 +95,10 @@ function parseProfile(user: User, propertyId: string, profile: Record<string, un
 
 export function AuthGate({ client }: { client: FirebaseClient }) {
   const { text } = useLocale();
+  // Read the translator through a ref: re-running sign-in evaluation on a language switch would
+  // unmount the app and drop staff back on the first page.
+  const textRef = useRef(text);
+  textRef.current = text;
   const [phase, setPhase] = useState<GatePhase>('loading');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [session, setSession] = useState<StaffSession | null>(null);
@@ -149,7 +153,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
     const firebaseClaim = asRecord(token.claims.firebase);
     if (typeof firebaseClaim?.sign_in_second_factor !== 'string') {
       await signOut(client.auth);
-      setNotice(text('請重新登入並輸入驗證器代碼。', 'Sign in again and enter your authenticator code.'));
+      setNotice(textRef.current('請重新登入並輸入驗證器代碼。', 'Sign in again and enter your authenticator code.'));
       setPhase('login');
       return;
     }
@@ -164,7 +168,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
     setProfileData(profile);
     setSession(nextSession);
     setPhase('ready');
-  }, [client.auth, client.db, client.propertyId, text]);
+  }, [client.auth, client.db, client.propertyId]);
 
   useEffect(() => onAuthStateChanged(client.auth, (user) => {
     if (!user) {
@@ -174,7 +178,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
       return;
     }
     void evaluateUser(user).catch((evaluateError: unknown) => {
-      setError(friendlyError(evaluateError, text));
+      setError(friendlyError(evaluateError, textRef.current));
       setPhase('blocked');
     });
   }), [client.auth, evaluateUser]);

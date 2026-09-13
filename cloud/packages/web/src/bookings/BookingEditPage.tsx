@@ -9,11 +9,7 @@ import type { BookingUpdateGateway } from './booking-update.js';
 import type { BookingUpdatePreviewGateway } from './booking-update-preview.js';
 import type { HolidayCalendarGateway } from '../stays/holiday-calendar.js';
 import { RateReference, RateTypeField, useBookingRateType } from './rate-type.js';
-
-function toTaipeiIso(value: string): string {
-  const normalized = value.length === 16 ? `${value}:00` : value;
-  return `${normalized}+08:00`;
-}
+import { AmountField, CheckoutPreviewField, pricingFor, quoteForForm, toTaipeiIso, useHolidayCalendar, useManualAmount } from './auto-pricing.js';
 
 function taipeiLocalInputValue(iso: string): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -66,7 +62,14 @@ export function BookingEditPage({
   const { text } = useLocale();
   const [rooms, setRooms] = useState<BookingRoomOption[] | null>(null);
   const [roomError, setRoomError] = useState(false);
-  const [pricingMode, setPricingMode] = useState<'automatic' | 'manual'>(booking.pricingMode ?? 'automatic');
+  const [checkInLocal, setCheckInLocal] = useState(() => taipeiLocalInputValue(booking.checkInAt));
+  const [plan, setPlan] = useState<'12hrs' | '24hrs'>(booking.plan === '12hrs' ? '12hrs' : '24hrs');
+  const [days, setDays] = useState(() => bookingDays(booking));
+  const [discountNts, setDiscountNts] = useState(booking.discountNts);
+  const calendar = useHolidayCalendar(holidayGateway, session.propertyId);
+  const quote = quoteForForm(checkInLocal, plan, days, discountNts, calendar);
+  // v3 edits re-price automatically; a booking that was manually priced keeps its amount until the stay details change.
+  const [manualAmountNts, setManualAmountNts] = useManualAmount(`${checkInLocal}|${plan}|${days}|${discountNts}`, booking.pricingMode === 'manual' ? booking.amountNts : null);
   // Keep the stored label (possibly a v3 manual pick) until staff change the check-in date.
   const rate = useBookingRateType(holidayGateway, session.propertyId, { checkInLocal: taipeiLocalInputValue(booking.checkInAt), manual: booking.rateType === '假日' || booking.rateType === '非假日' ? booking.rateType : null });
   const [pendingOperationId, setPendingOperationId] = useState<string | null>(null);
@@ -108,12 +111,11 @@ export function BookingEditPage({
         roomId: String(data.get('roomId') ?? ''),
         guestName: String(data.get('guestName') ?? ''),
         phone: String(data.get('phone') ?? '').trim() || null,
-        checkInAt: toTaipeiIso(String(data.get('checkInAt') ?? '')),
-        plan: String(data.get('plan')) === '12hrs' ? '12hrs' : '24hrs',
-        days: Number(data.get('days') || 0),
-        discountNts: Number(data.get('discountNts') || 0),
-        pricingMode,
-        ...(pricingMode === 'manual' ? { manualAmountNts: Number(data.get('manualAmountNts') || 0) } : {}),
+        checkInAt: toTaipeiIso(checkInLocal),
+        plan,
+        days,
+        discountNts,
+        ...pricingFor(quote, manualAmountNts),
         ...(rate.manual ? { rateType: rate.manual } : {}),
       });
       setUpdated(result);
@@ -136,12 +138,11 @@ export function BookingEditPage({
         propertyId: session.propertyId,
         bookingId: booking.bookingId,
         roomId: String(data.get('roomId') ?? ''),
-        checkInAt: toTaipeiIso(String(data.get('checkInAt') ?? '')),
-        plan: String(data.get('plan')) === '12hrs' ? '12hrs' : '24hrs',
-        days: Number(data.get('days') || 0),
-        discountNts: Number(data.get('discountNts') || 0),
-        pricingMode,
-        ...(pricingMode === 'manual' ? { manualAmountNts: Number(data.get('manualAmountNts') || 0) } : {}),
+        checkInAt: toTaipeiIso(checkInLocal),
+        plan,
+        days,
+        discountNts,
+        ...pricingFor(quote, manualAmountNts),
       }));
     } catch (previewFailure) {
       setPreviewError(previewErrorMessage(previewFailure, text));
@@ -165,12 +166,12 @@ export function BookingEditPage({
           <Field label={text('房間', 'Room')}><select defaultValue={booking.roomId} disabled={!gateway || rooms === null || roomError} name="roomId" required>{(rooms ?? []).map((room) => <option disabled={room.status === '月租套房' && room.roomId !== booking.roomId} key={room.roomId} value={room.roomId}>{room.roomId} · {roomStatusLabel(room.status, text)}</option>)}</select></Field>
           <Field label={text('住客姓名', 'Guest name')}><input defaultValue={booking.guestName} disabled={!gateway} maxLength={300} name="guestName" required /></Field>
           <Field label={text('電話', 'Phone')}><input defaultValue={booking.phone ?? ''} disabled={!gateway} maxLength={100} name="phone" inputMode="tel" /></Field>
-          <Field label={text('入住時間', 'Check-in')}><input defaultValue={taipeiLocalInputValue(booking.checkInAt)} disabled={!gateway} name="checkInAt" onChange={(event) => rate.onCheckInChange(event.target.value)} required type="datetime-local" /></Field>
-          <Field label={text('方案', 'Plan')}><select defaultValue={booking.plan === '12hrs' ? '12hrs' : '24hrs'} disabled={!gateway} name="plan"><option value="12hrs">12hrs</option><option value="24hrs">24hrs</option></select></Field>
-          <Field label={text('天數', 'Days')}><input defaultValue={bookingDays(booking)} disabled={!gateway} max="366" min="1" name="days" required type="number" /></Field>
-          <Field label={text('折扣（NT$）', 'Discount (NT$)')}><input defaultValue={booking.discountNts} disabled={!gateway} min="0" name="discountNts" required type="number" /></Field>
-          <Field label={text('計價方式', 'Pricing')}><select disabled={!gateway} name="pricingMode" onChange={(event) => setPricingMode(event.target.value === 'manual' ? 'manual' : 'automatic')} value={pricingMode}><option value="automatic">{text('自動計價', 'Automatic')}</option><option value="manual">{text('手動覆寫', 'Manual override')}</option></select></Field>
-          {pricingMode === 'manual' ? <Field label={text('手動金額（NT$）', 'Manual amount (NT$)')}><input defaultValue={booking.amountNts} disabled={!gateway} min="0" name="manualAmountNts" required type="number" /></Field> : null}
+          <Field label={text('入住時間', 'Check-in')}><input disabled={!gateway} name="checkInAt" onChange={(event) => { setCheckInLocal(event.target.value); rate.onCheckInChange(event.target.value); }} required type="datetime-local" value={checkInLocal} /></Field>
+          <CheckoutPreviewField quote={quote} />
+          <Field label={text('方案', 'Plan')}><select disabled={!gateway} name="plan" onChange={(event) => setPlan(event.target.value === '12hrs' ? '12hrs' : '24hrs')} value={plan}><option value="12hrs">12hrs</option><option value="24hrs">24hrs</option></select></Field>
+          <Field label={text('天數', 'Days')}><input disabled={!gateway} max="366" min="1" name="days" onChange={(event) => setDays(Number(event.target.value) || 0)} required type="number" value={days || ''} /></Field>
+          <Field label={text('折扣（NT$）', 'Discount (NT$)')}><input disabled={!gateway} min="0" name="discountNts" onChange={(event) => setDiscountNts(Number(event.target.value) || 0)} required type="number" value={discountNts} /></Field>
+          <AmountField disabled={!gateway} manualAmountNts={manualAmountNts} onChange={setManualAmountNts} quote={quote} />
           <RateTypeField disabled={!gateway} rate={rate} />
         </div>
         <RateReference />

@@ -7,8 +7,9 @@ import { Button, Field, Notice, SectionCard } from '../design-system/index.js';
 import { useLocale } from '../i18n/locale.js';
 import type { BookingRoomGateway } from '../rooms/booking-room-options.js';
 import type { StayCheckInGateway } from './stay-checkin.js';
+import type { HolidayCalendarGateway } from './holiday-calendar.js';
+import { AmountField, CheckoutPreviewField, pricingFor, quoteForForm, toTaipeiIso, useHolidayCalendar } from '../bookings/auto-pricing.js';
 
-function toTaipeiIso(value: string): string { return `${value.length === 16 ? `${value}:00` : value}+08:00`; }
 function taipeiLocalInputValue(value: string): string {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(value));
   const part = Object.fromEntries(parts.map((item) => [item.type, item.value]));
@@ -17,11 +18,12 @@ function taipeiLocalInputValue(value: string): string {
 function bookingDays(booking: BookingListItem): number { return Math.max(1, Math.round((Date.parse(booking.checkOutAt) - Date.parse(booking.checkInAt)) / ((booking.plan === '12hrs' ? 12 : 24) * 3_600_000))); }
 function errorMessage(error: unknown, text: (zhTw: string, en: string) => string): string { return error instanceof Error && error.message ? error.message : text('入住未完成，請重新確認房間狀態與資料。', 'Check-in did not complete. Confirm the room status and data.'); }
 
-export function StayCheckInPage({ session, gateway, bookingGateway, roomGateway, onBack }: {
+export function StayCheckInPage({ session, gateway, bookingGateway, roomGateway, holidayGateway, onBack }: {
   session: StaffSession;
   gateway: StayCheckInGateway | undefined;
   bookingGateway: BookingListGateway | undefined;
   roomGateway: BookingRoomGateway | undefined;
+  holidayGateway?: HolidayCalendarGateway | undefined;
   onBack: () => void;
 }) {
   const { text } = useLocale();
@@ -36,14 +38,16 @@ export function StayCheckInPage({ session, gateway, bookingGateway, roomGateway,
   const [plan, setPlan] = useState<'12hrs' | '24hrs'>('24hrs');
   const [days, setDays] = useState(1);
   const [discountNts, setDiscountNts] = useState(0);
-  const [pricingMode, setPricingMode] = useState<'automatic' | 'manual'>('automatic');
-  const [manualAmountNts, setManualAmountNts] = useState(0);
+  // `null` while the amount follows the automatic quote; staff edits or a selected booking's amount make it manual.
+  const [manualAmountNts, setManualAmountNts] = useState<number | null>(null);
   const [depositAmountNts, setDepositAmountNts] = useState(0);
   const [depositPaymentType, setDepositPaymentType] = useState<'cash' | 'transfer' | 'card' | 'other'>('cash');
   const [operationId, setOperationId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [completed, setCompleted] = useState<StayCheckInResult | null>(null);
+  const calendar = useHolidayCalendar(holidayGateway, session.propertyId);
+  const quote = quoteForForm(checkInAt, plan, days, discountNts, calendar);
   const selectedBooking = useMemo(() => bookings?.find((item) => item.bookingId === bookingId) ?? null, [bookings, bookingId]);
 
   useEffect(() => bookingGateway?.subscribe(session.propertyId, (value) => { setBookings(value); setLoadError(false); }, () => { setBookings(null); setLoadError(true); }), [bookingGateway, session.propertyId]);
@@ -51,16 +55,17 @@ export function StayCheckInPage({ session, gateway, bookingGateway, roomGateway,
 
   const chooseBooking = (nextId: string) => {
     setBookingId(nextId); setCompleted(null); setError(''); setOperationId(null);
+    if (!nextId) setManualAmountNts(null);
     const booking = bookings?.find((item) => item.bookingId === nextId);
     if (!booking) return;
-    setRoomId(booking.roomId); setGuestName(booking.guestName); setPhone(booking.phone ?? ''); setCheckInAt(taipeiLocalInputValue(booking.checkInAt)); setPlan(booking.plan === '12hrs' ? '12hrs' : '24hrs'); setDays(bookingDays(booking)); setDiscountNts(booking.discountNts); setPricingMode('manual'); setManualAmountNts(booking.amountNts);
+    setRoomId(booking.roomId); setGuestName(booking.guestName); setPhone(booking.phone ?? ''); setCheckInAt(taipeiLocalInputValue(booking.checkInAt)); setPlan(booking.plan === '12hrs' ? '12hrs' : '24hrs'); setDays(bookingDays(booking)); setDiscountNts(booking.discountNts); setManualAmountNts(booking.amountNts);
   };
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); if (!gateway || !rooms || loadError) return;
     const nextOperationId = operationId ?? crypto.randomUUID(); if (!operationId) setOperationId(nextOperationId);
     setBusy(true); setError(''); setCompleted(null);
     try {
-      const result = await gateway.checkIn({ propertyId: session.propertyId, operationId: nextOperationId, roomId, bookingId: bookingId || null, guestName, phone: phone.trim() || null, checkInAt: toTaipeiIso(checkInAt), plan, days, discountNts, pricingMode, ...(pricingMode === 'manual' ? { manualAmountNts } : {}), ...(depositAmountNts > 0 ? { deposit: { amountNts: depositAmountNts, paymentType: depositPaymentType } } : {}) });
+      const result = await gateway.checkIn({ propertyId: session.propertyId, operationId: nextOperationId, roomId, bookingId: bookingId || null, guestName, phone: phone.trim() || null, checkInAt: toTaipeiIso(checkInAt), plan, days, discountNts, ...pricingFor(quote, manualAmountNts), ...(depositAmountNts > 0 ? { deposit: { amountNts: depositAmountNts, paymentType: depositPaymentType } } : {}) });
       setCompleted(result); setOperationId(null);
     } catch (submitError) { setError(errorMessage(submitError, text)); } finally { setBusy(false); }
   };
@@ -76,12 +81,12 @@ export function StayCheckInPage({ session, gateway, bookingGateway, roomGateway,
         <Field label={text('房間', 'Room')}><select disabled={unavailable || selectedBooking !== null} onChange={(event) => setRoomId(event.target.value)} required value={roomId}><option value="">{text('選擇可入住的房間', 'Select an available room')}</option>{(rooms ?? []).map((room) => <option disabled={room.status !== '可入住' && room.roomId !== selectedBooking?.roomId} key={room.roomId} value={room.roomId}>{room.roomId} · {room.status}</option>)}</select></Field>
         <Field label={text('住客姓名', 'Guest name')}><input disabled={unavailable || selectedBooking !== null} maxLength={300} onChange={(event) => setGuestName(event.target.value)} required value={guestName} /></Field>
         <Field label={text('電話', 'Phone')}><input disabled={unavailable || selectedBooking !== null} inputMode="tel" maxLength={100} onChange={(event) => setPhone(event.target.value)} value={phone} /></Field>
-        <Field label={text('入住時間', 'Check-in')}><input disabled={unavailable || selectedBooking !== null} onChange={(event) => setCheckInAt(event.target.value)} required type="datetime-local" value={checkInAt} /></Field>
-        <Field label={text('方案', 'Plan')}><select disabled={unavailable || selectedBooking !== null} onChange={(event) => setPlan(event.target.value === '12hrs' ? '12hrs' : '24hrs')} value={plan}><option value="12hrs">12hrs</option><option value="24hrs">24hrs</option></select></Field>
-        <Field label={text('天數', 'Days')}><input disabled={unavailable || selectedBooking !== null} max="366" min="1" onChange={(event) => setDays(Number(event.target.value) || 0)} required type="number" value={days} /></Field>
-        <Field label={text('折扣（NT$）', 'Discount (NT$)')}><input disabled={unavailable || selectedBooking !== null} min="0" onChange={(event) => setDiscountNts(Number(event.target.value) || 0)} required type="number" value={discountNts} /></Field>
-        <Field label={text('計價方式', 'Pricing')}><select disabled={unavailable || selectedBooking !== null} onChange={(event) => setPricingMode(event.target.value === 'manual' ? 'manual' : 'automatic')} value={pricingMode}><option value="automatic">{text('自動計價', 'Automatic')}</option><option value="manual">{text('手動覆寫', 'Manual override')}</option></select></Field>
-        {pricingMode === 'manual' ? <Field label={text('手動金額（NT$）', 'Manual amount (NT$)')}><input disabled={unavailable || selectedBooking !== null} min="0" onChange={(event) => setManualAmountNts(Number(event.target.value) || 0)} required type="number" value={manualAmountNts} /></Field> : null}
+        <Field label={text('入住時間', 'Check-in')}><input disabled={unavailable || selectedBooking !== null} onChange={(event) => { setCheckInAt(event.target.value); setManualAmountNts(null); }} required type="datetime-local" value={checkInAt} /></Field>
+        <CheckoutPreviewField quote={quote} />
+        <Field label={text('方案', 'Plan')}><select disabled={unavailable || selectedBooking !== null} onChange={(event) => { setPlan(event.target.value === '12hrs' ? '12hrs' : '24hrs'); setManualAmountNts(null); }} value={plan}><option value="12hrs">12hrs</option><option value="24hrs">24hrs</option></select></Field>
+        <Field label={text('天數', 'Days')}><input disabled={unavailable || selectedBooking !== null} max="366" min="1" onChange={(event) => { setDays(Number(event.target.value) || 0); setManualAmountNts(null); }} required type="number" value={days || ''} /></Field>
+        <Field label={text('折扣（NT$）', 'Discount (NT$)')}><input disabled={unavailable || selectedBooking !== null} min="0" onChange={(event) => { setDiscountNts(Number(event.target.value) || 0); setManualAmountNts(null); }} required type="number" value={discountNts} /></Field>
+        <AmountField disabled={unavailable} label={text('房租金額（NT$）', 'Room charge (NT$)')} manualAmountNts={manualAmountNts} onChange={setManualAmountNts} quote={quote} />
       </div>
       <fieldset className="booking-deposit"><legend>{text('押金收取（選填）', 'Deposit payment (optional)')}</legend><div className="booking-create-grid"><Field label={text('押金（NT$）', 'Deposit (NT$)')}><input disabled={unavailable} min="0" onChange={(event) => setDepositAmountNts(Number(event.target.value) || 0)} type="number" value={depositAmountNts} /></Field><Field label={text('付款方式', 'Payment method')}><select disabled={unavailable} onChange={(event) => setDepositPaymentType(event.target.value as typeof depositPaymentType)} value={depositPaymentType}><option value="cash">{text('現金', 'Cash')}</option><option value="transfer">{text('轉帳', 'Transfer')}</option><option value="card">{text('刷卡', 'Card')}</option><option value="other">{text('其他', 'Other')}</option></select></Field></div></fieldset>
       {error ? <Notice tone="danger" title={text('無法完成入住', 'Check-in could not be completed')}>{error}</Notice> : null}

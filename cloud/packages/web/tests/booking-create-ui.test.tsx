@@ -240,4 +240,45 @@ describe('new booking UI', () => {
     await waitFor(() => expect(create).toHaveBeenCalledTimes(2));
     expect(create.mock.calls[1]?.[0]).toMatchObject({ rateType: '非假日' });
   });
+
+  it('shows the automatic check-out and amount, sends automatic pricing unless staff edit the amount (v3)', async () => {
+    const create = vi.fn().mockResolvedValue({ status: 'created', bookingId: 'RSV-1', paymentId: null, checkInAt: '2026-09-17T05:00:00.000Z', checkOutAt: '2026-09-18T05:00:00.000Z', amountNts: 1_000, discountNts: 0, rateType: '非假日' });
+    render(<App bookingCreateGateway={{ create } satisfies BookingCreateGateway} bookingRoomGateway={roomGateway()} session={fullAccessSession} />);
+    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('button', { name: '＋ 新增預約' }));
+    fireEvent.change(await screen.findByLabelText('房間'), { target: { value: '203' } });
+    fireEvent.change(screen.getByLabelText('住客姓名'), { target: { value: 'Chris' } });
+    expect(screen.queryByLabelText('計價方式')).not.toBeInTheDocument();
+    // Thursday 13:00, 24hrs, one day: weekday NT$1,000, check-out Friday 13:00.
+    fireEvent.change(screen.getByLabelText('入住時間'), { target: { value: '2026-09-17T13:00' } });
+    expect(screen.getByLabelText('退房時間')).toHaveValue('2026-09-18 13:00');
+    expect(screen.getByLabelText('金額（NT$）')).toHaveValue(1_000);
+    fireEvent.change(screen.getByLabelText('天數'), { target: { value: '2' } });
+    expect(screen.getByLabelText('退房時間')).toHaveValue('2026-09-19 13:00');
+    fireEvent.change(screen.getByLabelText('天數'), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: '建立預約' }));
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    expect(create.mock.calls[0]?.[0]).toMatchObject({ pricingMode: 'automatic' });
+    expect(create.mock.calls[0]?.[0]).not.toHaveProperty('manualAmountNts');
+
+    fireEvent.change(await screen.findByLabelText('房間'), { target: { value: '203' } });
+    fireEvent.change(screen.getByLabelText('住客姓名'), { target: { value: 'Chris' } });
+    fireEvent.change(screen.getByLabelText('入住時間'), { target: { value: '2026-09-17T13:00' } });
+    fireEvent.change(screen.getByLabelText('金額（NT$）'), { target: { value: '900' } });
+    expect(screen.getByText('已手動調整（自動計算 NT$ 1,000）')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '建立預約' }));
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(2));
+    expect(create.mock.calls[1]?.[0]).toMatchObject({ pricingMode: 'manual', manualAmountNts: 900 });
+  });
+
+  it('returns an edited amount to automatic pricing when the stay details change', async () => {
+    render(<App bookingCreateGateway={{ create: vi.fn() } satisfies BookingCreateGateway} bookingRoomGateway={roomGateway()} session={fullAccessSession} />);
+    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('button', { name: '＋ 新增預約' }));
+    fireEvent.change(await screen.findByLabelText('入住時間'), { target: { value: '2026-09-17T13:00' } });
+    fireEvent.change(screen.getByLabelText('金額（NT$）'), { target: { value: '500' } });
+    fireEvent.change(screen.getByLabelText('方案'), { target: { value: '12hrs' } });
+    await waitFor(() => expect(screen.getByLabelText('金額（NT$）')).toHaveValue(800));
+    expect(screen.getByLabelText('退房時間')).toHaveValue('2026-09-18 01:00');
+  });
 });

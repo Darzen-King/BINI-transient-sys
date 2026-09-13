@@ -463,6 +463,25 @@ h1, h2, p { margin-top: 0; }
 .permission-grid label.selected { border-color: var(--bds-color-berry-300); background: var(--bds-color-berry-50); font-weight: 750; }
 .permission-grid input { flex: 0 0 auto; width: 18px; height: 18px; }
 .editor-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.holiday-heading { display: grid; gap: 12px; margin-bottom: 14px; }
+.holiday-heading p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.holiday-heading > div { display: flex; align-items: end; flex-wrap: wrap; gap: 9px; }
+.holiday-heading .bds-field { width: min(150px, 100%); }
+.holiday-legend { display: flex; flex-wrap: wrap; align-items: center; margin: 12px 0; gap: 8px; color: var(--muted); font-size: 12px; }
+.holiday-month-grid { display: grid; gap: 12px; }
+.holiday-month { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: var(--bds-color-surface); }
+.holiday-month h3 { margin: 0 0 8px; font-size: 15px; }
+.holiday-weekdays, .holiday-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.holiday-weekdays small { overflow: hidden; color: var(--muted); font-size: 10px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.holiday-calendar-blank { min-height: 38px; }
+.holiday-day { display: grid; min-width: 0; min-height: 42px; padding: 3px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--ink); cursor: pointer; font: inherit; text-align: left; align-content: start; }
+.holiday-day:hover:not(:disabled) { border-color: var(--bds-color-berry-300); background: var(--bds-color-berry-50); }
+.holiday-day.is-weekend > span { color: var(--brand-dark); }
+.holiday-day.is-holiday { border-color: var(--bds-color-berry-200); background: var(--bds-color-berry-50); }
+.holiday-day.is-manual { border-style: dashed; border-color: var(--bds-color-amber-300); background: var(--bds-color-feedback-warning-bg); }
+.holiday-day.is-today { outline: 2px solid var(--brand); outline-offset: 1px; }
+.holiday-day i { overflow: hidden; margin-top: 1px; color: var(--brand-dark); font-size: 9px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.holiday-dialog-form { display: grid; gap: 12px; }
 
 @media (min-width: 480px) {
   .room-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -478,6 +497,8 @@ h1, h2, p { margin-top: 0; }
   .permission-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .import-file-meta { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .import-counts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .holiday-heading { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+  .holiday-month-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (min-width: 1100px) {

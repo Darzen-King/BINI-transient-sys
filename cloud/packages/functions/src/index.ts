@@ -29,6 +29,7 @@ export { paymentManualCreate } from './payments/create-manual-payment.js';
 export { cashierClose } from './payments/close-cashier.js';
 export { costArchive, costCreate, costUpdate } from './costs/cost-operations.js';
 export { reportExportCsv } from './reports/export-report.js';
+export { holidayDelete, holidayManualUpsert, holidayResync } from './holidays/holiday-operations.js';
 export { paymentCreate } from './payments/create-payment.js';
 export { housekeepingUpdate } from './housekeeping/update-housekeeping.js';
 export { maintenanceScheduleCreate } from './maintenance/create-schedule.js';

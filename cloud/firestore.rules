@@ -211,6 +211,13 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Holiday dates are used by every server-side pricing transaction.
+      // Calendar maintenance is callable-only, even for managers and admins.
+      match /holidays/{docId} {
+        allow read: if hasProperty(propertyId);
+        allow write: if false;
+      }
+
       // Demonstration entity for the operation contract. Not a PMS domain object.
       match /demoNotes/{docId} {
         allow read: if hasProperty(propertyId);

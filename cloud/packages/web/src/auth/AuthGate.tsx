@@ -34,6 +34,7 @@ import { createStayCheckInGateway } from '../stays/stay-checkin.js';
 import { createStayExtendGateway } from '../stays/stay-extend.js';
 import { createActiveStaysGateway } from '../stays/active-stays.js';
 import { createHolidayCalendarGateway } from '../stays/holiday-calendar.js';
+import { createHolidayGateway } from '../holidays/holiday-gateway.js';
 import { createStayCheckoutGateway } from '../stays/stay-checkout.js';
 import { createPaymentCreateGateway } from '../payments/payment-create.js';
 import { createPaymentListGateway } from '../payments/payment-list.js';
@@ -107,6 +108,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
   const stayExtendGateway = useMemo(() => createStayExtendGateway(client.functions), [client.functions]);
   const activeStaysGateway = useMemo(() => createActiveStaysGateway(client.db), [client.db]);
   const holidayCalendarGateway = useMemo(() => createHolidayCalendarGateway(client.db), [client.db]);
+  const holidayGateway = useMemo(() => createHolidayGateway(client.db, client.functions), [client.db, client.functions]);
   const stayCheckoutGateway = useMemo(() => createStayCheckoutGateway(client.functions), [client.functions]);
   const paymentCreateGateway = useMemo(() => createPaymentCreateGateway(client.functions), [client.functions]);
   const paymentListGateway = useMemo(() => createPaymentListGateway(client.db), [client.db]);
@@ -252,6 +254,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
       stayExtendGateway={stayExtendGateway}
       activeStaysGateway={activeStaysGateway}
       holidayCalendarGateway={holidayCalendarGateway}
+      holidayGateway={holidayGateway}
       stayCheckoutGateway={stayCheckoutGateway}
       paymentCreateGateway={paymentCreateGateway}
       paymentListGateway={paymentListGateway}

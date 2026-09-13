@@ -55,4 +55,8 @@ describe('firestore.rules stays in sync with the shared contract', () => {
   it('keeps audit logs append-only while allowing the v3 manager/admin read scope', () => {
     expect(normalise(rules)).toContain('match /auditLogs/{docId} { allow read: if isManagerOrAdminOf(propertyId); allow write: if false; }');
   });
+
+  it('keeps pricing holidays readable but server-written only', () => {
+    expect(normalise(rules)).toContain("match /holidays/{docId} { allow read: if hasProperty(propertyId); allow write: if false; }");
+  });
 });

@@ -82,6 +82,7 @@ beforeEach(async () => {
     await setDoc(doc(db, `properties/${PROPERTY}/costEntries/cost-1`), { amountNts: 100 });
     await setDoc(doc(db, `properties/${PROPERTY}/maintenanceSchedules/m1`), { roomId: '202', status: 'scheduled' });
     await setDoc(doc(db, `properties/${PROPERTY}/monthlyRentals/mr1`), { roomId: '206', status: 'active' });
+    await setDoc(doc(db, `properties/${PROPERTY}/holidays/2026-10-10`), { date: '2026-10-10', year: 2026, holiday: true });
     await setDoc(doc(db, `properties/${PROPERTY}/auditLogs/a1`), { operationId: OP_ID });
     await setDoc(doc(db, 'migrationImports/batch-1'), { status: 'complete', propertyId: PROPERTY });
     await setDoc(doc(db, `operationResults/${OP_ID}`), {
@@ -172,6 +173,11 @@ describe('authorised reads', () => {
     await assertSucceeds(getDoc(doc(asManager(), `properties/${PROPERTY}/auditLogs/a1`)));
     await assertFails(getDoc(doc(asStaff(), `properties/${PROPERTY}/auditLogs/a1`)));
   });
+
+  it('an active member reads holidays used by server-side pricing', async () => {
+    await assertSucceeds(getDoc(doc(asStaff(), `properties/${PROPERTY}/holidays/2026-10-10`)));
+    await assertFails(getDoc(doc(asOtherStaff(), `properties/${PROPERTY}/holidays/2026-10-10`)));
+  });
 });
 
 describe('authoritative collections are server-only', () => {
@@ -211,6 +217,10 @@ describe('authoritative collections are server-only', () => {
 
   it('a member cannot write a monthly rental directly', async () => {
     await assertFails(setDoc(doc(asStaff(), `properties/${PROPERTY}/monthlyRentals/mr2`), { roomId: '205', status: 'active' }));
+  });
+
+  it('even a manager cannot write a holiday directly', async () => {
+    await assertFails(setDoc(doc(asManager(), `properties/${PROPERTY}/holidays/2026-10-10`), { holiday: false }));
   });
 
   it('nobody can write the audit log', async () => {

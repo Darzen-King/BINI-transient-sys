@@ -33,6 +33,8 @@ import { StayExtendPage } from './stays/StayExtendPage.js';
 import type { StayExtendGateway } from './stays/stay-extend.js';
 import type { ActiveStaysGateway } from './stays/active-stays.js';
 import type { HolidayCalendarGateway } from './stays/holiday-calendar.js';
+import { HolidayManagementPage } from './holidays/HolidayManagementPage.js';
+import type { HolidayGateway } from './holidays/holiday-gateway.js';
 import { StayCheckoutPage } from './stays/StayCheckoutPage.js';
 import type { StayCheckoutGateway } from './stays/stay-checkout.js';
 import { PaymentsPage } from './payments/PaymentsPage.js';
@@ -577,7 +579,7 @@ function FoundationPage({ pageId, isAdmin, allowedPages, onOpenInitialImport, on
   );
 }
 
-function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingCreateGateway, bookingRoomGateway, roomOverviewGateway, roomTimelineGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, costGateway, reportGateway, auditGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
+function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingCreateGateway, bookingRoomGateway, roomOverviewGateway, roomTimelineGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, costGateway, reportGateway, auditGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, holidayGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
   view: ViewId;
   onAction: (action: string) => void;
   session: StaffSession;
@@ -603,6 +605,7 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   roomManagementGateway: RoomManagementGateway | undefined;
   activeStaysGateway: ActiveStaysGateway | undefined;
   holidayCalendarGateway: HolidayCalendarGateway | undefined;
+  holidayGateway: HolidayGateway | undefined;
   onOpenBookingCreate: () => void;
   onOpenPage: (pageId: CloudPageId | UtilityViewId) => void;
   onLogout: () => void;
@@ -620,6 +623,7 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   if (view === 'costs') return <CostManagementPage gateway={costGateway} session={session} />;
   if (view === 'reports') return <ReportsPage gateway={reportGateway} session={session} />;
   if (view === 'audit') return <AuditTrailPage gateway={auditGateway} session={session} />;
+  if (view === 'holidays') return <HolidayManagementPage gateway={holidayGateway} session={session} />;
   if (view === 'accounts' || view === 'users') return <AccountManagement session={session} gateway={accountGateway} />;
   if (view === 'initial_import') return <InitialDataImport session={session} gateway={dataImportGateway} />;
   if (view === 'more') return <MoreView isAdmin={session.role === 'admin'} allowedPages={session.allowedPages} onOpenPage={onOpenPage} onLogout={onLogout} />;
@@ -669,6 +673,7 @@ export function App({
   roomManagementGateway,
   activeStaysGateway,
   holidayCalendarGateway,
+  holidayGateway,
   onLogout,
 }: {
   initialAuthenticated?: boolean;
@@ -696,6 +701,7 @@ export function App({
   roomManagementGateway?: RoomManagementGateway;
   activeStaysGateway?: ActiveStaysGateway;
   holidayCalendarGateway?: HolidayCalendarGateway;
+  holidayGateway?: HolidayGateway;
   onLogout?: () => void | Promise<void>;
 }) {
   const { locale, text } = useLocale();
@@ -778,6 +784,7 @@ export function App({
           roomManagementGateway={roomManagementGateway}
           activeStaysGateway={activeStaysGateway}
           holidayCalendarGateway={holidayCalendarGateway}
+          holidayGateway={holidayGateway}
           onOpenBookingCreate={() => setView('bookings_new')}
           onOpenPage={(pageId) => setView(pageId === 'users' ? 'accounts' : pageId)}
           onLogout={logout}

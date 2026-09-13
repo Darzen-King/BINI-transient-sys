@@ -81,4 +81,31 @@ describe('administrator-managed staff accounts', () => {
       email: 'renamed@example.com',
     })));
   });
+
+  it('lets an administrator reset another member two-step verification with a reason', async () => {
+    const resetMfa = vi.fn().mockResolvedValue(undefined);
+    const users = [
+      { uid: 'admin-1', email: 'admin@example.com', displayName: 'Administrator', role: 'admin' as const, active: true, allowedPages: [], lastLoginAt: null, mfaEnrolled: true },
+      { uid: 'front-1', email: 'front@example.com', displayName: 'Front Desk', role: 'front_desk' as const, active: true, allowedPages: [], lastLoginAt: null, mfaEnrolled: true },
+    ];
+    render(<AccountManagement gateway={{ ...gateway(), list: vi.fn().mockResolvedValue(users), resetMfa }} session={session} />);
+    // Only one usable administrator: warn that recovery needs a second one.
+    expect(await screen.findByText('建議設定第二位系統管理員')).toBeInTheDocument();
+    // No reset button on your own row; one on the other member's row (table + mobile list).
+    expect(screen.getAllByRole('button', { name: '重設兩步驟驗證' })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: '重設兩步驟驗證' }));
+    const confirm = screen.getByRole('button', { name: '確認重設' });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('原因'), { target: { value: '手機遺失' } });
+    fireEvent.click(confirm);
+    await waitFor(() => expect(resetMfa).toHaveBeenCalledWith({ propertyId: 'property-main', uid: 'front-1', reason: '手機遺失' }));
+    expect(await screen.findByText(/已重設 Front Desk 的兩步驟驗證/)).toBeInTheDocument();
+  });
+
+  it('does not warn when two administrators can sign in', async () => {
+    const users = ['admin-1', 'admin-2'].map((uid) => ({ uid, email: `${uid}@example.com`, displayName: uid, role: 'admin' as const, active: true, allowedPages: [], lastLoginAt: null, mfaEnrolled: true }));
+    render(<AccountManagement gateway={{ ...gateway(), list: vi.fn().mockResolvedValue(users) }} session={session} />);
+    expect((await screen.findAllByText('admin-2@example.com')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('建議設定第二位系統管理員')).not.toBeInTheDocument();
+  });
 });

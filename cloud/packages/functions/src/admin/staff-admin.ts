@@ -2,6 +2,7 @@ import {
   CLOUD_ROLES,
   staffCreateInputSchema,
   staffListInputSchema,
+  staffResetMfaInputSchema,
   staffSetPasswordInputSchema,
   staffUpdateInputSchema,
   type CloudPageId,
@@ -11,7 +12,7 @@ import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { allowedPagesForProperty, hasPagePermission, hasVerifiedMfaClaims, roleForProperty } from './staff-access.js';
+import { allowedPagesForProperty, hasPagePermission, hasVerifiedMfaClaims, mfaResetRefusal, roleForProperty } from './staff-access.js';
 
 const callableOptions = { region: 'asia-east1' } as const;
 
@@ -224,5 +225,25 @@ export const adminSetStaffPassword = onCall(callableOptions, async (request) => 
   await getAuth().updateUser(parsed.data.uid, { password: parsed.data.password });
   await getAuth().revokeRefreshTokens(parsed.data.uid);
   await writeAudit(parsed.data.propertyId, actorUid, 'staff.password_reset', parsed.data.uid, {});
+  return { ok: true };
+});
+
+/** Clears a staff member's authenticator and signs them out everywhere; their next password sign-in enrols a new one. */
+export const adminResetStaffMfa = onCall(callableOptions, async (request) => {
+  const parsed = staffResetMfaInputSchema.safeParse(request.data);
+  if (!parsed.success) return invalidInput();
+  const actorUid = await requirePropertyAdmin(request.auth, parsed.data.propertyId);
+  const target = await getFirestore().doc(`users/${parsed.data.uid}`).get();
+  const refusal = mfaResetRefusal(actorUid, parsed.data.uid, target.data(), parsed.data.propertyId);
+  if (refusal === 'self') throw new HttpsError('failed-precondition', '不可重設自己的兩步驟驗證。');
+  if (refusal === 'not-member') throw new HttpsError('not-found', '此館別找不到這位人員。');
+  const auth = getAuth();
+  const before = await auth.getUser(parsed.data.uid).catch(() => {
+    throw new HttpsError('not-found', '找不到人員帳號。');
+  });
+  const clearedFactors = before.multiFactor?.enrolledFactors.length ?? 0;
+  await auth.updateUser(parsed.data.uid, { multiFactor: { enrolledFactors: null } });
+  await auth.revokeRefreshTokens(parsed.data.uid);
+  await writeAudit(parsed.data.propertyId, actorUid, 'staff.mfa_reset', parsed.data.uid, { reason: parsed.data.reason, clearedFactors });
   return { ok: true };
 });

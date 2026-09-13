@@ -12,6 +12,7 @@ export {
   adminCreateStaff,
   adminListStaff,
   adminSetStaffPassword,
+  adminResetStaffMfa,
   adminUpdateStaff,
 } from './admin/staff-admin.js';
 export { adminStageV3Backup } from './migration/stage-v3-backup.js';

@@ -123,6 +123,9 @@ export function AccountManagement({ session, gateway }: {
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [mfaTarget, setMfaTarget] = useState<StaffDirectoryEntry | null>(null);
+  const [mfaReason, setMfaReason] = useState('');
 
   const load = useCallback(async () => {
     if (!gateway) return;
@@ -209,6 +212,27 @@ export function AccountManagement({ session, gateway }: {
     }
   };
 
+  const resetMfa = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!gateway?.resetMfa || !mfaTarget || !mfaReason.trim()) return;
+    setBusy(true);
+    setError('');
+    try {
+      await gateway.resetMfa({ propertyId: session.propertyId, uid: mfaTarget.uid, reason: mfaReason.trim() });
+      setNotice(text(`已重設 ${mfaTarget.displayName || mfaTarget.email} 的兩步驟驗證；對方需以密碼重新登入並設定新的驗證器。`, `Reset two-step verification for ${mfaTarget.displayName || mfaTarget.email}; they must sign in with their password and set up a new authenticator.`));
+      setMfaTarget(null);
+      setMfaReason('');
+      await load();
+    } catch (resetError) {
+      setError(messageFrom(resetError, text));
+    } finally {
+      setBusy(false);
+    }
+  };
+  // Recovery depends on another administrator: with a single usable admin, a lost phone locks everyone out of management.
+  const usableAdmins = users.filter((user) => user.role === 'admin' && user.active && user.mfaEnrolled).length;
+  const canResetMfa = (user: StaffDirectoryEntry) => Boolean(gateway?.resetMfa) && user.uid !== session.uid && user.mfaEnrolled;
+
   if (!gateway) return <div className="empty-card">{text('帳號管理服務尚未連線。', 'The account service is not connected.')}</div>;
 
   return (
@@ -218,6 +242,8 @@ export function AccountManagement({ session, gateway }: {
         <Button onClick={openCreate}>＋ {text('新增使用者', 'New user')}</Button>
       </div>
       <Notice tone="info" title={text('封閉式員工系統', 'Closed staff system')}>{text('所有人員均須使用已驗證的電子郵件、密碼與驗證器 MFA；系統不提供自行註冊。', 'Every staff member must use a verified email, password, and authenticator MFA. Self-registration is unavailable.')}</Notice>
+      {users.length > 0 && usableAdmins < 2 ? <Notice tone="warning" title={text('建議設定第二位系統管理員', 'Add a second administrator')}>{text('目前只有 1 位可正常登入的系統管理員。若其手機或驗證器遺失，將沒有人能重設兩步驟驗證或管理帳號；請再指定一位信任的人員為系統管理員並完成驗證器設定。', 'Only one administrator can currently sign in. If their phone or authenticator is lost, nobody can reset two-step verification or manage accounts; make another trusted person an administrator and have them set up their authenticator.')}</Notice> : null}
+      {notice ? <Notice tone="success" title={text('已完成', 'Done')}>{notice}</Notice> : null}
       {error ? <Notice tone="danger" title={text('操作失敗', 'Action failed')}>{error}</Notice> : null}
       {busy && users.length === 0 ? <div className="empty-card">{text('讀取中…', 'Loading…')}</div> : null}
       <div className="staff-table-wrap">
@@ -239,7 +265,7 @@ export function AccountManagement({ session, gateway }: {
               <td>{user.allowedPages.length > 0 ? <span className="page-access-count" title={user.allowedPages.map((page) => localized(PAGE_LABELS[page], locale)).join(', ')}>{text('自訂', 'Custom')} {user.allowedPages.length} {text('頁', 'pages')}</span> : <span className="muted-cell">{text('角色預設', 'Role default')}</span>}</td>
               <td className="muted-cell">{formatLastLogin(user.lastLoginAt, locale)}</td>
               <td><div className="table-status"><Badge tone={user.active ? 'success' : 'neutral'}>{user.active ? text('啟用', 'Active') : text('停用', 'Disabled')}</Badge><Badge tone={user.mfaEnrolled ? 'success' : 'warning'}>{user.mfaEnrolled ? 'MFA' : text('MFA 待設定', 'MFA pending')}</Badge></div></td>
-              <td><Button onClick={() => openEdit(user)} size="sm" variant="outline">✏️ {text('編輯', 'Edit')}</Button></td>
+              <td><div className="table-actions"><Button onClick={() => openEdit(user)} size="sm" variant="outline">✏️ {text('編輯', 'Edit')}</Button>{canResetMfa(user) ? <Button onClick={() => { setMfaTarget(user); setMfaReason(''); setNotice(''); }} size="sm" variant="ghost">{text('重設兩步驟驗證', 'Reset 2-step')}</Button> : null}</div></td>
             </tr>
           ))}</tbody>
         </table>
@@ -257,11 +283,20 @@ export function AccountManagement({ session, gateway }: {
                 <Badge tone={user.mfaEnrolled ? 'success' : 'warning'}>{user.mfaEnrolled ? text('MFA 已設定', 'MFA ready') : text('MFA 待設定', 'MFA pending')}</Badge>
               </div>
             </div>
-            <Button onClick={() => openEdit(user)} size="sm" variant="outline">{text('編輯', 'Edit')}</Button>
+            <div className="staff-actions"><Button onClick={() => openEdit(user)} size="sm" variant="outline">{text('編輯', 'Edit')}</Button>{canResetMfa(user) ? <Button onClick={() => { setMfaTarget(user); setMfaReason(''); setNotice(''); }} size="sm" variant="ghost">{text('重設驗證', 'Reset 2-step')}</Button> : null}</div>
           </article>
         ))}
       </div>
 
+      {mfaTarget ? (
+        <ResponsiveDialog onClose={() => { if (!busy) setMfaTarget(null); }} title={text('重設兩步驟驗證', 'Reset two-step verification')}>
+          <form className="account-editor" onSubmit={(event) => void resetMfa(event)}>
+            <Notice tone="warning" title={text(`將清除 ${mfaTarget.displayName || mfaTarget.email} 的驗證器並登出其所有裝置`, `This clears ${mfaTarget.displayName || mfaTarget.email}'s authenticator and signs them out everywhere`)}>{text('僅在對方遺失手機或驗證器時使用。對方下次以密碼登入時，系統會要求重新設定驗證器。此操作會寫入稽核軌跡。', 'Use only when they lost their phone or authenticator. Their next password sign-in will require setting up a new authenticator. This action is recorded in the audit trail.')}</Notice>
+            <Field label={text('原因', 'Reason')}><input autoFocus maxLength={500} onChange={(event) => setMfaReason(event.target.value)} placeholder={text('例如：手機遺失', 'e.g. lost phone')} required value={mfaReason} /></Field>
+            <div className="editor-actions"><Button onClick={() => setMfaTarget(null)} variant="outline">{text('取消', 'Cancel')}</Button><Button disabled={!mfaReason.trim()} loading={busy} type="submit" variant="danger">{text('確認重設', 'Confirm reset')}</Button></div>
+          </form>
+        </ResponsiveDialog>
+      ) : null}
       {editor ? (
         <ResponsiveDialog onClose={() => setEditor(null)} title={creating ? text('新增人員', 'Add staff') : text('編輯人員', 'Edit staff')}>
           <form className="account-editor" onSubmit={(event) => void save(event)}>

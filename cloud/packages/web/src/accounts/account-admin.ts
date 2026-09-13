@@ -2,6 +2,7 @@ import {
   staffDirectoryEntrySchema,
   type StaffCreateInput,
   type StaffDirectoryEntry,
+  type StaffResetMfaInput,
   type StaffSetPasswordInput,
   type StaffUpdateInput,
 } from '@bini/cloud-shared';
@@ -12,6 +13,7 @@ export interface AccountAdminGateway {
   create(input: StaffCreateInput): Promise<void>;
   update(input: StaffUpdateInput): Promise<void>;
   setPassword(input: StaffSetPasswordInput): Promise<void>;
+  resetMfa?(input: StaffResetMfaInput): Promise<void>;
 }
 
 export function createAccountAdminGateway(functions: Functions): AccountAdminGateway {
@@ -31,6 +33,10 @@ export function createAccountAdminGateway(functions: Functions): AccountAdminGat
     },
     async setPassword(input) {
       const call = httpsCallable<StaffSetPasswordInput, { ok: true }>(functions, 'adminSetStaffPassword');
+      await call(input);
+    },
+    async resetMfa(input) {
+      const call = httpsCallable<StaffResetMfaInput, { ok: true }>(functions, 'adminResetStaffMfa');
       await call(input);
     },
   };

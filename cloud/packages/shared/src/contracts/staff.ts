@@ -85,6 +85,13 @@ export const staffSetPasswordInputSchema = z.object({
   password: passwordSchema,
 }).strict();
 
+/** Admin recovery when a staff member loses their authenticator: clears every second factor so they enrol again. */
+export const staffResetMfaInputSchema = z.object({
+  propertyId: propertyIdSchema,
+  uid: uidSchema,
+  reason: z.string().trim().min(1).max(500),
+}).strict();
+
 export const staffDirectoryEntrySchema = z.object({
   uid: uidSchema,
   email: z.string().email(),
@@ -99,6 +106,7 @@ export const staffDirectoryEntrySchema = z.object({
 export type StaffCreateInput = z.infer<typeof staffCreateInputSchema>;
 export type StaffUpdateInput = z.infer<typeof staffUpdateInputSchema>;
 export type StaffSetPasswordInput = z.infer<typeof staffSetPasswordInputSchema>;
+export type StaffResetMfaInput = z.infer<typeof staffResetMfaInputSchema>;
 
 export interface StaffDirectoryEntry {
   uid: string;

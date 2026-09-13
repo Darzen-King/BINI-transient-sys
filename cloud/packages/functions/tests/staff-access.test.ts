@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { allowedPagesForProperty, hasPagePermission, hasVerifiedMfaClaims, roleForProperty } from '../src/admin/staff-access.js';
+import { allowedPagesForProperty, hasPagePermission, hasVerifiedMfaClaims, mfaResetRefusal, roleForProperty } from '../src/admin/staff-access.js';
+import { staffResetMfaInputSchema } from '@bini/cloud-shared';
 
 describe('staff callable authorization helpers', () => {
   it('requires both verified email and an actual second-factor sign-in claim', () => {
@@ -35,5 +36,20 @@ describe('staff callable authorization helpers', () => {
     expect(hasPagePermission(profile, 'property-main', 'bookings_new')).toBe(true);
     expect(hasPagePermission(profile, 'property-main', 'payments')).toBe(false);
     expect(hasPagePermission({ ...profile, active: false }, 'property-main', 'bookings_new')).toBe(false);
+  });
+});
+
+describe('MFA reset guard', () => {
+  it('refuses resetting yourself or someone outside the property, and allows a disabled member so they can be recovered', () => {
+    expect(mfaResetRefusal('admin-1', 'admin-1', { active: true, roles: { 'property-main': 'admin' } }, 'property-main')).toBe('self');
+    expect(mfaResetRefusal('admin-1', 'staff-2', { active: true, roles: { other: 'front_desk' } }, 'property-main')).toBe('not-member');
+    expect(mfaResetRefusal('admin-1', 'staff-2', undefined, 'property-main')).toBe('not-member');
+    expect(mfaResetRefusal('admin-1', 'staff-2', { active: false, roles: { 'property-main': 'front_desk' } }, 'property-main')).toBeNull();
+  });
+
+  it('requires a written reason', () => {
+    const base = { propertyId: 'property-main', uid: 'staff-2' };
+    expect(staffResetMfaInputSchema.safeParse({ ...base, reason: '  ' }).success).toBe(false);
+    expect(staffResetMfaInputSchema.safeParse({ ...base, reason: '手機遺失' }).success).toBe(true);
   });
 });

@@ -24,6 +24,17 @@ export function roleForProperty(profile: unknown, propertyId: string): CloudRole
     : null;
 }
 
+/**
+ * Guards an MFA reset: never on yourself (you are signed in, so there is nothing to recover and it would weaken your
+ * own account), and only for someone who belongs to the property the administrator manages.
+ */
+export function mfaResetRefusal(actorUid: string, targetUid: string, targetProfile: unknown, propertyId: string): 'self' | 'not-member' | null {
+  if (actorUid === targetUid) return 'self';
+  const roles = asRecord(asRecord(targetProfile)?.roles);
+  const role = roles?.[propertyId];
+  return typeof role === 'string' && CLOUD_ROLES.includes(role as CloudRole) ? null : 'not-member';
+}
+
 export function allowedPagesForProperty(profile: unknown, propertyId: string): CloudPageId[] {
   const data = asRecord(profile);
   if (!data || roleForProperty(data, propertyId) === null) return [];

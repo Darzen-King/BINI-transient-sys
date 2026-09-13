@@ -9,10 +9,12 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ActiveStayItem, PaymentListItem } from "@bini/cloud-shared";
+import type { ActiveStayItem, BookingRoomOption, PaymentListItem } from "@bini/cloud-shared";
 
 import { App } from "../src/App.js";
 import type { StaffSession } from "../src/auth/session.js";
+import type { BookingListGateway } from "../src/bookings/booking-list.js";
+import type { BookingRoomGateway } from "../src/rooms/booking-room-options.js";
 import type { PaymentCreateGateway } from "../src/payments/payment-create.js";
 import type { PaymentListGateway } from "../src/payments/payment-list.js";
 import type { ActiveStaysGateway } from "../src/stays/active-stays.js";
@@ -68,6 +70,23 @@ const listGateway: PaymentListGateway = {
   },
 };
 
+const roomGateway: BookingRoomGateway = {
+  subscribe(_propertyId, onValue) {
+    queueMicrotask(() => onValue([{ roomId: "202", status: "使用中" }, { roomId: "203", status: "可入住" }] as BookingRoomOption[]));
+    return () => undefined;
+  },
+};
+const bookingGateway: BookingListGateway = {
+  subscribe(_propertyId, onValue) {
+    queueMicrotask(() => onValue([{
+      bookingId: "RSV-205", roomId: "205", guestName: "Booked Guest", phone: null,
+      checkInAt: "2026-09-20T06:00:00.000Z", checkOutAt: "2026-09-21T04:00:00.000Z",
+      plan: "24hrs", amountNts: 1_200, discountNts: 0, rateType: null, status: "已預約",
+    }]));
+    return () => undefined;
+  },
+};
+
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("payments UI", () => {
@@ -89,8 +108,8 @@ describe("payments UI", () => {
       />,
     );
     fireEvent.click(screen.getByRole("link", { name: "付款管理" }));
-    fireEvent.change(await screen.findByLabelText("選擇在住房"), {
-      target: { value: "STY-live-202" },
+    fireEvent.change(await screen.findByLabelText("收款對象"), {
+      target: { value: "stay:STY-live-202" },
     });
     fireEvent.change(screen.getByLabelText("收款金額（NT$）"), {
       target: { value: "1000" },
@@ -131,8 +150,8 @@ describe("payments UI", () => {
       />,
     );
     fireEvent.click(screen.getByRole("link", { name: "付款管理" }));
-    fireEvent.change(await screen.findByLabelText("選擇在住房"), {
-      target: { value: "STY-live-202" },
+    fireEvent.change(await screen.findByLabelText("收款對象"), {
+      target: { value: "stay:STY-live-202" },
     });
     fireEvent.change(screen.getByLabelText("收款金額（NT$）"), {
       target: { value: "500" },
@@ -164,7 +183,7 @@ describe("payments UI", () => {
       />,
     );
     fireEvent.click(screen.getByRole("link", { name: "付款管理" }));
-    await screen.findByLabelText("選擇在住房");
+    await screen.findByLabelText("收款對象");
     expect(screen.queryByText(/訂金調整與刪除紀錄仍會以獨立交易切片接入/)).not.toBeInTheDocument();
   });
 
@@ -216,7 +235,7 @@ describe("payments UI", () => {
     expect(await screen.findByText("帳務完成")).toBeInTheDocument();
   });
 
-  it("creates a server-validated manual exception payment", async () => {
+  it("records an exception payment from the same form with a picked room, not a separate dialog", async () => {
     const manualCreate = vi.fn().mockResolvedValue({
       status: "created",
       paymentId: "PAY-MAN-123",
@@ -228,6 +247,7 @@ describe("payments UI", () => {
     render(
       <App
         activeStaysGateway={staysGateway}
+        bookingRoomGateway={roomGateway}
         paymentCreateGateway={
           { create: vi.fn(), manualCreate } satisfies PaymentCreateGateway
         }
@@ -236,22 +256,24 @@ describe("payments UI", () => {
       />,
     );
     fireEvent.click(screen.getByRole("link", { name: "付款管理" }));
-    fireEvent.click(
-      await screen.findByRole("button", { name: "手動例外收款" }),
-    );
+    expect(screen.queryByRole("button", { name: "手動例外收款" })).not.toBeInTheDocument();
+    fireEvent.change(await screen.findByLabelText("收款對象"), {
+      target: { value: "other" },
+    });
+    const roomSelect = screen.getByLabelText("房號（選填）");
+    await waitFor(() => expect(roomSelect).toContainHTML('value="203"'));
+    fireEvent.change(roomSelect, { target: { value: "203" } });
     fireEvent.change(screen.getByLabelText("旅客／對象"), {
       target: { value: "Manual Guest" },
     });
-    fireEvent.change(screen.getByLabelText("房號（選填）"), {
-      target: { value: "203" },
-    });
-    fireEvent.change(screen.getAllByLabelText("收款金額（NT$）")[1], {
+    fireEvent.change(screen.getByLabelText("收款金額（NT$）"), {
       target: { value: "250" },
     });
+    expect(screen.getByRole("button", { name: "確認收款" })).toBeDisabled();
     fireEvent.change(screen.getByLabelText("原因／備註"), {
       target: { value: "補登櫃檯現金收款" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "確認建立收款" }));
+    fireEvent.click(screen.getByRole("button", { name: "確認收款" }));
     await waitFor(() =>
       expect(manualCreate).toHaveBeenCalledWith({
         propertyId: "property-main",
@@ -265,6 +287,74 @@ describe("payments UI", () => {
         note: "補登櫃檯現金收款",
       }),
     );
+    expect(await screen.findByText(/已記錄 203 房 NT\$ 250 收款/)).toBeInTheDocument();
+  });
+
+  it("fills room and guest from a picked booking so a pre-arrival deposit needs no typing", async () => {
+    const manualCreate = vi.fn().mockResolvedValue({
+      status: "created",
+      paymentId: "PAY-MAN-456",
+      bookingId: "RSV-205",
+      roomId: "205",
+      amountNts: 1_000,
+      createdAt: "2026-09-12T09:00:00.000Z",
+    });
+    render(
+      <App
+        activeStaysGateway={staysGateway}
+        bookingListGateway={bookingGateway}
+        paymentCreateGateway={
+          { create: vi.fn(), manualCreate } satisfies PaymentCreateGateway
+        }
+        paymentListGateway={listGateway}
+        session={session}
+      />,
+    );
+    fireEvent.click(screen.getByRole("link", { name: "付款管理" }));
+    const target = await screen.findByLabelText("收款對象");
+    await waitFor(() => expect(target).toContainHTML('value="booking:RSV-205"'));
+    fireEvent.change(target, { target: { value: "booking:RSV-205" } });
+    expect(screen.queryByLabelText("旅客／對象")).not.toBeInTheDocument();
+    expect(screen.getByText("205 · Booked Guest")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("收款金額（NT$）"), {
+      target: { value: "1000" },
+    });
+    fireEvent.click(screen.getByLabelText("記為訂金"));
+    fireEvent.click(screen.getByRole("button", { name: "確認收取訂金" }));
+    await waitFor(() =>
+      expect(manualCreate).toHaveBeenCalledWith({
+        propertyId: "property-main",
+        operationId: expect.any(String),
+        bookingId: "RSV-205",
+        roomId: "205",
+        guestName: "Booked Guest",
+        amountNts: 1_000,
+        paymentType: "cash",
+        deposit: true,
+        note: "預約 RSV-205 收款",
+      }),
+    );
+  });
+
+  it("surfaces a payment-history load failure even when active stays load", async () => {
+    const failingList: PaymentListGateway = {
+      subscribe(_propertyId, _onValue, onError) {
+        queueMicrotask(() => onError(new Error("付款資料格式不正確。")));
+        return () => undefined;
+      },
+    };
+    render(
+      <App
+        activeStaysGateway={staysGateway}
+        paymentCreateGateway={{ create: vi.fn() } satisfies PaymentCreateGateway}
+        paymentListGateway={failingList}
+        session={session}
+      />,
+    );
+    fireEvent.click(screen.getByRole("link", { name: "付款管理" }));
+    expect(await screen.findByText("付款資料載入失敗")).toBeInTheDocument();
+    expect(screen.getByText(/付款紀錄：付款資料格式不正確。/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("收款對象")).toBeEnabled());
   });
 
   it("shows day close only to a manager and calls the guarded transaction", async () => {

@@ -635,7 +635,7 @@ function ActiveView({ view, onAction, paymentRoomId, onOpenPayment, onPaymentRoo
   if (view === 'maintenance') return <MaintenancePage gateway={maintenanceGateway} session={session} />;
   if (view === 'room_management') return <RoomManagementPage gateway={roomManagementGateway} session={session} />;
   if (view === 'gantt') return <RoomTimelinePage gateway={roomTimelineGateway} session={session} />;
-  if (view === 'payments') return <PaymentsPage createGateway={paymentCreateGateway} initialRoomId={paymentRoomId} listGateway={paymentListGateway} onInitialRoomHandled={onPaymentRoomHandled} session={session} staysGateway={activeStaysGateway} />;
+  if (view === 'payments') return <PaymentsPage bookingGateway={bookingListGateway} createGateway={paymentCreateGateway} roomGateway={bookingRoomGateway} initialRoomId={paymentRoomId} listGateway={paymentListGateway} onInitialRoomHandled={onPaymentRoomHandled} session={session} staysGateway={activeStaysGateway} />;
   if (view === 'costs') return <CostManagementPage gateway={costGateway} session={session} />;
   if (view === 'reports') return <ReportsPage gateway={reportGateway} session={session} />;
   if (view === 'audit') return <AuditTrailPage gateway={auditGateway} session={session} />;

@@ -122,7 +122,7 @@ describe('live room overview UI', () => {
     render(<App activeStaysGateway={staysGateway} paymentCreateGateway={paymentCreateGateway} paymentListGateway={paymentListGateway} roomOverviewGateway={gateway(projection)} session={session} />);
 
     fireEvent.click(await screen.findByRole('button', { name: /付款/ }));
-    const staySelector = await screen.findByLabelText('選擇在住房');
-    await waitFor(() => expect(staySelector).toHaveValue('STY-live-301'));
+    const staySelector = await screen.findByLabelText('收款對象');
+    await waitFor(() => expect(staySelector).toHaveValue('stay:STY-live-301'));
   });
 });

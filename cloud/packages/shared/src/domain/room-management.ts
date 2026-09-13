@@ -32,7 +32,7 @@ const monthlySchema = z.object({
   startDate: isoDate, endDate: isoDate, depositNts: z.number().int().safe().min(0), rentNts: z.number().int().safe().min(0),
   status: z.enum(['active', 'renewed', 'ended']), paymentType: z.enum(['cash', 'transfer', 'card', 'other']).nullable().optional(), note: z.string().nullable().optional(),
 }).passthrough();
-const activeStaySchema = z.object({ roomId: z.string().trim().min(1).max(128), guestName: z.string().trim().min(1).max(300), checkInAt: z.string().datetime(), checkOutAt: z.string().datetime() }).passthrough();
+const activeStaySchema = z.object({ roomId: z.string().trim().min(1).max(128), guestName: z.string().trim().min(1).max(300), checkInAt: z.string().datetime({ offset: true }), checkOutAt: z.string().datetime({ offset: true }) }).passthrough();
 
 export function buildRoomManagementItems(rooms: readonly { id: string; data: unknown }[], rentals: readonly { id: string; data: unknown }[], stays: readonly { id: string; data: unknown }[] = []): RoomManagementItem[] {
   const activeByRoom = new Map<string, RoomManagementItem['monthly']>();

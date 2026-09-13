@@ -26,4 +26,15 @@ describe('payment ledger CSV', () => {
     expect(summarizePayments(items, '2026-09-13')).toMatchObject({ receivedNts: 0, refundsNts: 0, netNts: 0, byType: { cash: 0 } });
     expect(renderPaymentCsv(items)).toContain('"voided"');
   });
+
+  it('accepts promoted v3 timestamps with a +08:00 offset and sorts and summarizes by the real instant', () => {
+    const items = buildPaymentListItems([
+      { id: 'v3-payments-1', data: { roomId: '203', guestName: 'Legacy', paymentType: 'cash', amountNts: 1_200, status: 'paid', createdAt: '2026-09-13T08:30:00+08:00' } },
+      { id: 'PAY-cloud', data: { roomId: '202', guestName: 'Cloud', paymentType: 'card', amountNts: 500, status: 'paid', createdAt: '2026-09-12T17:30:00.000Z' } },
+      { id: 'PAY-yesterday', data: { roomId: '201', guestName: 'Late', paymentType: 'cash', amountNts: 300, status: 'paid', createdAt: '2026-09-12T15:59:00.000Z' } },
+    ]);
+
+    expect(items.map((item) => item.paymentId)).toEqual(['PAY-yesterday', 'PAY-cloud', 'v3-payments-1'].reverse());
+    expect(summarizePayments(items, '2026-09-13')).toMatchObject({ receivedNts: 1_700, byType: { cash: 1_200, card: 500 } });
+  });
 });

@@ -1,5 +1,10 @@
 import { z } from 'zod';
 
+// Promoted v3 rows keep their Taipei offset (`+08:00`); cloud writes use UTC `Z`. Both are valid instants.
+const instantSchema = z.string().datetime({ offset: true });
+const instantMs = (value: string) => Date.parse(value);
+const taipeiDay = (value: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value));
+
 const paymentSchema = z.object({
   bookingId: z.string().trim().min(1).max(128).nullable().optional(),
   roomId: z.string().trim().min(1).max(128).nullable().optional(),
@@ -12,10 +17,10 @@ const paymentSchema = z.object({
   note: z.string().max(2_000).nullable().optional(),
   invoiceNo: z.string().max(200).nullable().optional(),
   externalTransactionId: z.string().max(300).nullable().optional(),
-  accountingExportedAt: z.string().datetime().nullable().optional(),
+  accountingExportedAt: instantSchema.nullable().optional(),
   createdByUid: z.string().max(256).nullable().optional(),
   createdByLegacyId: z.string().max(128).nullable().optional(),
-  createdAt: z.string().datetime(),
+  createdAt: instantSchema,
 }).passthrough();
 
 export interface PaymentListItem {
@@ -48,7 +53,7 @@ export function buildPaymentListItems(documents: readonly { id: string; data: un
   return documents.map((document) => {
     const payment = paymentSchema.parse(document.data);
     return { paymentId: document.id, bookingId: payment.bookingId ?? null, roomId: payment.roomId ?? null, guestName: payment.guestName ?? null, paymentType: payment.paymentType, amountNts: payment.amountNts, deposit: payment.deposit === true, refund: payment.refund === true, status: payment.status, note: payment.note ?? null, invoiceNo: payment.invoiceNo ?? null, externalTxnId: payment.externalTransactionId ?? null, accountingExportedAt: payment.accountingExportedAt ?? null, createdByUid: payment.createdByUid ?? payment.createdByLegacyId ?? null, createdAt: payment.createdAt };
-  }).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  }).sort((left, right) => instantMs(right.createdAt) - instantMs(left.createdAt));
 }
 
 export function summarizePayments(items: readonly PaymentListItem[], day: string): PaymentDailySummary {
@@ -57,7 +62,7 @@ export function summarizePayments(items: readonly PaymentListItem[], day: string
   for (const item of items) {
     if (item.status === 'voided') continue;
     if (item.status === 'pending' || item.status === 'partial') outstandingNts += item.amountNts;
-    if (!item.createdAt.startsWith(day)) continue;
+    if (taipeiDay(item.createdAt) !== day) continue;
     if (item.refund) refundsNts += item.amountNts;
     else { receivedNts += item.amountNts; byType[item.paymentType] += item.amountNts; }
   }

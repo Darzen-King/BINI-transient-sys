@@ -1,6 +1,8 @@
 import {
   summarizePayments,
   type ActiveStayItem,
+  type BookingListItem,
+  type BookingRoomOption,
   type PaymentListItem,
 } from "@bini/cloud-shared";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
@@ -14,7 +16,9 @@ import {
   ResponsiveDialog,
   SectionCard,
 } from "../design-system/index.js";
+import type { BookingListGateway } from "../bookings/booking-list.js";
 import { useLocale } from "../i18n/locale.js";
+import type { BookingRoomGateway } from "../rooms/booking-room-options.js";
 import type { ActiveStaysGateway } from "../stays/active-stays.js";
 import type { PaymentCreateGateway } from "./payment-create.js";
 import type { PaymentListGateway } from "./payment-list.js";
@@ -48,26 +52,43 @@ function download(filename: string, csv: string) {
   URL.revokeObjectURL(link.href);
 }
 
+/** One add-payment form, like v3: pick an active stay or an unarrived booking to fill room and guest, or record an audited exception. */
+type PaymentTarget =
+  | { kind: "stay"; stay: ActiveStayItem }
+  | { kind: "booking"; booking: BookingListItem }
+  | { kind: "other" };
+const OTHER_TARGET = "other";
+
 export function PaymentsPage({
   session,
+  bookingGateway,
   createGateway,
   initialRoomId,
   listGateway,
   onInitialRoomHandled,
+  roomGateway,
   staysGateway,
 }: {
   session: StaffSession;
+  bookingGateway?: BookingListGateway | undefined;
   createGateway: PaymentCreateGateway | undefined;
   initialRoomId?: string | null;
   listGateway: PaymentListGateway | undefined;
   onInitialRoomHandled?: () => void;
+  roomGateway?: BookingRoomGateway | undefined;
   staysGateway: ActiveStaysGateway | undefined;
 }) {
   const { locale, text } = useLocale();
   const [payments, setPayments] = useState<PaymentListItem[] | null>(null);
   const [stays, setStays] = useState<ActiveStayItem[] | null>(null);
-  const [loadError, setLoadError] = useState(false);
-  const [stayId, setStayId] = useState("");
+  const [bookings, setBookings] = useState<BookingListItem[] | null>(null);
+  const [rooms, setRooms] = useState<BookingRoomOption[] | null>(null);
+  // Each live source reports its own failure so one healthy listener can never hide another's error.
+  const [paymentsError, setPaymentsError] = useState("");
+  const [staysError, setStaysError] = useState("");
+  const [targetKey, setTargetKey] = useState("");
+  const [otherRoomId, setOtherRoomId] = useState("");
+  const [otherGuestName, setOtherGuestName] = useState("");
   const [amountNts, setAmountNts] = useState(0);
   const [paymentType, setPaymentType] = useState<
     "cash" | "transfer" | "card" | "other"
@@ -85,15 +106,6 @@ export function PaymentsPage({
   const [refundNote, setRefundNote] = useState("");
   const [voidPayment, setVoidPayment] = useState<PaymentListItem | null>(null);
   const [voidReason, setVoidReason] = useState("");
-  const [manualOpen, setManualOpen] = useState(false);
-  const [manualGuestName, setManualGuestName] = useState("");
-  const [manualRoomId, setManualRoomId] = useState("");
-  const [manualAmountNts, setManualAmountNts] = useState(0);
-  const [manualPaymentType, setManualPaymentType] = useState<
-    "cash" | "transfer" | "card" | "other"
-  >("cash");
-  const [manualDeposit, setManualDeposit] = useState(false);
-  const [manualNote, setManualNote] = useState("");
   const [cashierOpen, setCashierOpen] = useState(false);
   const [cashierNote, setCashierNote] = useState("");
   const [exportRange, setExportRange] = useState(() => {
@@ -107,11 +119,11 @@ export function PaymentsPage({
         session.propertyId,
         (value) => {
           setPayments(value);
-          setLoadError(false);
+          setPaymentsError("");
         },
-        () => {
+        (failure) => {
           setPayments(null);
-          setLoadError(true);
+          setPaymentsError(failure.message);
         },
       ),
     [listGateway, session.propertyId],
@@ -122,32 +134,75 @@ export function PaymentsPage({
         session.propertyId,
         (value) => {
           setStays(value);
-          setLoadError(false);
+          setStaysError("");
         },
-        () => {
+        (failure) => {
           setStays(null);
-          setLoadError(true);
+          setStaysError(failure.message);
         },
       ),
     [session.propertyId, staysGateway],
   );
+  const canManual = Boolean(createGateway?.manualCreate);
+  // Bookings and rooms only enrich the picker; stay payments keep working without them.
+  useEffect(
+    () =>
+      canManual
+        ? bookingGateway?.subscribe(session.propertyId, setBookings, () => setBookings(null))
+        : undefined,
+    [bookingGateway, canManual, session.propertyId],
+  );
+  useEffect(
+    () =>
+      canManual
+        ? roomGateway?.subscribe(session.propertyId, setRooms, () => setRooms(null))
+        : undefined,
+    [canManual, roomGateway, session.propertyId],
+  );
   useEffect(() => {
     if (!initialRoomId || stays === null) return;
     const matchingStay = stays.find((stay) => stay.roomId === initialRoomId);
-    if (matchingStay) setStayId(matchingStay.stayId);
+    if (matchingStay) setTargetKey(`stay:${matchingStay.stayId}`);
     onInitialRoomHandled?.();
   }, [initialRoomId, onInitialRoomHandled, stays]);
-  const selectedStay = useMemo(
-    () => stays?.find((item) => item.stayId === stayId) ?? null,
-    [stays, stayId],
-  );
-  const ready = Boolean(
-    createGateway &&
-    listGateway &&
-    staysGateway &&
-    payments &&
-    stays &&
-    !loadError,
+  const target = useMemo<PaymentTarget | null>(() => {
+    if (targetKey === OTHER_TARGET) return canManual ? { kind: "other" } : null;
+    const separator = targetKey.indexOf(":");
+    const kind = targetKey.slice(0, separator);
+    const id = targetKey.slice(separator + 1);
+    if (kind === "stay") {
+      const stay = stays?.find((item) => item.stayId === id);
+      return stay ? { kind: "stay", stay } : null;
+    }
+    if (kind === "booking" && canManual) {
+      const booking = bookings?.find((item) => item.bookingId === id);
+      return booking ? { kind: "booking", booking } : null;
+    }
+    return null;
+  }, [bookings, canManual, stays, targetKey]);
+  const ready = Boolean(createGateway && staysGateway && stays && !staysError);
+  const roomChoices = useMemo(() => {
+    const ids = rooms
+      ? rooms.map((room) => room.roomId)
+      : [...(stays ?? []).map((stay) => stay.roomId), ...(bookings ?? []).map((booking) => booking.roomId)];
+    return [...new Set(ids)].sort((left, right) => left.localeCompare(right, "zh-Hant", { numeric: true }));
+  }, [bookings, rooms, stays]);
+  // Names already known for the chosen room (or every room), so staff pick a guest instead of retyping it.
+  const guestChoices = useMemo(() => {
+    const matchesRoom = (roomId: string | null) => !otherRoomId || roomId === otherRoomId;
+    const names = [
+      ...(stays ?? []).filter((stay) => matchesRoom(stay.roomId)).map((stay) => stay.guestName),
+      ...(bookings ?? []).filter((booking) => matchesRoom(booking.roomId)).map((booking) => booking.guestName),
+      ...(payments ?? []).filter((payment) => matchesRoom(payment.roomId)).map((payment) => payment.guestName),
+    ];
+    return [...new Set(names.filter((name): name is string => Boolean(name?.trim())))].slice(0, 50);
+  }, [bookings, otherRoomId, payments, stays]);
+  const noteRequired = target?.kind === "other";
+  const canSubmit = Boolean(
+    ready &&
+      target &&
+      amountNts >= 1 &&
+      (target.kind !== "other" || (otherGuestName.trim() && note.trim())),
   );
   const day = taipeiDay();
   const summary = useMemo(
@@ -174,44 +229,69 @@ export function PaymentsPage({
   };
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!createGateway || !selectedStay || amountNts < 1) return;
+    if (!createGateway || !target || !canSubmit) return;
     const id = operationId ?? crypto.randomUUID();
     if (!operationId) setOperationId(id);
     setBusy(true);
     setError("");
     setSuccess("");
     try {
-      const result = await createGateway.create({
-        propertyId: session.propertyId,
-        operationId: id,
-        stayId: selectedStay.stayId,
-        amountNts,
-        paymentType,
-        note: note.trim() || null,
-        ...(deposit ? { deposit: true } : {}),
-      });
+      let roomId: string | null;
+      let recordedNts: number;
+      if (target.kind === "stay") {
+        const result = await createGateway.create({
+          propertyId: session.propertyId,
+          operationId: id,
+          stayId: target.stay.stayId,
+          amountNts,
+          paymentType,
+          note: note.trim() || null,
+          ...(deposit ? { deposit: true } : {}),
+        });
+        roomId = result.roomId;
+        recordedNts = result.amountNts;
+      } else {
+        if (!createGateway.manualCreate) return;
+        const booking = target.kind === "booking" ? target.booking : null;
+        const result = await createGateway.manualCreate({
+          propertyId: session.propertyId,
+          operationId: id,
+          bookingId: booking?.bookingId ?? null,
+          roomId: booking ? booking.roomId : otherRoomId || null,
+          guestName: booking ? booking.guestName : otherGuestName.trim(),
+          amountNts,
+          paymentType,
+          deposit,
+          note:
+            note.trim() ||
+            text(`預約 ${booking?.bookingId ?? ""} 收款`, `Payment for booking ${booking?.bookingId ?? ""}`),
+        });
+        roomId = result.roomId;
+        recordedNts = result.amountNts;
+      }
+      const amount = recordedNts.toLocaleString();
+      setSuccess(
+        roomId
+          ? deposit
+            ? text(`已記錄 ${roomId} 房 NT$ ${amount} 訂金。`, `Recorded an NT$ ${amount} deposit for room ${roomId}.`)
+            : text(`已記錄 ${roomId} 房 NT$ ${amount} 收款。`, `Recorded NT$ ${amount} for room ${roomId}.`)
+          : deposit
+            ? text(`已記錄 NT$ ${amount} 訂金。`, `Recorded an NT$ ${amount} deposit.`)
+            : text(`已記錄 NT$ ${amount} 收款。`, `Recorded NT$ ${amount}.`),
+      );
       setOperationId(null);
       setAmountNts(0);
       setNote("");
       setDeposit(false);
-      setSuccess(
-        deposit
-          ? text(
-              `已記錄 ${result.roomId} 房 NT$ ${result.amountNts.toLocaleString()} 訂金。`,
-              `Recorded an NT$ ${result.amountNts.toLocaleString()} deposit for room ${result.roomId}.`,
-            )
-          : text(
-              `已記錄 ${result.roomId} 房 NT$ ${result.amountNts.toLocaleString()} 收款。`,
-              `Recorded NT$ ${result.amountNts.toLocaleString()} for room ${result.roomId}.`,
-            ),
-      );
+      setOtherRoomId("");
+      setOtherGuestName("");
     } catch (failure) {
       setError(
         errorMessage(
           failure,
           text(
-            "收款未完成，請重新確認在住房與金額。",
-            "Payment did not complete. Confirm the active stay and amount.",
+            "收款未完成，請重新確認收款對象與金額。",
+            "Payment did not complete. Confirm the payment target and amount.",
           ),
         ),
       );
@@ -256,57 +336,6 @@ export function PaymentsPage({
           text(
             "退款未完成，請確認退款金額後重試。",
             "Refund was not completed. Confirm the amount and try again.",
-          ),
-        ),
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-  const manualCreate = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (
-      !createGateway?.manualCreate ||
-      manualAmountNts < 1 ||
-      !manualGuestName.trim() ||
-      !manualNote.trim()
-    )
-      return;
-    setBusy(true);
-    setError("");
-    setSuccess("");
-    try {
-      const result = await createGateway.manualCreate({
-        propertyId: session.propertyId,
-        operationId: crypto.randomUUID(),
-        bookingId: null,
-        roomId: manualRoomId.trim() || null,
-        guestName: manualGuestName.trim(),
-        amountNts: manualAmountNts,
-        paymentType: manualPaymentType,
-        deposit: manualDeposit,
-        note: manualNote.trim(),
-      });
-      setManualOpen(false);
-      setManualGuestName("");
-      setManualRoomId("");
-      setManualAmountNts(0);
-      setManualPaymentType("cash");
-      setManualDeposit(false);
-      setManualNote("");
-      setSuccess(
-        text(
-          `已建立 NT$ ${result.amountNts.toLocaleString()} 手動收款。`,
-          `Created an NT$ ${result.amountNts.toLocaleString()} manual payment.`,
-        ),
-      );
-    } catch (failure) {
-      setError(
-        errorMessage(
-          failure,
-          text(
-            "手動收款未完成，請確認房間與資料後重試。",
-            "Manual payment was not completed. Confirm the room and details.",
           ),
         ),
       );
@@ -381,14 +410,24 @@ export function PaymentsPage({
           "The server verifies the active stay and permission before recording a payment; all signed-in devices update immediately.",
         )}
       </p>
-      {!ready ? (
+      {staysError || paymentsError ? (
         <Notice
-          tone={loadError ? "danger" : "warning"}
-          title={text("付款資料尚未就緒", "Payment data is not ready")}
+          tone="danger"
+          title={text("付款資料載入失敗", "Payment data failed to load")}
+        >
+          {[
+            staysError ? text(`在住房：${staysError}`, `Active stays: ${staysError}`) : "",
+            paymentsError ? text(`付款紀錄：${paymentsError}`, `Payment history: ${paymentsError}`) : "",
+          ].filter(Boolean).join(text("；", "; "))}
+        </Notice>
+      ) : !ready || payments === null ? (
+        <Notice
+          tone="warning"
+          title={text("付款資料載入中", "Loading payment data")}
         >
           {text(
-            "在住房或付款紀錄尚未載入完成前，無法送出收款。",
-            "Payment submission is disabled until stays and records load.",
+            "在住房與付款紀錄載入完成後即可收款。",
+            "Payments can be recorded once stays and history finish loading.",
           )}
         </Notice>
       ) : null}
@@ -428,21 +467,6 @@ export function PaymentsPage({
           </span>
         ))}
       </div>
-      {createGateway?.manualCreate ? (
-        <div className="booking-create-actions">
-          <Button
-            onClick={() => {
-              setManualOpen(true);
-              setError("");
-              setSuccess("");
-            }}
-            type="button"
-            variant="outline"
-          >
-            {text("手動例外收款", "Manual exception payment")}
-          </Button>
-        </div>
-      ) : null}
       {canCloseCashier ? (
         <div className="booking-create-actions">
           <Button
@@ -465,30 +489,51 @@ export function PaymentsPage({
         <fieldset className="booking-deposit">
           <legend>{text("新增收款", "New payment")}</legend>
           <div className="booking-create-grid">
-            <Field label={text("選擇在住房", "Select active stay")}>
+            <Field label={text("收款對象", "Payment target")}>
               <select
                 disabled={!ready}
                 onChange={(event) => {
-                  setStayId(event.target.value);
+                  setTargetKey(event.target.value);
+                  setOperationId(null);
+                  setOtherRoomId("");
+                  setOtherGuestName("");
                   setError("");
                   setSuccess("");
                 }}
                 required
-                value={stayId}
+                value={targetKey}
               >
                 <option value="">
                   {text("選擇房間與旅客", "Select room and guest")}
                 </option>
-                {(stays ?? []).map((stay) => (
-                  <option key={stay.stayId} value={stay.stayId}>
-                    {stay.roomId} · {stay.guestName}
+                {(stays ?? []).length > 0 ? (
+                  <optgroup label={text("在住房", "Active stays")}>
+                    {(stays ?? []).map((stay) => (
+                      <option key={stay.stayId} value={`stay:${stay.stayId}`}>
+                        {stay.roomId} · {stay.guestName}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                {canManual && (bookings ?? []).length > 0 ? (
+                  <optgroup label={text("已預約（未入住）", "Booked (not checked in)")}>
+                    {(bookings ?? []).map((booking) => (
+                      <option key={booking.bookingId} value={`booking:${booking.bookingId}`}>
+                        {booking.roomId} · {booking.guestName} · {displayDate(booking.checkInAt, locale)}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                {canManual ? (
+                  <option value={OTHER_TARGET}>
+                    {text("其他例外收款（無在住或預約）", "Other exception (no stay or booking)")}
                   </option>
-                ))}
+                ) : null}
               </select>
             </Field>
             <Field label={text("收款金額（NT$）", "Amount (NT$)")}>
               <input
-                disabled={!ready || !selectedStay}
+                disabled={!ready || !target}
                 min="1"
                 onChange={(event) =>
                   setAmountNts(Number(event.target.value) || 0)
@@ -498,9 +543,41 @@ export function PaymentsPage({
                 value={amountNts || ""}
               />
             </Field>
+            {target?.kind === "other" ? (
+              <>
+                <Field label={text("房號（選填）", "Room (optional)")}>
+                  <select
+                    onChange={(event) => setOtherRoomId(event.target.value)}
+                    value={otherRoomId}
+                  >
+                    <option value="">{text("不指定房間", "No room")}</option>
+                    {roomChoices.map((roomId) => (
+                      <option key={roomId} value={roomId}>
+                        {roomId}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label={text("旅客／對象", "Guest / recipient")}>
+                  <input
+                    list="payment-guest-choices"
+                    maxLength={300}
+                    onChange={(event) => setOtherGuestName(event.target.value)}
+                    placeholder={text("可從清單選取", "Pick from the list or type")}
+                    required
+                    value={otherGuestName}
+                  />
+                </Field>
+                <datalist id="payment-guest-choices">
+                  {guestChoices.map((name) => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
+              </>
+            ) : null}
             <Field label={text("付款方式", "Payment method")}>
               <select
-                disabled={!ready || !selectedStay}
+                disabled={!ready || !target}
                 onChange={(event) =>
                   setPaymentType(event.target.value as typeof paymentType)
                 }
@@ -512,11 +589,18 @@ export function PaymentsPage({
                 <option value="other">{text("其他", "Other")}</option>
               </select>
             </Field>
-            <Field label={text("備註（選填）", "Note (optional)")}>
+            <Field
+              label={
+                noteRequired
+                  ? text("原因／備註", "Reason / note")
+                  : text("備註（選填）", "Note (optional)")
+              }
+            >
               <input
-                disabled={!ready || !selectedStay}
+                disabled={!ready || !target}
                 maxLength={2000}
                 onChange={(event) => setNote(event.target.value)}
+                required={noteRequired}
                 value={note}
               />
             </Field>
@@ -524,7 +608,7 @@ export function PaymentsPage({
               <label>
                 <input
                   checked={deposit}
-                  disabled={!ready || !selectedStay}
+                  disabled={!ready || !target}
                   onChange={(event) => setDeposit(event.target.checked)}
                   type="checkbox"
                 />{" "}
@@ -532,24 +616,54 @@ export function PaymentsPage({
               </label>
             </Field>
           </div>
-          {selectedStay ? (
+          {target?.kind === "stay" ? (
             <div className="stay-extension-preview">
               <strong>{text("本次收款對象", "Payment target")}</strong>
               <div>
                 <span>{text("房間／旅客", "Room / guest")}</span>
                 <b>
-                  {selectedStay.roomId} · {selectedStay.guestName}
+                  {target.stay.roomId} · {target.stay.guestName}
                 </b>
               </div>
               <div>
                 <span>{text("目前應收", "Current due")}</span>
-                <b>NT$ {selectedStay.totalDueNts.toLocaleString()}</b>
+                <b>NT$ {target.stay.totalDueNts.toLocaleString()}</b>
               </div>
             </div>
           ) : null}
+          {target?.kind === "booking" ? (
+            <div className="stay-extension-preview">
+              <strong>{text("本次收款對象", "Payment target")}</strong>
+              <div>
+                <span>{text("房間／旅客", "Room / guest")}</span>
+                <b>
+                  {target.booking.roomId} · {target.booking.guestName}
+                </b>
+              </div>
+              <div>
+                <span>{text("預約入住", "Booked check-in")}</span>
+                <b>{displayDate(target.booking.checkInAt, locale)}</b>
+              </div>
+              <div>
+                <span>{text("預約金額", "Booking amount")}</span>
+                <b>NT$ {target.booking.amountNts.toLocaleString()}</b>
+              </div>
+            </div>
+          ) : null}
+          {target?.kind === "other" ? (
+            <Notice
+              tone="warning"
+              title={text("僅在沒有在住房或預約可選時使用。", "Use only when no stay or booking applies.")}
+            >
+              {text(
+                "會新增一筆可稽核的付款紀錄，不修改既有帳務；原因必填，房號由伺服器確認存在。",
+                "Creates an auditable payment without editing existing records. A reason is required and the server verifies the room.",
+              )}
+            </Notice>
+          ) : null}
           <div className="booking-create-actions">
             <Button
-              disabled={!ready || !selectedStay || amountNts < 1}
+              disabled={!canSubmit}
               loading={busy}
               size="lg"
               type="submit"
@@ -733,106 +847,6 @@ export function PaymentsPage({
             </Notice>
             <Field label={text("作廢原因", "Void reason")}><input autoFocus maxLength={2000} onChange={(event) => setVoidReason(event.target.value)} required value={voidReason} /></Field>
             <div className="booking-create-actions"><Button disabled={!voidReason.trim()} loading={busy} type="submit" variant="danger">{text("確認作廢付款", "Confirm void")}</Button></div>
-          </form>
-        </ResponsiveDialog>
-      ) : null}
-      {manualOpen ? (
-        <ResponsiveDialog
-          onClose={() => {
-            if (!busy) setManualOpen(false);
-          }}
-          title={text("手動例外收款", "Manual exception payment")}
-        >
-          <form
-            className="booking-create-form"
-            onSubmit={(event) => void manualCreate(event)}
-          >
-            <Notice
-              tone="warning"
-              title={text(
-                "僅供無法使用在住房收款的例外。",
-                "Use only when an active-stay payment cannot be used.",
-              )}
-            >
-              {text(
-                "不會直接修改既有帳務；會新增可稽核的付款紀錄。房號可留空，填寫時由伺服器確認存在。",
-                "This never edits existing accounting. It creates an auditable payment record. Room is optional; when supplied, the server verifies it exists.",
-              )}
-            </Notice>
-            <div className="booking-create-grid">
-              <Field label={text("旅客／對象", "Guest / recipient")}>
-                <input
-                  maxLength={300}
-                  onChange={(event) => setManualGuestName(event.target.value)}
-                  required
-                  value={manualGuestName}
-                />
-              </Field>
-              <Field label={text("房號（選填）", "Room (optional)")}>
-                <input
-                  maxLength={128}
-                  onChange={(event) => setManualRoomId(event.target.value)}
-                  value={manualRoomId}
-                />
-              </Field>
-              <Field label={text("收款金額（NT$）", "Amount (NT$)")}>
-                <input
-                  min="1"
-                  onChange={(event) =>
-                    setManualAmountNts(Number(event.target.value) || 0)
-                  }
-                  required
-                  type="number"
-                  value={manualAmountNts || ""}
-                />
-              </Field>
-              <Field label={text("付款方式", "Payment method")}>
-                <select
-                  onChange={(event) =>
-                    setManualPaymentType(
-                      event.target.value as typeof manualPaymentType,
-                    )
-                  }
-                  value={manualPaymentType}
-                >
-                  <option value="cash">{text("現金", "Cash")}</option>
-                  <option value="transfer">{text("轉帳", "Transfer")}</option>
-                  <option value="card">{text("刷卡", "Card")}</option>
-                  <option value="other">{text("其他", "Other")}</option>
-                </select>
-              </Field>
-              <Field label={text("帳務類型", "Record type")}>
-                <label>
-                  <input
-                    checked={manualDeposit}
-                    onChange={(event) => setManualDeposit(event.target.checked)}
-                    type="checkbox"
-                  />{" "}
-                  {text("記為訂金", "Record as deposit")}
-                </label>
-              </Field>
-              <Field label={text("原因／備註", "Reason / note")}>
-                <input
-                  maxLength={2000}
-                  onChange={(event) => setManualNote(event.target.value)}
-                  required
-                  value={manualNote}
-                />
-              </Field>
-            </div>
-            <div className="booking-create-actions">
-              <Button
-                disabled={
-                  manualAmountNts < 1 ||
-                  !manualGuestName.trim() ||
-                  !manualNote.trim()
-                }
-                loading={busy}
-                type="submit"
-              >
-                {text("確認建立收款", "Create payment")}
-              </Button>
-            </div>
           </form>
         </ResponsiveDialog>
       ) : null}

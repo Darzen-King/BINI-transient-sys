@@ -20,8 +20,8 @@ const costEntrySchema = z
     receiptNo: z.string().trim().max(200).nullable().optional(),
     status: z.enum(["active", "archived"]).optional(),
     version: z.number().int().min(0).optional(),
-    createdAt: z.string().datetime().nullable().optional(),
-    updatedAt: z.string().datetime().nullable().optional(),
+    createdAt: z.string().datetime({ offset: true }).nullable().optional(),
+    updatedAt: z.string().datetime({ offset: true }).nullable().optional(),
   })
   .passthrough();
 

@@ -265,16 +265,17 @@ function RoomDetails({ room }: { room: RoomViewModel }) {
   );
 }
 
-function RoomActions({ room, onAction, onOpenCheckIn, onOpenExtend, onOpenCheckout }: { room: RoomViewModel; onAction: (action: string) => void; onOpenCheckIn?: (() => void) | undefined; onOpenExtend?: (() => void) | undefined; onOpenCheckout?: (() => void) | undefined }) {
+function RoomActions({ room, onAction, onOpenCheckIn, onOpenExtend, onOpenPayment, onOpenCheckout }: { room: RoomViewModel; onAction: (action: string) => void; onOpenCheckIn?: (() => void) | undefined; onOpenExtend?: (() => void) | undefined; onOpenPayment?: ((roomId: string) => void) | undefined; onOpenCheckout?: (() => void) | undefined }) {
   const { locale } = useLocale();
-  if (room.actions.length === 0) return null;
+  const actions = room.actions.filter((action) => action !== 'payment' || onOpenPayment);
+  if (actions.length === 0) return null;
   return (
     <div className="room-card-actions">
-      {room.actions.map((action) => (
+      {actions.map((action) => (
         <Button
           className={`room-action room-action--${action}`}
           key={action}
-          onClick={() => action === 'checkin' && onOpenCheckIn ? onOpenCheckIn() : action === 'extend' && onOpenExtend ? onOpenExtend() : action === 'checkout' && onOpenCheckout ? onOpenCheckout() : onAction(`${room.number} · ${actionLabels[action][locale === 'zh-TW' ? 0 : 1]}`)}
+          onClick={() => action === 'checkin' && onOpenCheckIn ? onOpenCheckIn() : action === 'extend' && onOpenExtend ? onOpenExtend() : action === 'payment' && onOpenPayment ? onOpenPayment(room.number) : action === 'checkout' && onOpenCheckout ? onOpenCheckout() : onAction(`${room.number} · ${actionLabels[action][locale === 'zh-TW' ? 0 : 1]}`)}
           size="sm"
           variant={action === 'checkin' ? 'primary' : 'outline'}
         >{action === 'payment' ? '💵 ' : ''}{actionLabels[action][locale === 'zh-TW' ? 0 : 1]}</Button>
@@ -287,16 +288,18 @@ function ShellSection({ title, hint, children }: { title: string; hint?: string;
   return <SectionCard hint={hint} title={title}>{children}</SectionCard>;
 }
 
-function TodayView({ canCreate, canCheckIn, canExtend, canCheckout, canImport, onAction, onOpenBookingCreate, onOpenCheckIn, onOpenExtend, onOpenCheckout, onOpenInitialImport, propertyId, roomOverviewGateway }: {
+function TodayView({ canCreate, canCheckIn, canExtend, canPayment, canCheckout, canImport, onAction, onOpenBookingCreate, onOpenCheckIn, onOpenExtend, onOpenPayment, onOpenCheckout, onOpenInitialImport, propertyId, roomOverviewGateway }: {
   canCreate: boolean;
   canCheckIn: boolean;
   canExtend: boolean;
+  canPayment: boolean;
   canCheckout: boolean;
   canImport: boolean;
   onAction: (action: string) => void;
   onOpenBookingCreate: () => void;
   onOpenCheckIn: () => void;
   onOpenExtend: () => void;
+  onOpenPayment: (roomId: string) => void;
   onOpenCheckout: () => void;
   onOpenInitialImport: () => void;
   propertyId: string;
@@ -375,7 +378,7 @@ function TodayView({ canCreate, canCheckIn, canExtend, canCheckout, canImport, o
                 <span className="mobile-detail-affordance" aria-hidden="true">{text('查看詳細資料', 'View details')} ›</span>
               </button>
               <RoomDetails room={room} />
-              <RoomActions room={room} onAction={onAction} onOpenCheckIn={canCheckIn ? onOpenCheckIn : undefined} onOpenExtend={canExtend ? onOpenExtend : undefined} onOpenCheckout={canCheckout ? onOpenCheckout : undefined} />
+              <RoomActions room={room} onAction={onAction} onOpenCheckIn={canCheckIn ? onOpenCheckIn : undefined} onOpenExtend={canExtend ? onOpenExtend : undefined} onOpenPayment={canPayment ? onOpenPayment : undefined} onOpenCheckout={canCheckout ? onOpenCheckout : undefined} />
             </article>
           ))}
         </div>
@@ -405,7 +408,7 @@ function TodayView({ canCreate, canCheckIn, canExtend, canCheckout, canImport, o
         >
             <Badge className="status-pill">{stateLabel(selectedRoom.state)}</Badge>
             <RoomDetails room={selectedRoom} />
-            <RoomActions room={selectedRoom} onAction={(action) => { setSelectedRoomNumber(null); onAction(action); }} onOpenCheckIn={canCheckIn ? () => { setSelectedRoomNumber(null); onOpenCheckIn(); } : undefined} onOpenExtend={canExtend ? () => { setSelectedRoomNumber(null); onOpenExtend(); } : undefined} onOpenCheckout={canCheckout ? () => { setSelectedRoomNumber(null); onOpenCheckout(); } : undefined} />
+            <RoomActions room={selectedRoom} onAction={(action) => { setSelectedRoomNumber(null); onAction(action); }} onOpenCheckIn={canCheckIn ? () => { setSelectedRoomNumber(null); onOpenCheckIn(); } : undefined} onOpenExtend={canExtend ? () => { setSelectedRoomNumber(null); onOpenExtend(); } : undefined} onOpenPayment={canPayment ? (roomId) => { setSelectedRoomNumber(null); onOpenPayment(roomId); } : undefined} onOpenCheckout={canCheckout ? () => { setSelectedRoomNumber(null); onOpenCheckout(); } : undefined} />
         </ResponsiveDialog>
       ) : null}
     </>
@@ -585,9 +588,12 @@ function FoundationPage({ pageId, isAdmin, allowedPages, onOpenInitialImport, on
   );
 }
 
-function ActiveView({ view, onAction, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, bookingCreateGateway, bookingMultiCreateGateway, bookingPreviewGateway, bookingRoomGateway, roomOverviewGateway, roomTimelineGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, costGateway, reportGateway, auditGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, holidayGateway, propertyGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
+function ActiveView({ view, onAction, paymentRoomId, onOpenPayment, onPaymentRoomHandled, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, bookingCreateGateway, bookingMultiCreateGateway, bookingPreviewGateway, bookingRoomGateway, roomOverviewGateway, roomTimelineGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, costGateway, reportGateway, auditGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, holidayGateway, propertyGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
   view: ViewId;
   onAction: (action: string) => void;
+  paymentRoomId: string | null;
+  onOpenPayment: (roomId: string) => void;
+  onPaymentRoomHandled: () => void;
   session: StaffSession;
   accountGateway: AccountAdminGateway | undefined;
   dataImportGateway: DataImportGateway | undefined;
@@ -629,7 +635,7 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   if (view === 'maintenance') return <MaintenancePage gateway={maintenanceGateway} session={session} />;
   if (view === 'room_management') return <RoomManagementPage gateway={roomManagementGateway} session={session} />;
   if (view === 'gantt') return <RoomTimelinePage gateway={roomTimelineGateway} session={session} />;
-  if (view === 'payments') return <PaymentsPage createGateway={paymentCreateGateway} listGateway={paymentListGateway} session={session} staysGateway={activeStaysGateway} />;
+  if (view === 'payments') return <PaymentsPage createGateway={paymentCreateGateway} initialRoomId={paymentRoomId} listGateway={paymentListGateway} onInitialRoomHandled={onPaymentRoomHandled} session={session} staysGateway={activeStaysGateway} />;
   if (view === 'costs') return <CostManagementPage gateway={costGateway} session={session} />;
   if (view === 'reports') return <ReportsPage gateway={reportGateway} session={session} />;
   if (view === 'audit') return <AuditTrailPage gateway={auditGateway} session={session} />;
@@ -638,7 +644,7 @@ function ActiveView({ view, onAction, session, accountGateway, dataImportGateway
   if (view === 'accounts' || view === 'users') return <AccountManagement session={session} gateway={accountGateway} />;
   if (view === 'initial_import') return <InitialDataImport session={session} gateway={dataImportGateway} />;
   if (view === 'more') return <MoreView isAdmin={session.role === 'admin'} allowedPages={session.allowedPages} onOpenPage={onOpenPage} onLogout={onLogout} />;
-  if (view === 'today' || view === 'rooms') return <TodayView canCheckIn={session.allowedPages.includes('checkin')} canCreate={session.allowedPages.includes('bookings_new')} canCheckout={session.allowedPages.includes('checkout')} canExtend={session.allowedPages.includes('extend')} canImport={session.role === 'admin'} onAction={onAction} onOpenBookingCreate={onOpenBookingCreate} onOpenCheckIn={() => onOpenPage('checkin')} onOpenCheckout={() => onOpenPage('checkout')} onOpenExtend={() => onOpenPage('extend')} onOpenInitialImport={() => onOpenPage('initial_import')} propertyId={session.propertyId} roomOverviewGateway={roomOverviewGateway} />;
+  if (view === 'today' || view === 'rooms') return <TodayView canCheckIn={session.allowedPages.includes('checkin')} canCreate={session.allowedPages.includes('bookings_new')} canCheckout={session.allowedPages.includes('checkout')} canExtend={session.allowedPages.includes('extend')} canImport={session.role === 'admin'} canPayment={session.allowedPages.includes('payments')} onAction={onAction} onOpenBookingCreate={onOpenBookingCreate} onOpenCheckIn={() => onOpenPage('checkin')} onOpenCheckout={() => onOpenPage('checkout')} onOpenExtend={() => onOpenPage('extend')} onOpenInitialImport={() => onOpenPage('initial_import')} onOpenPayment={onOpenPayment} propertyId={session.propertyId} roomOverviewGateway={roomOverviewGateway} />;
   return <FoundationPage allowedPages={session.allowedPages} isAdmin={session.role === 'admin'} onOpenInitialImport={() => onOpenPage('initial_import')} onOpenPage={onOpenPage} pageId={view} />;
 }
 
@@ -727,6 +733,7 @@ export function App({
   const [authenticated, setAuthenticated] = useState(initialAuthenticated);
   const [view, setView] = useState<ViewId>('today');
   const [sheetAction, setSheetAction] = useState<string | null>(null);
+  const [paymentRoomId, setPaymentRoomId] = useState<string | null>(null);
   const visibleMobileNavigation = mobileNavigation.filter((item) => !item.requiredPage || session.allowedPages.includes(item.requiredPage));
   const visibleDesktopPages = pagesAllowedForNavigation(session.allowedPages).filter(
     (page) => page.id !== 'users' || session.role === 'admin',
@@ -780,6 +787,9 @@ export function App({
         <main className="page-content"><ActiveView
           view={view}
           onAction={setSheetAction}
+          paymentRoomId={paymentRoomId}
+          onOpenPayment={(roomId) => { setPaymentRoomId(roomId || null); if (roomId) setView('payments'); }}
+          onPaymentRoomHandled={() => setPaymentRoomId(null)}
           session={session}
           accountGateway={accountGateway}
           dataImportGateway={dataImportGateway}

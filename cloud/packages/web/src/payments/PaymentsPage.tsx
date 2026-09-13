@@ -51,12 +51,16 @@ function download(filename: string, csv: string) {
 export function PaymentsPage({
   session,
   createGateway,
+  initialRoomId,
   listGateway,
+  onInitialRoomHandled,
   staysGateway,
 }: {
   session: StaffSession;
   createGateway: PaymentCreateGateway | undefined;
+  initialRoomId?: string | null;
   listGateway: PaymentListGateway | undefined;
+  onInitialRoomHandled?: () => void;
   staysGateway: ActiveStaysGateway | undefined;
 }) {
   const { locale, text } = useLocale();
@@ -124,6 +128,12 @@ export function PaymentsPage({
       ),
     [session.propertyId, staysGateway],
   );
+  useEffect(() => {
+    if (!initialRoomId || stays === null) return;
+    const matchingStay = stays.find((stay) => stay.roomId === initialRoomId);
+    if (matchingStay) setStayId(matchingStay.stayId);
+    onInitialRoomHandled?.();
+  }, [initialRoomId, onInitialRoomHandled, stays]);
   const selectedStay = useMemo(
     () => stays?.find((item) => item.stayId === stayId) ?? null,
     [stays, stayId],

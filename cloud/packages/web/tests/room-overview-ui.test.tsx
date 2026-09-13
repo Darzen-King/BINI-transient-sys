@@ -1,12 +1,16 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { RoomOverviewProjection } from '@bini/cloud-shared';
 import { App } from '../src/App.js';
+import type { StaffSession } from '../src/auth/session.js';
+import type { PaymentCreateGateway } from '../src/payments/payment-create.js';
+import type { PaymentListGateway } from '../src/payments/payment-list.js';
 import type { RoomOverviewGateway } from '../src/rooms/room-overview.js';
+import type { ActiveStaysGateway } from '../src/stays/active-stays.js';
 
 afterEach(cleanup);
 
@@ -102,5 +106,23 @@ describe('live room overview UI', () => {
     expect(screen.queryByRole('button', { name: '查看 301 房詳細資料' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /全部房間 2/ }));
     expect(screen.getByRole('button', { name: '查看 301 房詳細資料' })).toBeInTheDocument();
+  });
+
+  it('routes a permitted room-card payment action to the matching live stay', async () => {
+    const session: StaffSession = { uid: 'front-1', email: 'front@example.com', displayName: 'Front Desk', propertyId: 'property-main', role: 'front_desk', allowedPages: ['payments'] };
+    const staysGateway: ActiveStaysGateway = {
+      subscribe(_propertyId, onValue) {
+        queueMicrotask(() => onValue([{ stayId: 'STY-live-301', roomId: '301', guestName: 'Live Guest', phone: null, plan: '24hrs', checkInAt: '2026-09-12T08:00:00.000Z', checkOutAt: '2026-09-12T20:00:00.000Z', originalCheckOutAt: '2026-09-12T20:00:00.000Z', baseRentNts: 2_400, extensionFeeNts: 0, extraFeeNts: 0, totalDueNts: 2_400 }]));
+        return () => undefined;
+      },
+    };
+    const paymentListGateway: PaymentListGateway = { subscribe(_propertyId, onValue) { queueMicrotask(() => onValue([])); return () => undefined; } };
+    const paymentCreateGateway: PaymentCreateGateway = { create: async () => ({ status: 'created', paymentId: 'PAY-1', stayId: 'STY-live-301', roomId: '301', amountNts: 1, createdAt: '2026-09-12T08:00:00.000Z' }) };
+
+    render(<App activeStaysGateway={staysGateway} paymentCreateGateway={paymentCreateGateway} paymentListGateway={paymentListGateway} roomOverviewGateway={gateway(projection)} session={session} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /付款/ }));
+    const staySelector = await screen.findByLabelText('選擇在住房');
+    await waitFor(() => expect(staySelector).toHaveValue('STY-live-301'));
   });
 });

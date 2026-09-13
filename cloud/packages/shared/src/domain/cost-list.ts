@@ -9,19 +9,19 @@ const costEntrySchema = z
   .object({
     propertyId: z.string().trim().min(1).max(128),
     costDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/u),
-    category: z.enum(COST_CATEGORIES),
+    category: z.string().trim().min(1).max(100),
     subcategory: z.string().trim().max(100).nullable().optional(),
     amountNts: z.number().int().safe().min(0),
-    paymentMethod: z.enum(COST_PAYMENT_METHODS),
+    paymentMethod: z.string().trim().min(1).max(64),
     vendor: z.string().trim().max(300).nullable().optional(),
     description: z.string().trim().max(2_000).nullable().optional(),
     note: z.string().trim().max(2_000).nullable().optional(),
     recurring: z.boolean(),
     receiptNo: z.string().trim().max(200).nullable().optional(),
-    status: z.enum(["active", "archived"]),
-    version: z.number().int().min(1),
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime(),
+    status: z.enum(["active", "archived"]).optional(),
+    version: z.number().int().min(0).optional(),
+    createdAt: z.string().datetime().nullable().optional(),
+    updatedAt: z.string().datetime().nullable().optional(),
   })
   .passthrough();
 
@@ -57,23 +57,26 @@ export function buildCostListItems(
   return documents
     .map((document) => {
       const value = costEntrySchema.parse(document.data);
+      const category = COST_CATEGORIES.includes(value.category as (typeof COST_CATEGORIES)[number]) ? value.category as (typeof COST_CATEGORIES)[number] : "misc";
+      const paymentMethod = COST_PAYMENT_METHODS.includes(value.paymentMethod as (typeof COST_PAYMENT_METHODS)[number]) ? value.paymentMethod as (typeof COST_PAYMENT_METHODS)[number] : "other";
+      const fallbackTimestamp = `${value.costDate}T00:00:00.000+08:00`;
       return {
         costId: document.id,
         propertyId: value.propertyId,
         costDate: value.costDate,
-        category: value.category,
+        category,
         subcategory: value.subcategory ?? null,
         amountNts: value.amountNts,
-        paymentMethod: value.paymentMethod,
+        paymentMethod,
         vendor: value.vendor ?? null,
         description: value.description ?? null,
         note: value.note ?? null,
         recurring: value.recurring,
         receiptNo: value.receiptNo ?? null,
-        status: value.status,
-        version: value.version,
-        createdAt: value.createdAt,
-        updatedAt: value.updatedAt,
+        status: value.status ?? "active",
+        version: value.version ?? 0,
+        createdAt: value.createdAt ?? value.updatedAt ?? fallbackTimestamp,
+        updatedAt: value.updatedAt ?? value.createdAt ?? fallbackTimestamp,
       };
     })
     .sort(

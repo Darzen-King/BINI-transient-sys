@@ -48,7 +48,7 @@ describe('firestore.rules stays in sync with the shared contract', () => {
     expect(normalise(rules)).not.toContain('allow read, write: if request.auth != null;');
   });
 
-  it('keeps authoritative cost records server-written', () => {
-    expect(normalise(rules)).toContain('match /costEntries/{docId} { allow read: if hasProperty(propertyId); allow write: if false; }');
+  it('keeps authoritative cost records server-written and admin-readable only', () => {
+    expect(normalise(rules)).toContain('match /costEntries/{docId} { // Costs and P&L are administrator-only in the original PMS. allow read: if isAdminOf(propertyId); allow write: if false; }');
   });
 });

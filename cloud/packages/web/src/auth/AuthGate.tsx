@@ -38,6 +38,7 @@ import { createStayCheckoutGateway } from '../stays/stay-checkout.js';
 import { createPaymentCreateGateway } from '../payments/payment-create.js';
 import { createPaymentListGateway } from '../payments/payment-list.js';
 import { createCostGateway } from '../costs/cost-gateway.js';
+import { createReportGateway } from '../reports/report-gateway.js';
 import { createHousekeepingGateway } from '../housekeeping/housekeeping-gateway.js';
 import { createMaintenanceGateway } from '../maintenance/maintenance-gateway.js';
 import { createRoomManagementGateway } from '../room-management/room-management-gateway.js';
@@ -109,6 +110,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
   const paymentCreateGateway = useMemo(() => createPaymentCreateGateway(client.functions), [client.functions]);
   const paymentListGateway = useMemo(() => createPaymentListGateway(client.db), [client.db]);
   const costGateway = useMemo(() => createCostGateway(client.db, client.functions), [client.db, client.functions]);
+  const reportGateway = useMemo(() => createReportGateway(client.db, client.functions), [client.db, client.functions]);
   const housekeepingGateway = useMemo(() => createHousekeepingGateway(client.db, client.functions), [client.db, client.functions]);
   const maintenanceGateway = useMemo(() => createMaintenanceGateway(client.db, client.functions), [client.db, client.functions]);
   const roomManagementGateway = useMemo(() => createRoomManagementGateway(client.db, client.functions), [client.db, client.functions]);
@@ -252,6 +254,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
       paymentCreateGateway={paymentCreateGateway}
       paymentListGateway={paymentListGateway}
       costGateway={costGateway}
+      reportGateway={reportGateway}
       housekeepingGateway={housekeepingGateway}
       maintenanceGateway={maintenanceGateway}
       roomManagementGateway={roomManagementGateway}

@@ -8,7 +8,7 @@
 - Firebase：DEV `bini-transient-dev`；PROD `bini-transient`（顯示名稱 `BINI-Transient`）。只部署 DEV，PROD 未部署、未修改。
 - DEV Firestore `(default)`：`asia-east1`、Native mode、Standard edition、delete protection。
 - Identity Platform：email/password、email enumeration protection、關閉公開註冊／自助刪除、TOTP MFA 強制流程。
-- DEV Hosting、Firestore Rules/indexes、二十九個 Node.js 22 Functions 已部署；網址：`https://bini-transient-dev.web.app`。
+- DEV Hosting、Firestore Rules/indexes、三十個 Node.js 22 Functions 已部署；網址：`https://bini-transient-dev.web.app`。
 - 首位 admin `biniblooms250808@gmail.com` 已以 server-side bootstrap 建立，`emailVerified=true`、active、`property-main/admin`、17 個頁面權限、`mfaRequired=true`，並已寄出繁中一次性密碼設定信。
 - 實際 Web SDK 設定與 alias 保存在 Git 忽略的 `cloud/.env.local`、`cloud/.firebaserc`；禁止提交或輸出內容。
 
@@ -43,7 +43,8 @@
 - `stayExtend` 是第五個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`extend` page allowlist。它以入住時間軸重現 v3 `extension_fee_between`，確保 12h→24h 只收該時段差額；在單一 transaction 驗證 stay／room identity、可延住房態、未來 `已預約` 與未完成 maintenance。撞期時完全拒絕寫入（刻意取代 v3 的寫後警告），成功才同步 `stays`／`rooms`／audit／`stayOperations` replay；舊匯入 stay 沒有 `stayId` 時以 document ID 相容識別。
 - `stayCheckout` 是第六個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`checkout` page allowlist。伺服器以自身時間執行 v3 的免費取消、退房緩衝、半小時進位逾時計價及選填人工調整；同一 transaction 建立 stay log、免費取消退款、audit、房間待清潔並刪除 active stay。退款只涵蓋同房且同 booking 或入住後的未退款押金，避免誤退其他住宿款項。
 - `paymentCreate` 是第七個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`payments` page allowlist。它只接受目前 active stay 的一般收款，在同一 transaction 驗證 property／stay／room identity 和 `使用中`／`即將退房` 房態，原子建立 payment、audit 與 `paymentOperations` UUID fingerprint replay；client 不可直接寫 payment。`paymentRefund` 已作為獨立追加式交易發布：原付款不可覆寫／刪除，退款會新增帶 `refundOfPaymentId` 的 payment，transaction 會重查原付款狀態、既有退款累計及剩餘可退額，再寫 audit 與 UUID replay。`paymentManualCreate` 已提供原 v3 的手動例外入口：強制旅客、正數金額與原因，房號可留空但填寫時 transaction 會驗證 property／room identity。`cashierClose` 限 manager/admin、MFA 與 `payments` permission；依 Function server 的 Asia/Taipei 當日範圍重新彙總 immutable payments，建立或關閉 session、拒絕重複關閉並寫 audit／UUID replay。訂金調整、刪除與 CSV 仍須維持為後續獨立且可稽核的切片。
-- `costCreate`／`costUpdate`／`costArchive` 是成本 vertical slice 的三個正式 callables：皆要求 email verified＋當次 TOTP MFA＋active profile＋`costs` page allowlist，並再次讀取 profile 確認 property role 為 admin。它們用 property-scoped transaction、UUID fingerprint replay、document version conflict 與 append-only audit 管理 `costEntries`；create 寫入完整 v3 成本欄位，update 拒絕覆蓋不同版本，archive 強制原因並保留原文件／歷史，不允許物理刪除。`costEntries` Firestore Rules 對任何 client（含 admin）一律只讀；P&L、營收／淨利和 CSV 屬 reports 切片，尚未接入。
+- `costCreate`／`costUpdate`／`costArchive` 是成本 vertical slice 的三個正式 callables：皆要求 email verified＋當次 TOTP MFA＋active profile＋`costs` page allowlist，並再次讀取 profile 確認 property role 為 admin。它們用 property-scoped transaction、UUID fingerprint replay、document version conflict 與 append-only audit 管理 `costEntries`；create 寫入完整 v3 成本欄位，update 拒絕覆蓋不同版本，archive 強制原因並保留原文件／歷史，不允許物理刪除。`costEntries` 僅 property admin 可讀且 client 永不可寫；匯入的 v3 成本缺少 `status/version` 時視為 active/version 0，首次受保護更新會補回 v4 lifecycle 欄位。
+- `reports/ReportsPage.tsx` + `reports/report-gateway.ts` + `domain/reports.ts`：已接 property-scoped 即時報表。日期區間收入保持 v3 口徑：只計已退房 stay log（排除 free cancel/transfer）及以 `monthlyRentals.createdAt` 認列的月租，預約金額只做每日趨勢，不混入區間營收。manager/admin 可讀取 KPI、每日與房間明細；admin 才會監聽成本並看到 P&L。`reportExportCsv` 另以 Function server 讀取同一來源並產生 Excel 可開啟的 UTF-8 BOM CSV，要求 MFA、reports allowlist、manager/admin，並以 UUID fingerprint guard 避免重送重複寫 audit；不得改回 client 自組 CSV。
 - `housekeepingUpdate` 是第八個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`housekeeping` page allowlist。它只允許 `待清潔 → 清潔中 → 可入住`，拒絕跳級與任意房態覆寫；同一 transaction 更新 room version、audit 與 `housekeepingOperations` UUID replay。
 - `maintenanceScheduleCreate` 是第九個正式 PMS 寫入 callable：須 email verified＋當次 TOTP MFA＋active profile＋`maintenance` page allowlist。它驗證起訖時間、room identity，並在同一 transaction 查核同房 `已預約` 時段；發現重疊即拒絕，否則原子建立 schedule、audit 與 `maintenanceOperations` UUID replay。
 - `maintenanceScheduleAction` 是第十個正式 PMS 寫入 callable：同樣要求 MFA＋`maintenance` 權限，只接受 `complete`／`delete`。它以 transaction 驗證 schedule/property identity，完成時寫入完成者與時間，刪除時移除該 schedule；兩者均寫 audit 並以 `maintenanceOperations` UUID fingerprint 重送，不允許 client 直寫。
@@ -86,15 +87,15 @@
 ### 驗證與部署結果
 
 ```text
-npm test                       166/166 passed
+npm test                       170/170 passed
 npm run test:deploy-guard       6/6 passed
-npm run test:rules             44/44 passed（Firestore Emulator）
+npm run test:rules             45/45 passed（Firestore Emulator）
 npm run typecheck              passed
 npm run lint                   passed
 npm run build                  passed
 npm run guard:functions-package passed
 npm run guard:hosting-package   passed
-DEV Functions                  29/29 listed, asia-east1, nodejs22; costCreate/costUpdate/costArchive ACTIVE, 512 MiB
+DEV Functions                  30/30 listed, asia-east1, nodejs22; costCreate/costUpdate/costArchive/reportExportCsv ACTIVE, 512 MiB
 DEV bookingCreate              callable, 512 MiB, nodejs22
 DEV bookingCancel              callable, 512 MiB, nodejs22
 DEV bookingUpdate              callable, 512 MiB, nodejs22
@@ -107,7 +108,7 @@ DEV cashierClose               callable, ACTIVE, 512 MiB, nodejs22; manager/admi
 DEV costCreate                 callable, ACTIVE, 512 MiB, nodejs22; MFA＋costs page＋property admin、create/audit/replay
 DEV costUpdate                 callable, ACTIVE, 512 MiB, nodejs22; version conflict protection/audit/replay
 DEV costArchive                callable, ACTIVE, 512 MiB, nodejs22; required reason/immutable history/audit/replay
-DEV Hosting                    index-BVmWH-wt.js live; bundle contains Cost records and costCreate markers
+DEV Hosting                    index-BzQDSHC7.js live; bundle contains reportExportCsv and 統計報表 markers
 DEV HTTP smoke                 home/manifest/favicon/PWA 192 icon = 200
 ```
 
@@ -119,7 +120,7 @@ PowerShell 呼叫 Firebase CLI 時，含逗號的 `--only` 值不可裸寫：它
 
 1. 管理員完成密碼設定後登入，首次綁定 TOTP；正式 pilot 前建立第二位 admin 並演練遺失驗證器恢復。
 2. promotion repository 與批次確認已完成；接續為 promotion 加入 Firestore export／按批次 restore drill，並以匿名化 snapshot 執行一次完整 DEV 匯入驗收。所有權威寫入仍須由 Admin SDK／operation processor 執行，不可由 UI 直寫 Firestore。
-3. room overview 即時讀取、check-in、extend、checkout、active-stay 一般收款、追加式退款、手動例外收款、日結與成本 CRUD 已完成；接續完成訂金調整／刪除／CSV、房務／維修其餘 server-authoritative operations，再依序完成 gantt → bookings 多時段與前置 quote → reports（含成本營收／損益／CSV）／holidays/properties/audit。每個 domain 要有 role matrix、payload schema、idempotency/conflict tests。
+3. room overview 即時讀取、check-in、extend、checkout、active-stay 一般收款、追加式退款、手動例外收款、日結、成本 CRUD 與 reports 核心 KPI/P&L/CSV 已完成；接續完成訂金調整／刪除／CSV、房務／維修其餘 server-authoritative operations，再補 reports 的付款日摘要／圖表／館別切換與完整分區，之後處理 gantt、bookings 多時段與前置 quote、holidays/properties/audit。每個 domain 要有 role matrix、payload schema、idempotency/conflict tests。
 4. 每個 domain 同步交付 v3 等價桌機頁與完整手機 adaptive view；不得只做靜態畫面或無作用按鈕。
 5. 加入 IndexedDB operation queue、離線／衝突 UI、App Check、預算警示、日誌與 Firestore 匯出／還原演練。
 6. 使用匿名化 v3 snapshot 匯入 DEV，核對筆數、狀態、金額、`property-main` 映射與多裝置衝突。

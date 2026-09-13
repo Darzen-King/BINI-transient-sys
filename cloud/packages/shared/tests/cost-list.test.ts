@@ -53,4 +53,28 @@ describe("cost domain and contracts", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("reads imported v3 cost rows without v4 lifecycle fields as active version zero", () => {
+    const [item] = buildCostListItems([
+      {
+        id: "legacy-1",
+        data: {
+          propertyId: "property-main",
+          costDate: "2026-09-01",
+          category: "utilities",
+          amountNts: 500,
+          paymentMethod: "cash",
+          recurring: false,
+          createdAt: "2026-09-01T01:00:00.000Z",
+          updatedAt: null,
+        },
+      },
+    ]);
+    expect(item).toMatchObject({
+      costId: "legacy-1",
+      status: "active",
+      version: 0,
+      category: "utilities",
+    });
+  });
 });

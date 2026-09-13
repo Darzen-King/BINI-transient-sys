@@ -74,6 +74,8 @@ beforeEach(async () => {
     });
     await setDoc(doc(db, `properties/${PROPERTY}`), { name: 'Main' });
     await setDoc(doc(db, `properties/${PROPERTY}/bookings/b1`), { version: 1, room: '202' });
+    await setDoc(doc(db, `properties/${PROPERTY}/stayLogs/sl1`), { roomId: '202' });
+    await setDoc(doc(db, `properties/${PROPERTY}/costEntries/cost-1`), { amountNts: 100 });
     await setDoc(doc(db, `properties/${PROPERTY}/maintenanceSchedules/m1`), { roomId: '202', status: 'scheduled' });
     await setDoc(doc(db, `properties/${PROPERTY}/monthlyRentals/mr1`), { roomId: '206', status: 'active' });
     await setDoc(doc(db, `properties/${PROPERTY}/auditLogs/a1`), { operationId: OP_ID });
@@ -187,6 +189,12 @@ describe('authoritative collections are server-only', () => {
     await assertFails(
       setDoc(doc(asAdmin(), `properties/${PROPERTY}/maintenanceSchedules/m2`), { roomId: '203' }),
     );
+  });
+
+  it('a manager-capable member reads completed stays but not administrator-only costs', async () => {
+    await assertSucceeds(getDoc(doc(asStaff(), `properties/${PROPERTY}/stayLogs/sl1`)));
+    await assertFails(getDoc(doc(asStaff(), `properties/${PROPERTY}/costEntries/cost-1`)));
+    await assertSucceeds(getDoc(doc(asAdmin(), `properties/${PROPERTY}/costEntries/cost-1`)));
   });
 
   it('an admin cannot write a cost record directly either', async () => {

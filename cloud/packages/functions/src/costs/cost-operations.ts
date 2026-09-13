@@ -145,10 +145,10 @@ export const costUpdate = onCall(
       if (
         !current.exists ||
         current.data()?.propertyId !== input.propertyId ||
-        current.data()?.status !== "active"
+        (current.data()?.status ?? "active") !== "active"
       )
         throw new HttpsError("not-found", "找不到可修改的成本紀錄。");
-      if (current.data()?.version !== input.baseVersion)
+      if ((current.data()?.version ?? 0) !== input.baseVersion)
         throw new HttpsError(
           "aborted",
           "成本紀錄已被其他裝置更新，請重新整理。",
@@ -162,6 +162,7 @@ export const costUpdate = onCall(
       };
       tx.update(entry, {
         ...fields(input),
+        status: "active",
         version: output.version,
         updatedAt: now,
         updatedByUid: actorUid,
@@ -214,10 +215,10 @@ export const costArchive = onCall(
       if (
         !current.exists ||
         current.data()?.propertyId !== input.propertyId ||
-        current.data()?.status !== "active"
+        (current.data()?.status ?? "active") !== "active"
       )
         throw new HttpsError("not-found", "找不到可封存的成本紀錄。");
-      if (current.data()?.version !== input.baseVersion)
+      if ((current.data()?.version ?? 0) !== input.baseVersion)
         throw new HttpsError(
           "aborted",
           "成本紀錄已被其他裝置更新，請重新整理。",

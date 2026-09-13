@@ -344,6 +344,18 @@ h1, h2, p { margin-top: 0; }
 .cost-history-list article strong, .cost-history-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cost-entry-actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
 .cost-dialog-form { display: grid; padding-bottom: 4px; gap: 13px; }
+.reports-page { display: grid; gap: 12px; }
+.report-filters { display: grid; align-items: end; margin: 14px 0; gap: 10px; }
+.report-quick-actions { display: flex; flex-wrap: wrap; padding-bottom: 1px; gap: 7px; }
+.report-kpis { display: grid; overflow: hidden; border: 1px solid var(--line); border-radius: var(--bds-radius-md); background: var(--bds-color-surface); }
+.report-kpis > div { display: grid; min-height: 80px; padding: 11px; gap: 3px; }
+.report-kpis > div + div { border-top: 1px solid var(--line); }
+.report-kpis small, .report-kpis span, .report-section-heading small, .report-room-list small { color: var(--muted); font-size: 11px; }
+.report-kpis strong, .report-pnl strong { color: var(--brand-dark); font-size: 19px; font-variant-numeric: tabular-nums; }
+.report-pnl { display: flex; flex-wrap: wrap; align-items: stretch; margin-top: 12px; padding: 12px; border: 1px solid var(--bds-color-berry-200); border-radius: var(--bds-radius-md); background: var(--bds-color-surface-brand); gap: 10px; }
+.report-pnl > div { display: grid; flex: 1 1 110px; padding-right: 10px; gap: 3px; }.report-pnl small, .report-pnl > span { color: var(--muted); font-size: 11px; }.report-pnl > span { padding: 5px 8px; border-radius: 999px; background: white; }.report-pnl .negative { color: var(--danger); }
+.report-section { display: grid; margin-top: 18px; gap: 9px; }.report-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }.report-section-heading h3 { margin: 0; color: var(--brand-dark); font-size: 15px; }.report-section-heading small { text-align: right; }
+.report-daily-list, .report-room-list { display: grid; overflow: hidden; border: 1px solid var(--line); border-radius: var(--bds-radius-md); }.report-daily-list > div, .report-room-list article { display: flex; align-items: center; justify-content: space-between; min-height: 45px; padding: 10px 12px; gap: 10px; }.report-daily-list > div + div, .report-room-list article + article { border-top: 1px solid var(--line); }.report-daily-list strong { color: var(--brand-dark); font-size: 12px; }.report-daily-list span, .report-room-list article > div:last-child strong { font-size: 13px; font-variant-numeric: tabular-nums; }.report-daily-list small { min-width: 38px; color: var(--muted); font-size: 11px; text-align: right; }.report-room-list article > div { display: grid; min-width: 0; gap: 3px; }.report-room-list article > div:last-child { justify-items: end; }.report-room-list article small { overflow: hidden; max-width: 210px; text-overflow: ellipsis; white-space: nowrap; }
 .housekeeping-summary { display: flex; align-items: baseline; padding: 12px 14px; margin: 14px 0; border-radius: var(--bds-radius-md); background: var(--bds-color-feedback-warning-bg); color: var(--bds-color-feedback-warning); gap: 6px; }
 .housekeeping-summary strong { color: var(--brand-dark); font-size: 24px; }
 .housekeeping-list { display: grid; overflow: hidden; border: 1px solid var(--line); border-radius: var(--bds-radius-md); }
@@ -408,6 +420,9 @@ h1, h2, p { margin-top: 0; }
   .cost-summary > div:nth-child(even) { border-left: 1px solid var(--line); }
   .cost-summary > div:nth-child(n + 3) { border-top: 0; }
   .cost-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .report-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .report-kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .report-kpis > div + div { border-top: 0; border-left: 1px solid var(--line); }
   .room-management-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 

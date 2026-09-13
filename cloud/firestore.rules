@@ -177,13 +177,20 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Completed-stay records feed the manager report; they remain server-written.
+      match /stayLogs/{docId} {
+        allow read: if hasProperty(propertyId);
+        allow write: if false;
+      }
+
       match /payments/{docId} {
         allow read: if hasProperty(propertyId);
         allow write: if false;
       }
 
       match /costEntries/{docId} {
-        allow read: if hasProperty(propertyId);
+        // Costs and P&L are administrator-only in the original PMS.
+        allow read: if isAdminOf(propertyId);
         allow write: if false;
       }
 

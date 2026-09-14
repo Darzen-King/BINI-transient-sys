@@ -61,6 +61,7 @@ import { RoomTimelinePage } from './gantt/RoomTimelinePage.js';
 import type { RoomTimelineGateway } from './gantt/room-timeline-gateway.js';
 import type { PropertyNameGateway } from './auth/property-session.js';
 import { CheckoutSoonBanner } from './stays/CheckoutSoonBanner.js';
+import { enableChimeOnFirstInteraction } from './alerts/chime.js';
 import { AppIcon, type AppIconName } from './design-system/icons.js';
 
 /** Shown only to accounts granted more than one property; switching restarts the app in that property. */
@@ -781,6 +782,8 @@ export function App({
 }) {
   const { locale, text } = useLocale();
   const [authenticated, setAuthenticated] = useState(initialAuthenticated);
+  // Reminder tones (arrivals / check-outs) need audio unlocked by a first tap on mobile browsers.
+  useEffect(() => enableChimeOnFirstInteraction(), []);
   const [view, setView] = useState<ViewId>('today');
   const [sheetAction, setSheetAction] = useState<string | null>(null);
   // Room chosen on a room card, handed to the page it opens so staff never re-select it.

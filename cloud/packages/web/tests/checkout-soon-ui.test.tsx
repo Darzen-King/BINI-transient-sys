@@ -46,3 +46,33 @@ describe('reminder banners', () => {
     expect(chime).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('reminder tone on mobile browsers', () => {
+  it('resumes one shared audio context on the first tap and plays through it later', async () => {
+    const resume = vi.fn().mockResolvedValue(undefined);
+    const start = vi.fn();
+    const created: unknown[] = [];
+    class FakeAudioContext {
+      state = 'suspended';
+      currentTime = 0;
+      destination = {};
+      constructor() { created.push(this); }
+      resume = async () => { await resume(); this.state = 'running'; };
+      createOscillator() { return { connect: vi.fn(), type: '', frequency: { value: 0 }, start, stop: vi.fn() }; }
+      createGain() { return { connect: vi.fn(), gain: { setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() } }; }
+    }
+    vi.stubGlobal('AudioContext', FakeAudioContext);
+    vi.resetModules();
+    const { enableChimeOnFirstInteraction, playChime } = await import('../src/alerts/chime.js');
+    const stop = enableChimeOnFirstInteraction();
+    window.dispatchEvent(new Event('pointerdown'));
+    await Promise.resolve();
+    expect(resume).toHaveBeenCalledTimes(1);
+    playChime();
+    await new Promise((settle) => setTimeout(settle, 0));
+    expect(created).toHaveLength(1);
+    expect(start).toHaveBeenCalledTimes(1);
+    stop();
+    vi.unstubAllGlobals();
+  });
+});

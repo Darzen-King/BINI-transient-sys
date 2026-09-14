@@ -52,7 +52,8 @@ const displayNameSchema = z.string().trim().min(1).max(80);
 const roleSchema = z.enum(CLOUD_ROLES);
 const allowedPagesSchema = z.array(z.enum(CLOUD_PAGE_IDS)).max(CLOUD_PAGE_IDS.length)
   .refine((pages) => new Set(pages).size === pages.length, 'Duplicate page ids are not allowed.');
-const passwordSchema = z.string().min(12).max(128)
+// Store decision (2026-09-14): 8+ characters with a letter and a number; every account also requires TOTP MFA.
+const passwordSchema = z.string().min(8).max(128)
   .regex(/[A-Za-z]/, 'Password must contain a letter.')
   .regex(/[0-9]/, 'Password must contain a number.');
 

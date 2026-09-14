@@ -68,4 +68,11 @@ describe('closed staff-account contract', () => {
       password: 'AnotherSafe1!',
     }).uid).toBe('firebase-uid-1');
   });
+
+  it('accepts passwords from 8 characters with a letter and a number', () => {
+    expect(staffCreateInputSchema.safeParse({ ...validCreate, password: 'abcd1234' }).success).toBe(true);
+    expect(staffCreateInputSchema.safeParse({ ...validCreate, password: 'abc1234' }).success).toBe(false);
+    expect(staffCreateInputSchema.safeParse({ ...validCreate, password: 'abcdefgh' }).success).toBe(false);
+    expect(staffCreateInputSchema.safeParse({ ...validCreate, password: '12345678' }).success).toBe(false);
+  });
 });

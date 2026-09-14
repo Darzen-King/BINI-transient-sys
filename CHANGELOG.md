@@ -4,6 +4,7 @@
 
 ## Unreleased — Firebase v4 全介面／全功能雲端搬移（DEV）
 
+- 新增 Dropbox 異地備援（新排程函式 `dropboxV3Backup`）：每小時把雲端資料匯出成 **v3 單機版可直接還原的備份格式**，上傳到 Dropbox `/BiniBloomsData/cloud_export/bini_blooms_backup.json`，並每天另存一份有日期的檔案、保留 30 天；不覆寫 v3 自己的備份檔。欄位名稱與 v3 資料表完全一致，不含員工帳號（v3 保留本機帳密）、作廢付款與封存成本。Dropbox 授權存放於 Secret Manager。已用 v3 自身的還原程式對 v3 資料庫複本驗證：各表筆數與金額一致，v3 報表數字與雲端相同；DEV 首次上傳成功。緊急接手步驟見 `docs/cloud/firestore-backup-restore-runbook.md`。
 - 修正表單欄位錯位：同一列中若旁邊欄位有提示文字（例如新增人員的「初始密碼」），另一個欄位的標籤會往下偏、輸入框被拉高。共用欄位元件改為內容靠上對齊，所有表單一併修正。
 - App Check 改用 **reCAPTCHA Enterprise** 提供者（Firebase 已淘汰 reCAPTCHA v3 提供者）。沿用同一組分數型網站金鑰（已確認位於 `bini-transient-dev` 的 reCAPTCHA Enterprise，網域正確）；Enterprise 只需在 App Check 登記網站金鑰，不使用密鑰。
 - 修正「使用者管理」新增／修改人員、重設密碼、列出人員全部失效：這 4 支函式當初第一次部署建置失敗，之後的部署不會補上 Cloud Run 公開呼叫權限，網頁請求在 Google 端就被 401 擋下。已補上權限並在程式中明確設定 `invoker: 'public'`（函式內仍驗證登入、兩步驟驗證與角色）。同時修正錯誤訊息顯示在對話框後方被遮住、看起來「按了沒反應」的問題，改在對話框內顯示。

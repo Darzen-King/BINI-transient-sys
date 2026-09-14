@@ -53,3 +53,27 @@ gcloud firestore databases delete --database=restore-YYYYMMDD --project bini-tra
 | 日期 | 方式 | 結果 |
 |------|------|------|
 | 2026-09-14 | PITR clone（快照 2026-09-13T23:19Z）→ `restore-drill-20260914` | clone 約 15 分鐘；13 個集合、1,602 份文件的筆數與內容雜湊全部一致；演練資料庫已刪除 |
+
+## Dropbox 異地備援（v3 格式，Firebase 故障時由單機版接手）
+| 項目 | 設定 |
+|------|------|
+| 函式 | `dropboxV3Backup`（排程，每小時第 5 分鐘，Asia/Taipei） |
+| 最新檔 | Dropbox `/BiniBloomsData/cloud_export/bini_blooms_backup.json`（每小時覆寫） |
+| 每日檔 | `/BiniBloomsData/cloud_export/daily/bini_blooms_backup_YYYY-MM-DD.json`（當天最後一次覆寫，保留 30 天） |
+| 授權 | Secret Manager：`DROPBOX_APP_KEY`、`DROPBOX_APP_SECRET`、`DROPBOX_REFRESH_TOKEN`（僅 Functions 讀取） |
+| 狀態 | Firestore `system/dropboxBackup`（`lastSuccessAt`、`lastError`、各表筆數；用戶端不可讀） |
+
+內容：v3 3.9.14 的 12 張資料表（欄位名稱與 v3 SQLite 完全一致）。**不含**員工帳號（v3 還原時保留本機帳號密碼）、作廢付款、封存成本。若 Dropbox 授權為「App 資料夾」權限，實際位置在 `/Apps/<App 名稱>/BiniBloomsData/cloud_export/`，與 v3 自己的備份檔同層。
+
+### 緊急時由單機版接手
+1. 確認雲端已停止寫入（避免兩邊同時營運）。
+2. 開啟 v3 → 雲端備份設定 → 遠端路徑改為 `/BiniBloomsData/cloud_export`（每日檔則填 `/BiniBloomsData/cloud_export/daily` 並先把目標日期檔複製為 `bini_blooms_backup.json`）。
+3. 按「還原」。v3 會先把本機資料備份到 `BINI_Blooms_Data/backup/`，再匯入。
+4. 還原後把 v3 遠端路徑改回 `/BiniBloomsData`，避免 v3 之後的自動備份覆寫雲端匯出檔。
+
+### 驗證紀錄
+| 日期 | 內容 | 結果 |
+|------|------|------|
+| 2026-09-14 | 以匯出器產生 DEV 資料的 v3 JSON，用 v3 `_import_data` 還原到 v3 正式 DB 的複本 | 12 表筆數全數還原；付款 277,300、住宿紀錄 184,771、預約 130,400 與雲端一致；員工帳號保留 5→5；v3 `compute_report`（05-01～09-10）營收 448,771、訂單 166，與雲端報表相同 |
+| 2026-09-14 | 部署後手動觸發排程 | 上傳成功，581,867 bytes，979 筆稽核、94 筆付款等 |
+

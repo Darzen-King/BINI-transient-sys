@@ -37,6 +37,7 @@ export { costArchive, costCreate, costUpdate } from './costs/cost-operations.js'
 export { reportExportCsv } from './reports/export-report.js';
 export { paymentDailySummaryExportCsv } from './reports/export-daily-summary.js';
 export { holidayAutoSync } from './holidays/auto-sync.js';
+export { dropboxV3Backup } from './backup/dropbox-backup.js';
 export { holidayDelete, holidayManualUpsert, holidayResync } from './holidays/holiday-operations.js';
 export { propertyCreate, propertyList } from './properties/property-operations.js';
 export { paymentCreate } from './payments/create-payment.js';

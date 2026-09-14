@@ -4,6 +4,7 @@
 
 ## Unreleased — Firebase v4 全介面／全功能雲端搬移（DEV）
 
+- 網頁端接上 Firebase App Check（reCAPTCHA v3，自動更新 token），於 Auth／Firestore／Functions 初始化前啟用；本機模擬器或未設定網站金鑰時略過。網站金鑰由 `VITE_RECAPTCHA_SITE_KEY` 提供（公開值，密鑰只存在 Firebase 主控台），部署保護會檢查 bundle 內含網站金鑰。目前為觀察期，尚未強制執行。
 - 人員密碼規則由至少 12 字元放寬為**至少 8 字元，且須包含英文字母與數字**（店家決定；所有帳號仍強制兩步驟驗證）。新增人員與重設密碼的畫面提示、表單檢查及伺服器端 `adminCreateStaff`／`adminSetStaffPassword` 驗證同步更新。
 - 修正 iPhone 上「入住時間」欄位超出畫面：新增共用 `DateTimeInput`，入住時間（新增預約、修改預約、多時段、入住登記）與維修排程的開始／結束時間，一律以與退房時間相同的 `YYYY-MM-DD HH:mm` 格式靠左顯示，點擊仍開啟系統原生時間選擇器；日期欄位也不再因 iOS 原生寬度溢出。
 - 「天數」欄位（新增預約、多時段、修改預約、入住登記）加上 −／＋ 按鈕，每次增減 1 天（1～366 天），與延住時數共用 `NumberStepper` 元件。

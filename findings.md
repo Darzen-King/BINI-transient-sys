@@ -145,3 +145,8 @@
 - 以 `sqlite3` backup API 將 v3 正式 DB 唯讀快照到暫存區，再以 v3 `compute_report` 與雲端 `buildReportProjection`（DEV Firestore 資料）比對 2026-05-01～09-10：訂單 169 vs 166、營收 452,771 vs 448,771。逐筆比對後差異完全來自 DEV 缺少 v3 stay log 141–143（1,200＋800＋2,000＝4,000；24h×2、12h×1；假日 3,200／平日 800），扣除後各指標一致，證明報表算法已 parity。
 - 結論：DEV promotion 批次約停在 2026-09-05／06。正式切換前必須做最終匯入（見 task_plan 關鍵問題 4）。
 - 工具注意：Bash／Edit 工具會把字串中的 `﻿`、`\r\n` 等跳脫序列轉成實際字元；在原始碼中需要跳脫序列時，改以 Python `chr()` 寫入或 `String.fromCharCode`。
+
+## 2026-09-14 App Check
+- reCAPTCHA v3 網站金鑰（公開值）：`6Ld6_LotAAAAAPrNGcunVMWMY7sot1XuVkCiY_N6`，網域 `bini-transient-dev.web.app`、`bini-transient-dev.firebaseapp.com`、`localhost`。本機建置需在 `cloud/.env.local` 設定 `VITE_RECAPTCHA_SITE_KEY`（git-ignored），否則 `guard:hosting-package` 會擋下部署。
+- 首次部署後瀏覽器顯示 `@firebase/app-check: 400 error`（token 交換失敗），推測為主控台尚未登記 reCAPTCHA 密鑰；未強制執行時不影響功能。主控台完成登記後需重新確認交換成功，觀察 1–2 週再強制執行。
+

@@ -36,4 +36,10 @@ for (const key of requiredKeys) {
   }
 }
 
-console.log('Hosting deployment package contains the confirmed DEV Firebase configuration.');
+// App Check must ship with the build; a missing site key would silently drop tokens from every request.
+const siteKey = localEnvironment.VITE_RECAPTCHA_SITE_KEY;
+if (!siteKey || siteKey === 'REPLACE_ME' || !javascript.includes(siteKey)) {
+  throw new Error('Hosting bundle is missing the App Check reCAPTCHA site key.');
+}
+
+console.log('Hosting deployment package contains the confirmed DEV Firebase configuration and App Check site key.');

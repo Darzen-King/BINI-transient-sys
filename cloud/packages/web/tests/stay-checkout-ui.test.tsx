@@ -25,13 +25,18 @@ describe('v3 check-out flow', () => {
     fireEvent.change(screen.getByLabelText('選擇在住房'), { target: { value: 'STY-202' } });
     expect(screen.getByText('已收款').nextSibling).toHaveTextContent('NT$ 600');
     expect(screen.getByText('↳ 含押金').nextSibling).toHaveTextContent('NT$ 600');
-    expect(screen.getByText('餘額應收').nextSibling).toHaveTextContent('NT$ 400');
+    // The summary already estimates the overdue fee live: 1h20m past check-out → 2 billable hours → NT$ 400.
+    expect(screen.getByText('逾時費（已過退房 1 小時 20 分，計 2 小時）').nextSibling).toHaveTextContent('NT$ 400');
+    expect(screen.getByText('應付總金額').nextSibling).toHaveTextContent('NT$ 1,400');
+    expect(screen.getByText('餘額應收').nextSibling).toHaveTextContent('NT$ 800');
 
     fireEvent.click(screen.getByRole('button', { name: '確認辦理退房' }));
     // 14:20 is 65 minutes past the 13:15 grace end; 25h20m rounds up to 26h, i.e. two billable hours.
     expect(await screen.findByText('已超過退房時間，將產生 NT$ 400 的延住費用，確認嗎？')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '修正' }));
-    fireEvent.change(screen.getByLabelText('超時時間（小時）'), { target: { value: '0' } });
+    fireEvent.click(screen.getByRole('button', { name: '減少 1 小時' }));
+    expect(screen.getByLabelText('超時時間（小時）')).toHaveValue(1);
+    fireEvent.click(screen.getByRole('button', { name: '減少 1 小時' }));
     expect(screen.getByText('NT$ 0')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '套用修正，確認退房' }));
 
@@ -41,12 +46,26 @@ describe('v3 check-out flow', () => {
     expect(await screen.findByText('退房已完成')).toBeInTheDocument();
   });
 
+  it('waives the overdue fee when staff forgot to check out a guest who already left', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-09-22T07:42:00+08:00'));
+    const checkout = vi.fn().mockResolvedValue(result);
+    render(<StayCheckoutPage gateway={{ checkout }} onBack={vi.fn()} paymentListGateway={paymentsOf([payment(1_000)])} session={session} staysGateway={staysGateway} />);
+    fireEvent.change(screen.getByLabelText('選擇在住房'), { target: { value: 'STY-202' } });
+    expect(screen.getByText(/^逾時費（已過退房 6 天 18 小時 42 分/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '確認辦理退房' }));
+    fireEvent.click(await screen.findByRole('button', { name: '修正' }));
+    fireEvent.click(screen.getByRole('button', { name: '免收逾時費，確認退房' }));
+    await waitFor(() => expect(checkout).toHaveBeenCalledWith(expect.objectContaining({ stayId: 'STY-202', overdueFeeOverrideNts: 0 })));
+    expect(screen.queryByText('請收取餘額')).not.toBeInTheDocument();
+  });
+
   it('checks out directly when on time and settled, leaving the fee to the server', async () => {
     vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-09-15T13:10:00+08:00'));
     const checkout = vi.fn().mockResolvedValue({ ...result, systemOverdueFeeNts: 0 });
     render(<StayCheckoutPage gateway={{ checkout }} onBack={vi.fn()} paymentListGateway={paymentsOf([payment(1_000)])} session={session} staysGateway={staysGateway} />);
     fireEvent.change(screen.getByLabelText('選擇在住房'), { target: { value: 'STY-202' } });
     expect(screen.getByText(/已結清/)).toBeInTheDocument();
+    expect(screen.queryByText(/^逾時費/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '確認辦理退房' }));
     await waitFor(() => expect(checkout).toHaveBeenCalledWith(expect.objectContaining({ overdueFeeOverrideNts: null })));
     expect(screen.queryByText('請收取餘額')).not.toBeInTheDocument();

@@ -368,6 +368,8 @@ h1, h2, p { margin-top: 0; }
 .checkout-summary .indent span { padding-left: 14px; color: var(--muted); font-size: 12px; }
 .checkout-note { margin: 2px 0; padding: 6px 9px; border-radius: var(--bds-radius-sm, 6px); background: var(--bds-color-feedback-success-bg); color: var(--bds-color-feedback-success); font-size: 12px; }
 .checkout-note.free { background: var(--bds-color-feedback-info-bg); color: var(--bds-color-feedback-info); }
+.checkout-overdue b { color: var(--bds-color-feedback-danger); }
+.checkout-note.overdue { background: var(--bds-color-feedback-danger-bg); color: var(--bds-color-feedback-danger); }
 .checkout-total { padding-top: 8px; border-top: 1px solid var(--line); }
 .checkout-total b { color: var(--brand-dark); font-size: 17px; }
 .checkout-balance { padding: 7px 9px; border-radius: var(--bds-radius-sm, 6px); }
@@ -670,4 +672,12 @@ h1, h2, p { margin-top: 0; }
 .maintenance-room__actions { display: grid; gap: 8px; }
 @media (min-width: 768px) {
   .maintenance-rooms__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/*
+ * iOS Safari zooms the page in when a text control under 16px gains focus and never zooms back out, which leaves
+ * every screen cut off on the right. Touch devices therefore always get 16px form controls.
+ */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea { font-size: 16px !important; }
 }

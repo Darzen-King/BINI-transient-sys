@@ -4,6 +4,7 @@
 
 ## Unreleased — Firebase v4 全介面／全功能雲端搬移（DEV）
 
+- App Check 改用 **reCAPTCHA Enterprise** 提供者（Firebase 已淘汰 reCAPTCHA v3 提供者）。沿用同一組分數型網站金鑰（已確認位於 `bini-transient-dev` 的 reCAPTCHA Enterprise，網域正確）；Enterprise 只需在 App Check 登記網站金鑰，不使用密鑰。
 - 修正「使用者管理」新增／修改人員、重設密碼、列出人員全部失效：這 4 支函式當初第一次部署建置失敗，之後的部署不會補上 Cloud Run 公開呼叫權限，網頁請求在 Google 端就被 401 擋下。已補上權限並在程式中明確設定 `invoker: 'public'`（函式內仍驗證登入、兩步驟驗證與角色）。同時修正錯誤訊息顯示在對話框後方被遮住、看起來「按了沒反應」的問題，改在對話框內顯示。
 - 網頁端接上 Firebase App Check（reCAPTCHA v3，自動更新 token），於 Auth／Firestore／Functions 初始化前啟用；本機模擬器或未設定網站金鑰時略過。網站金鑰由 `VITE_RECAPTCHA_SITE_KEY` 提供（公開值，密鑰只存在 Firebase 主控台），部署保護會檢查 bundle 內含網站金鑰。目前為觀察期，尚未強制執行。
 - 人員密碼規則由至少 12 字元放寬為**至少 8 字元，且須包含英文字母與數字**（店家決定；所有帳號仍強制兩步驟驗證）。新增人員與重設密碼的畫面提示、表單檢查及伺服器端 `adminCreateStaff`／`adminSetStaffPassword` 驗證同步更新。

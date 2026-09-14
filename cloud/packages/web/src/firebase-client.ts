@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import { connectAuthEmulator, getAuth, type Auth } from 'firebase/auth';
 import { connectFirestoreEmulator, getFirestore, type Firestore } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions, type Functions } from 'firebase/functions';
@@ -19,7 +19,7 @@ export function createFirebaseClient(env: ImportMetaEnv): FirebaseClient {
   const app = firstInit ? initializeApp(readFirebaseConfig(env)) : getApp();
   const siteKey = appCheckSiteKey(env);
   // Attach App Check before Auth/Firestore/Functions so every request carries a token.
-  if (firstInit && siteKey) initializeAppCheck(app, { provider: new ReCaptchaV3Provider(siteKey), isTokenAutoRefreshEnabled: true });
+  if (firstInit && siteKey) initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(siteKey), isTokenAutoRefreshEnabled: true });
   const auth = getAuth(app);
   const db = getFirestore(app);
   const functions = getFunctions(app, 'asia-east1');

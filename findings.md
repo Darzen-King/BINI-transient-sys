@@ -154,4 +154,4 @@
 - `adminCreateStaff`／`adminListStaff`／`adminSetStaffPassword`／`adminUpdateStaff` 的 Cloud Run 服務缺少 `allUsers → roles/run.invoker`，Cloud Run 回 401「access token could not be verified」。原因：2026-09-10 首次部署建置失敗（`@bini/cloud-shared` 404），Firebase CLI 只在「建立」時設定 invoker，後續更新不補。已以 gcloud 補上並在程式加 `invoker: 'public'`。
 - 檢查方式：`gcloud run services get-iam-policy <service> --region asia-east1`；非 callable 的 `holidayautosync`（排程）與 `processoperationrequest`（Firestore 觸發）不應公開。
 - 2026-09-14 更正：Firebase 主控台顯示 reCAPTCHA（v3）提供者已淘汰。該金鑰實為 GCP reCAPTCHA Enterprise 分數型金鑰（`gcloud recaptcha keys list` 可見），網頁改用 `ReCaptchaEnterpriseProvider`。App Check 的 Enterprise 設定欄位應填**網站金鑰**；先前誤填成密鑰，導致 `App not registered`。
-
+- 2026-09-14 23:10 驗證：主控台兩個網頁應用程式皆以網站金鑰登記 Enterprise；線上 `exchangeRecaptchaEnterpriseToken` 回 200、無 App Check 警告。Firestore／Auth 仍為 UNENFORCED（觀察期）。

@@ -13,13 +13,15 @@ afterEach(() => {
 });
 
 describe('mobile-first PMS shell', () => {
-  it('prioritises today, bookings, housekeeping, payments and more in bottom navigation', () => {
+  it('orders the bottom navigation as Hub, rooms, check-in, new booking and more', () => {
     render(<App />);
 
     const navigation = screen.getByRole('navigation', { name: '手機主導覽' });
-    for (const label of ['今日', '預約', '房務', '款項', '更多']) {
-      expect(navigation).toHaveTextContent(label);
-    }
+    const labels = within(navigation).getAllByRole('button').map((button) => button.getAttribute('aria-label'));
+    expect(labels).toEqual(['Hub', '房間總覽', '入住登記', '新增預約', '更多']);
+    expect(navigation.querySelectorAll('svg')).toHaveLength(5);
+    // Room overview stays the default landing page.
+    expect(within(navigation).getByRole('button', { name: '房間總覽' })).toHaveClass('active');
   });
 
   it('shows room state as cards instead of a desktop data table', () => {
@@ -62,7 +64,7 @@ describe('mobile-first PMS shell', () => {
   it('keeps the three highest-frequency front-desk actions one tap away', () => {
     render(<App />);
 
-    expect(screen.getByRole('button', { name: '新增預約' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: '新增預約' }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('button', { name: '辦理入住' }).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: '辦理退房' })).toBeInTheDocument();
   });
@@ -82,10 +84,11 @@ describe('mobile-first PMS shell', () => {
     expect(screen.queryByText(/2 筆待同步|等待同步/)).not.toBeInTheDocument();
   });
 
-  it('switches to a dedicated housekeeping screen through mobile navigation', () => {
+  it('reaches the housekeeping screen from the More menu', () => {
     render(<App />);
 
-    fireEvent.click(screen.getByRole('button', { name: '房務' }));
+    fireEvent.click(screen.getByRole('button', { name: '更多' }));
+    fireEvent.click(screen.getByRole('button', { name: /清潔管理/ }));
     expect(screen.getAllByRole('heading', { name: '清潔管理' }).length).toBeGreaterThan(0);
     expect(screen.getByText('房務資料尚未就緒')).toBeInTheDocument();
   });
@@ -109,10 +112,10 @@ describe('mobile-first PMS shell', () => {
   it('switches the mobile shell between Chinese and English without reloading', () => {
     render(<LocaleProvider initialLocale="zh-TW"><App /></LocaleProvider>);
 
-    expect(screen.getByRole('navigation', { name: '手機主導覽' })).toHaveTextContent('今日');
+    expect(screen.getByRole('navigation', { name: '手機主導覽' })).toHaveTextContent('房間總覽');
     const switches = screen.getAllByRole('group', { name: '語言切換' });
     fireEvent.click(within(switches[1]!).getByRole('button', { name: 'EN' }));
-    expect(screen.getByRole('navigation', { name: 'Mobile navigation' })).toHaveTextContent('Today');
+    expect(screen.getByRole('navigation', { name: 'Mobile navigation' })).toHaveTextContent('Rooms');
     expect(screen.getByRole('heading', { name: "Today's Operations" })).toBeInTheDocument();
     expect(document.documentElement).toHaveAttribute('lang', 'en');
   });
@@ -152,11 +155,11 @@ describe('mobile-first PMS shell', () => {
     }} />);
 
     const navigation = screen.getByRole('navigation', { name: '手機主導覽' });
-    expect(navigation).toHaveTextContent('今日');
-    expect(navigation).toHaveTextContent('房務');
+    expect(navigation).toHaveTextContent('Hub');
+    expect(navigation).toHaveTextContent('房間總覽');
     expect(navigation).toHaveTextContent('更多');
-    expect(navigation).not.toHaveTextContent('預約');
-    expect(navigation).not.toHaveTextContent('款項');
+    expect(navigation).not.toHaveTextContent('入住登記');
+    expect(navigation).not.toHaveTextContent('新增預約');
 
     fireEvent.click(screen.getByRole('button', { name: '更多' }));
     expect(screen.queryByRole('button', { name: /成本紀錄|統計報表|使用者/ })).not.toBeInTheDocument();
@@ -178,5 +181,14 @@ describe('mobile-first PMS shell', () => {
       cursor = next;
     }
     expect(navigation).not.toHaveTextContent('雲端備份');
+  });
+
+  it('shows Prototype Hub modules as icon cards', () => {
+    render(<App />);
+
+    fireEvent.click(within(screen.getByRole('navigation', { name: '手機主導覽' })).getByRole('button', { name: 'Hub' }));
+    const card = screen.getByRole('button', { name: /延住處理/ });
+    expect(card.querySelector('svg')).not.toBeNull();
+    expect(card).toHaveTextContent('延住計費與撞期檢查');
   });
 });

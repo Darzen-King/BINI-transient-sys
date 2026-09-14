@@ -59,7 +59,7 @@ function soonGateway(value: BookingSoonItem[]): BookingSoonGateway {
 describe('live booking list UI', () => {
   it('renders Firestore bookings and filters them without falling back to preview entries', async () => {
     render(<App bookingListGateway={gateway(bookings)} />);
-    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
 
     expect(await screen.findByText('203 · Live Guest')).toBeInTheDocument();
     expect(screen.queryByText('202 · Juvy')).not.toBeInTheDocument();
@@ -77,7 +77,7 @@ describe('live booking list UI', () => {
       },
     };
     render(<App bookingListGateway={failingGateway} />);
-    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
 
     expect(await screen.findByText('無法載入即時預約')).toBeInTheDocument();
     expect(screen.queryByText('202 · Juvy')).not.toBeInTheDocument();
@@ -89,7 +89,7 @@ describe('live booking list UI', () => {
       status: 'cancelled', bookingId: 'RSV-live-203', cancelledAt: '2026-09-13T05:00:00.000Z',
     });
     render(<App bookingCancelGateway={{ cancel } satisfies BookingCancelGateway} bookingListGateway={gateway(bookings)} />);
-    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
     fireEvent.click(await screen.findByText('203 · Live Guest'));
 
     expect(await screen.findByText('預約編號')).toBeInTheDocument();
@@ -107,7 +107,7 @@ describe('live booking list UI', () => {
       .mockRejectedValueOnce(new Error('temporary network failure'))
       .mockResolvedValueOnce({ status: 'cancelled', bookingId: 'RSV-live-203', cancelledAt: '2026-09-13T05:00:00.000Z' });
     render(<App bookingCancelGateway={{ cancel } satisfies BookingCancelGateway} bookingListGateway={gateway(bookings)} />);
-    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
     fireEvent.click(await screen.findByText('203 · Live Guest'));
     fireEvent.click(screen.getByRole('button', { name: '取消預約' }));
     fireEvent.click(screen.getByRole('button', { name: '確認取消' }));
@@ -123,7 +123,7 @@ describe('live booking list UI', () => {
       status: 'updated', bookingId: 'RSV-live-203', checkInAt: '2026-09-14T05:00:00.000Z', checkOutAt: '2026-09-15T05:00:00.000Z', amountNts: 1_200, discountNts: 0, rateType: '非假日',
     });
     render(<App bookingListGateway={gateway(bookings)} bookingUpdateGateway={{ update } satisfies BookingUpdateGateway} bookingRoomGateway={roomGateway()} />);
-    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
     fireEvent.click(await screen.findByText('203 · Live Guest'));
     fireEvent.click(screen.getByRole('button', { name: '修改預約' }));
     await screen.findByText('修改預約 · RSV-live-203');
@@ -152,7 +152,7 @@ describe('live booking list UI', () => {
       bookingUpdatePreviewGateway={{ preview } satisfies BookingUpdatePreviewGateway}
       bookingRoomGateway={roomGateway()}
     />);
-    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
     fireEvent.click(await screen.findByText('203 · Live Guest'));
     fireEvent.click(screen.getByRole('button', { name: '修改預約' }));
     await screen.findByText('修改預約 · RSV-live-203');
@@ -170,7 +170,7 @@ describe('live booking list UI', () => {
       .mockRejectedValueOnce(new Error('temporary network failure'))
       .mockResolvedValueOnce({ status: 'updated', bookingId: 'RSV-live-203', checkInAt: '2026-09-14T05:00:00.000Z', checkOutAt: '2026-09-15T05:00:00.000Z', amountNts: 1_200, discountNts: 0, rateType: '非假日' });
     render(<App bookingListGateway={gateway(bookings)} bookingUpdateGateway={{ update } satisfies BookingUpdateGateway} bookingRoomGateway={roomGateway()} />);
-    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
     fireEvent.click(await screen.findByText('203 · Live Guest'));
     fireEvent.click(screen.getByRole('button', { name: '修改預約' }));
     await screen.findByText('修改預約 · RSV-live-203');

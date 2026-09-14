@@ -61,6 +61,7 @@ import { RoomTimelinePage } from './gantt/RoomTimelinePage.js';
 import type { RoomTimelineGateway } from './gantt/room-timeline-gateway.js';
 import type { PropertyNameGateway } from './auth/property-session.js';
 import { CheckoutSoonBanner } from './stays/CheckoutSoonBanner.js';
+import { AppIcon, type AppIconName } from './design-system/icons.js';
 
 /** Shown only to accounts granted more than one property; switching restarts the app in that property. */
 function PropertySwitcher({ className, session, gateway, onSwitch }: { className: string; session: StaffSession; gateway: PropertyNameGateway | undefined; onSwitch: ((propertyId: string) => void) | undefined }) {
@@ -90,16 +91,16 @@ interface NavItem {
   id: ViewId;
   labelZhTw: string;
   labelEn: string;
-  icon: string;
+  icon: AppIconName;
   requiredPage?: CloudPageId;
 }
 
 const mobileNavigation: NavItem[] = [
-  { id: 'today', labelZhTw: '今日', labelEn: 'Today', icon: '⌂', requiredPage: 'rooms' },
-  { id: 'bookings', labelZhTw: '預約', labelEn: 'Bookings', icon: '▣', requiredPage: 'bookings' },
-  { id: 'housekeeping', labelZhTw: '房務', labelEn: 'Housekeep', icon: '✓', requiredPage: 'housekeeping' },
-  { id: 'payments', labelZhTw: '款項', labelEn: 'Payments', icon: '$', requiredPage: 'payments' },
-  { id: 'more', labelZhTw: '更多', labelEn: 'More', icon: '•••' },
+  { id: 'hub', labelZhTw: 'Hub', labelEn: 'Hub', icon: 'hub' },
+  { id: 'today', labelZhTw: '房間總覽', labelEn: 'Rooms', icon: 'rooms', requiredPage: 'rooms' },
+  { id: 'checkin', labelZhTw: '入住登記', labelEn: 'Check-in', icon: 'checkin', requiredPage: 'checkin' },
+  { id: 'bookings_new', labelZhTw: '新增預約', labelEn: 'New booking', icon: 'bookings_new', requiredPage: 'bookings_new' },
+  { id: 'more', labelZhTw: '更多', labelEn: 'More', icon: 'more' },
 ];
 
 const mobileViewForPage = (pageId: CloudPageId): ViewId => {
@@ -288,7 +289,7 @@ function RoomDetails({ room }: { room: RoomViewModel }) {
   );
 }
 
-function RoomActions({ room, onAction, onOpenCheckIn, onOpenExtend, onOpenPayment, onOpenCheckout }: { room: RoomViewModel; onAction: (action: string) => void; onOpenCheckIn?: (() => void) | undefined; onOpenExtend?: (() => void) | undefined; onOpenPayment?: ((roomId: string) => void) | undefined; onOpenCheckout?: (() => void) | undefined }) {
+function RoomActions({ room, onAction, onOpenCheckIn, onOpenExtend, onOpenPayment, onOpenCheckout }: { room: RoomViewModel; onAction: (action: string) => void; onOpenCheckIn?: ((roomId: string) => void) | undefined; onOpenExtend?: ((roomId: string) => void) | undefined; onOpenPayment?: ((roomId: string) => void) | undefined; onOpenCheckout?: ((roomId: string) => void) | undefined }) {
   const { locale } = useLocale();
   const actions = room.actions.filter((action) => action !== 'payment' || onOpenPayment);
   if (actions.length === 0) return null;
@@ -298,7 +299,7 @@ function RoomActions({ room, onAction, onOpenCheckIn, onOpenExtend, onOpenPaymen
         <Button
           className={`room-action room-action--${action}`}
           key={action}
-          onClick={() => action === 'checkin' && onOpenCheckIn ? onOpenCheckIn() : action === 'extend' && onOpenExtend ? onOpenExtend() : action === 'payment' && onOpenPayment ? onOpenPayment(room.number) : action === 'checkout' && onOpenCheckout ? onOpenCheckout() : onAction(`${room.number} · ${actionLabels[action][locale === 'zh-TW' ? 0 : 1]}`)}
+          onClick={() => action === 'checkin' && onOpenCheckIn ? onOpenCheckIn(room.number) : action === 'extend' && onOpenExtend ? onOpenExtend(room.number) : action === 'payment' && onOpenPayment ? onOpenPayment(room.number) : action === 'checkout' && onOpenCheckout ? onOpenCheckout(room.number) : onAction(`${room.number} · ${actionLabels[action][locale === 'zh-TW' ? 0 : 1]}`)}
           size="sm"
           variant={action === 'checkin' ? 'primary' : 'outline'}
         >{action === 'payment' ? '💵 ' : ''}{actionLabels[action][locale === 'zh-TW' ? 0 : 1]}</Button>
@@ -320,10 +321,10 @@ function TodayView({ canCreate, canCheckIn, canExtend, canPayment, canCheckout, 
   canImport: boolean;
   onAction: (action: string) => void;
   onOpenBookingCreate: () => void;
-  onOpenCheckIn: () => void;
-  onOpenExtend: () => void;
+  onOpenCheckIn: (roomId?: string) => void;
+  onOpenExtend: (roomId?: string) => void;
   onOpenPayment: (roomId: string) => void;
-  onOpenCheckout: () => void;
+  onOpenCheckout: (roomId?: string) => void;
   onOpenInitialImport: () => void;
   propertyId: string;
   roomOverviewGateway: RoomOverviewGateway | undefined;
@@ -370,8 +371,8 @@ function TodayView({ canCreate, canCheckIn, canExtend, canPayment, canCheckout, 
 
       <section className="quick-actions" aria-label={text('櫃檯快捷操作', 'Front desk quick actions')}>
         {canCreate ? <Button aria-label={text('新增預約', 'New booking')} className="primary-action" onClick={onOpenBookingCreate}>＋<span>{text('新增預約', 'New booking')}</span></Button> : null}
-        {canCheckIn ? <Button aria-label={text('辦理入住', 'Check in')} onClick={onOpenCheckIn} variant="outline">↘<span>{text('辦理入住', 'Check in')}</span></Button> : null}
-        {canCheckout ? <Button aria-label={text('辦理退房', 'Check out')} onClick={onOpenCheckout} variant="outline">↗<span>{text('辦理退房', 'Check out')}</span></Button> : null}
+        {canCheckIn ? <Button aria-label={text('辦理入住', 'Check in')} onClick={() => onOpenCheckIn()} variant="outline">↘<span>{text('辦理入住', 'Check in')}</span></Button> : null}
+        {canCheckout ? <Button aria-label={text('辦理退房', 'Check out')} onClick={() => onOpenCheckout()} variant="outline">↗<span>{text('辦理退房', 'Check out')}</span></Button> : null}
       </section>
 
       <ShellSection title={text('今日房態', "Today's rooms")} hint={text(`${visibleRoomViewModels.length}/${roomViewModels.length} 間`, `${visibleRoomViewModels.length}/${roomViewModels.length} rooms`)} >
@@ -431,7 +432,7 @@ function TodayView({ canCreate, canCheckIn, canExtend, canPayment, canCheckout, 
         >
             <Badge className="status-pill">{stateLabel(selectedRoom.state)}</Badge>
             <RoomDetails room={selectedRoom} />
-            <RoomActions room={selectedRoom} onAction={(action) => { setSelectedRoomNumber(null); onAction(action); }} onOpenCheckIn={canCheckIn ? () => { setSelectedRoomNumber(null); onOpenCheckIn(); } : undefined} onOpenExtend={canExtend ? () => { setSelectedRoomNumber(null); onOpenExtend(); } : undefined} onOpenPayment={canPayment ? (roomId) => { setSelectedRoomNumber(null); onOpenPayment(roomId); } : undefined} onOpenCheckout={canCheckout ? () => { setSelectedRoomNumber(null); onOpenCheckout(); } : undefined} />
+            <RoomActions room={selectedRoom} onAction={(action) => { setSelectedRoomNumber(null); onAction(action); }} onOpenCheckIn={canCheckIn ? (roomId) => { setSelectedRoomNumber(null); onOpenCheckIn(roomId); } : undefined} onOpenExtend={canExtend ? (roomId) => { setSelectedRoomNumber(null); onOpenExtend(roomId); } : undefined} onOpenPayment={canPayment ? (roomId) => { setSelectedRoomNumber(null); onOpenPayment(roomId); } : undefined} onOpenCheckout={canCheckout ? (roomId) => { setSelectedRoomNumber(null); onOpenCheckout(roomId); } : undefined} />
         </ResponsiveDialog>
       ) : null}
     </>
@@ -574,7 +575,7 @@ function MoreView({ isAdmin, allowedPages, onOpenPage, onLogout }: {
   onLogout: () => void;
 }) {
   const { locale, text } = useLocale();
-  const primaryPages = new Set<CloudPageId>(['rooms', 'bookings', 'housekeeping', 'payments']);
+  const primaryPages = new Set<CloudPageId>(['rooms', 'checkin', 'bookings_new']);
   const visibleItems = pagesAllowedForNavigation(allowedPages).filter(
     (page) => !primaryPages.has(page.id) && (page.id !== 'users' || isAdmin),
   );
@@ -592,6 +593,26 @@ function MoreView({ isAdmin, allowedPages, onOpenPage, onLogout }: {
   );
 }
 
+const HUB_DESCRIPTIONS: Record<CloudPageId, readonly [string, string]> = {
+  rooms: ['即時房態與快捷操作', 'Live room status and quick actions'],
+  gantt: ['14 天小時時間軸', '14-day hourly timeline'],
+  payments: ['收款、退款與日結', 'Payments, refunds and cashier close'],
+  bookings: ['有效預約、修改與取消', 'Active bookings, edits and cancellations'],
+  bookings_new: ['單筆或多時段預約', 'Single or multi-slot bookings'],
+  checkin: ['預約帶入或現場入住', 'From a booking or walk-in'],
+  extend: ['延住計費與撞期檢查', 'Extension pricing and conflict checks'],
+  checkout: ['逾時確認與餘額收款', 'Overdue checks and balance collection'],
+  room_management: ['房態、月租與換房', 'Room status, monthly rentals and transfers'],
+  housekeeping: ['待清潔與清潔進度', 'Cleaning queue and progress'],
+  maintenance: ['維修中房間與排程', 'Rooms under repair and schedules'],
+  reports: ['營收、住房率與日結', 'Revenue, occupancy and daily summary'],
+  audit: ['所有操作的稽核紀錄', 'Audit trail of every operation'],
+  users: ['人員、角色與分頁權限', 'Staff, roles and page access'],
+  properties: ['館別資料與建立', 'Property records and creation'],
+  costs: ['成本紀錄與損益', 'Costs and profit & loss'],
+  holidays: ['國定假日與手動設定', 'Public holidays and manual days'],
+};
+
 function FoundationPage({ pageId, isAdmin, allowedPages, onOpenInitialImport, onOpenPage }: {
   pageId: CloudPageId | 'hub';
   isAdmin: boolean;
@@ -604,7 +625,7 @@ function FoundationPage({ pageId, isAdmin, allowedPages, onOpenInitialImport, on
   const title = pageId === 'hub' ? 'Prototype Hub' : (locale === 'zh-TW' ? page?.labelZhTw : page?.labelEn) ?? pageId;
   return (
     <ShellSection title={title} hint={text('全功能搬移中', 'Full migration in progress')}>
-      {pageId === 'hub' ? <div className="hub-grid">{pagesAllowedForNavigation(allowedPages).map((item) => <button key={item.id} onClick={() => onOpenPage(item.id)} type="button"><strong>{locale === 'zh-TW' ? item.labelZhTw : item.labelEn}</strong><small>{text('開啟模組', 'Open module')} ›</small></button>)}{isAdmin ? <button onClick={onOpenInitialImport} type="button"><strong>{text('初始資料導入', 'Initial data import')}</strong><small>{text('僅管理員', 'Admin only')} ›</small></button> : null}</div> : <div className="foundation-page">
+      {pageId === 'hub' ? <div className="hub-grid">{pagesAllowedForNavigation(allowedPages).filter((item) => item.id !== 'users' || isAdmin).map((item) => <button key={item.id} onClick={() => onOpenPage(item.id)} type="button"><span className="hub-icon"><AppIcon name={item.id} /></span><strong>{locale === 'zh-TW' ? item.labelZhTw : item.labelEn}</strong><small>{text(...HUB_DESCRIPTIONS[item.id])}</small></button>)}{isAdmin ? <button onClick={onOpenInitialImport} type="button"><span className="hub-icon"><AppIcon name="initial_import" /></span><strong>{text('初始資料導入', 'Initial data import')}</strong><small>{text('僅管理員 · v3 備份匯入', 'Admin only · v3 backup import')}</small></button> : null}</div> : <div className="foundation-page">
         <strong>{text('此模組已列入 Firebase v4 完整搬移範圍', 'This module is included in the full Firebase v4 migration')}</strong>
         <p>{text('目前 foundation 尚未接入真實 PMS 資料與 operation handler，因此不標示為完成功能。', 'The foundation is not yet connected to live PMS data or operation handlers, so this module is not marked complete.')}</p>
       </div>}
@@ -612,12 +633,13 @@ function FoundationPage({ pageId, isAdmin, allowedPages, onOpenInitialImport, on
   );
 }
 
-function ActiveView({ view, onAction, paymentRoomId, onOpenPayment, onPaymentRoomHandled, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, bookingCreateGateway, bookingMultiCreateGateway, bookingPreviewGateway, bookingRoomGateway, roomOverviewGateway, roomTimelineGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, costGateway, reportGateway, auditGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, holidayGateway, propertyGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
+function ActiveView({ view, onAction, targetRoomId, onOpenPayment, onOpenRoomPage, onTargetRoomHandled, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, bookingCreateGateway, bookingMultiCreateGateway, bookingPreviewGateway, bookingRoomGateway, roomOverviewGateway, roomTimelineGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, costGateway, reportGateway, auditGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, holidayGateway, propertyGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
   view: ViewId;
   onAction: (action: string) => void;
-  paymentRoomId: string | null;
+  targetRoomId: string | null;
   onOpenPayment: (roomId: string) => void;
-  onPaymentRoomHandled: () => void;
+  onOpenRoomPage: (pageId: 'checkin' | 'extend' | 'checkout', roomId?: string) => void;
+  onTargetRoomHandled: () => void;
   session: StaffSession;
   accountGateway: AccountAdminGateway | undefined;
   dataImportGateway: DataImportGateway | undefined;
@@ -652,14 +674,14 @@ function ActiveView({ view, onAction, paymentRoomId, onOpenPayment, onPaymentRoo
 }) {
   if (view === 'bookings') return <BookingsView bookingCancelGateway={bookingCancelGateway} bookingUpdateGateway={bookingUpdateGateway} bookingUpdatePreviewGateway={bookingUpdatePreviewGateway} canCancel={session.allowedPages.includes('bookings')} canCreate={session.allowedPages.includes('bookings_new')} gateway={bookingListGateway} holidayGateway={holidayCalendarGateway} onOpenBookingCreate={onOpenBookingCreate} propertyId={session.propertyId} roomGateway={bookingRoomGateway} session={session} />;
   if (view === 'bookings_new') return <BookingCreatePage gateway={bookingCreateGateway} holidayGateway={holidayCalendarGateway} multiGateway={bookingMultiCreateGateway} onViewBookings={() => onOpenPage('bookings')} previewGateway={bookingPreviewGateway} roomGateway={bookingRoomGateway} session={session} />;
-  if (view === 'checkin') return <StayCheckInPage bookingGateway={bookingListGateway} gateway={stayCheckInGateway} holidayGateway={holidayCalendarGateway} onBack={() => onOpenPage('rooms')} roomGateway={bookingRoomGateway} session={session} />;
-  if (view === 'extend') return <StayExtendPage gateway={stayExtendGateway} holidayGateway={holidayCalendarGateway} onBack={() => onOpenPage('rooms')} session={session} staysGateway={activeStaysGateway} />;
-  if (view === 'checkout') return <StayCheckoutPage gateway={stayCheckoutGateway} holidayGateway={holidayCalendarGateway} onBack={() => onOpenPage('rooms')} paymentListGateway={paymentListGateway} session={session} staysGateway={activeStaysGateway} />;
+  if (view === 'checkin') return <StayCheckInPage bookingGateway={bookingListGateway} gateway={stayCheckInGateway} holidayGateway={holidayCalendarGateway} initialRoomId={targetRoomId} onInitialRoomHandled={onTargetRoomHandled} onBack={() => onOpenPage('rooms')} roomGateway={bookingRoomGateway} session={session} />;
+  if (view === 'extend') return <StayExtendPage gateway={stayExtendGateway} holidayGateway={holidayCalendarGateway} initialRoomId={targetRoomId} onInitialRoomHandled={onTargetRoomHandled} onBack={() => onOpenPage('rooms')} session={session} staysGateway={activeStaysGateway} />;
+  if (view === 'checkout') return <StayCheckoutPage gateway={stayCheckoutGateway} holidayGateway={holidayCalendarGateway} initialRoomId={targetRoomId} onInitialRoomHandled={onTargetRoomHandled} onBack={() => onOpenPage('rooms')} paymentListGateway={paymentListGateway} session={session} staysGateway={activeStaysGateway} />;
   if (view === 'housekeeping') return <HousekeepingPage gateway={housekeepingGateway} session={session} />;
   if (view === 'maintenance') return <MaintenancePage gateway={maintenanceGateway} session={session} />;
   if (view === 'room_management') return <RoomManagementPage gateway={roomManagementGateway} session={session} />;
   if (view === 'gantt') return <RoomTimelinePage gateway={roomTimelineGateway} session={session} />;
-  if (view === 'payments') return <PaymentsPage bookingGateway={bookingListGateway} createGateway={paymentCreateGateway} roomGateway={bookingRoomGateway} initialRoomId={paymentRoomId} listGateway={paymentListGateway} onInitialRoomHandled={onPaymentRoomHandled} session={session} staysGateway={activeStaysGateway} />;
+  if (view === 'payments') return <PaymentsPage bookingGateway={bookingListGateway} createGateway={paymentCreateGateway} roomGateway={bookingRoomGateway} initialRoomId={targetRoomId} listGateway={paymentListGateway} onInitialRoomHandled={onTargetRoomHandled} session={session} staysGateway={activeStaysGateway} />;
   if (view === 'costs') return <CostManagementPage gateway={costGateway} session={session} />;
   if (view === 'reports') return <ReportsPage gateway={reportGateway} session={session} />;
   if (view === 'audit') return <AuditTrailPage gateway={auditGateway} session={session} />;
@@ -668,7 +690,7 @@ function ActiveView({ view, onAction, paymentRoomId, onOpenPayment, onPaymentRoo
   if (view === 'accounts' || view === 'users') return <AccountManagement session={session} gateway={accountGateway} />;
   if (view === 'initial_import') return <InitialDataImport session={session} gateway={dataImportGateway} />;
   if (view === 'more') return <MoreView isAdmin={session.role === 'admin'} allowedPages={session.allowedPages} onOpenPage={onOpenPage} onLogout={onLogout} />;
-  if (view === 'today' || view === 'rooms') return <TodayView canCheckIn={session.allowedPages.includes('checkin')} canCreate={session.allowedPages.includes('bookings_new')} canCheckout={session.allowedPages.includes('checkout')} canExtend={session.allowedPages.includes('extend')} canImport={session.role === 'admin'} canPayment={session.allowedPages.includes('payments')} onAction={onAction} onOpenBookingCreate={onOpenBookingCreate} onOpenCheckIn={() => onOpenPage('checkin')} onOpenCheckout={() => onOpenPage('checkout')} onOpenExtend={() => onOpenPage('extend')} onOpenInitialImport={() => onOpenPage('initial_import')} onOpenPayment={onOpenPayment} propertyId={session.propertyId} roomOverviewGateway={roomOverviewGateway} />;
+  if (view === 'today' || view === 'rooms') return <TodayView canCheckIn={session.allowedPages.includes('checkin')} canCreate={session.allowedPages.includes('bookings_new')} canCheckout={session.allowedPages.includes('checkout')} canExtend={session.allowedPages.includes('extend')} canImport={session.role === 'admin'} canPayment={session.allowedPages.includes('payments')} onAction={onAction} onOpenBookingCreate={onOpenBookingCreate} onOpenCheckIn={(roomId) => onOpenRoomPage('checkin', roomId)} onOpenCheckout={(roomId) => onOpenRoomPage('checkout', roomId)} onOpenExtend={(roomId) => onOpenRoomPage('extend', roomId)} onOpenInitialImport={() => onOpenPage('initial_import')} onOpenPayment={onOpenPayment} propertyId={session.propertyId} roomOverviewGateway={roomOverviewGateway} />;
   return <FoundationPage allowedPages={session.allowedPages} isAdmin={session.role === 'admin'} onOpenInitialImport={() => onOpenPage('initial_import')} onOpenPage={onOpenPage} pageId={view} />;
 }
 
@@ -761,7 +783,8 @@ export function App({
   const [authenticated, setAuthenticated] = useState(initialAuthenticated);
   const [view, setView] = useState<ViewId>('today');
   const [sheetAction, setSheetAction] = useState<string | null>(null);
-  const [paymentRoomId, setPaymentRoomId] = useState<string | null>(null);
+  // Room chosen on a room card, handed to the page it opens so staff never re-select it.
+  const [targetRoomId, setTargetRoomId] = useState<string | null>(null);
   const visibleMobileNavigation = mobileNavigation.filter((item) => !item.requiredPage || session.allowedPages.includes(item.requiredPage));
   const visibleDesktopPages = pagesAllowedForNavigation(session.allowedPages).filter(
     (page) => page.id !== 'users' || session.role === 'admin',
@@ -817,9 +840,10 @@ export function App({
         <main className="page-content"><ActiveView
           view={view}
           onAction={setSheetAction}
-          paymentRoomId={paymentRoomId}
-          onOpenPayment={(roomId) => { setPaymentRoomId(roomId || null); if (roomId) setView('payments'); }}
-          onPaymentRoomHandled={() => setPaymentRoomId(null)}
+          targetRoomId={targetRoomId}
+          onOpenPayment={(roomId) => { setTargetRoomId(roomId || null); if (roomId) setView('payments'); }}
+          onOpenRoomPage={(pageId, roomId) => { setTargetRoomId(roomId ?? null); setView(pageId); }}
+          onTargetRoomHandled={() => setTargetRoomId(null)}
           session={session}
           accountGateway={accountGateway}
           dataImportGateway={dataImportGateway}
@@ -857,7 +881,7 @@ export function App({
       <nav className="mobile-nav" aria-label={text('手機主導覽', 'Mobile navigation')}>
         {visibleMobileNavigation.map((item) => (
           <button className={view === item.id ? 'active' : ''} key={item.id} aria-label={locale === 'zh-TW' ? item.labelZhTw : item.labelEn} onClick={() => setView(item.id)}>
-            <span>{item.icon}</span><small>{locale === 'zh-TW' ? item.labelZhTw : item.labelEn}</small>
+            <span><AppIcon name={item.icon} size={22} /></span><small>{locale === 'zh-TW' ? item.labelZhTw : item.labelEn}</small>
           </button>
         ))}
       </nav>

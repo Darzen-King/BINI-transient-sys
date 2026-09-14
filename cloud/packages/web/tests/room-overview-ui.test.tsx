@@ -125,4 +125,29 @@ describe('live room overview UI', () => {
     const staySelector = await screen.findByLabelText('收款對象');
     await waitFor(() => expect(staySelector).toHaveValue('stay:STY-live-301'));
   });
+
+  it('opens extend and check-out with the room card already selected', async () => {
+    const session: StaffSession = { uid: 'front-1', email: 'front@example.com', displayName: 'Front Desk', propertyId: 'property-main', role: 'front_desk', allowedPages: ['rooms', 'extend', 'checkout'] };
+    const other = { stayId: 'STY-live-205', roomId: '205', guestName: 'Other Guest', phone: null, plan: '24hrs', checkInAt: '2026-09-12T08:00:00.000Z', checkOutAt: '2026-09-13T08:00:00.000Z', originalCheckOutAt: '2026-09-13T08:00:00.000Z', baseRentNts: 1_000, extensionFeeNts: 0, extraFeeNts: 0, totalDueNts: 1_000, bookingId: null, createdAt: null };
+    const target = { ...other, stayId: 'STY-live-301', roomId: '301', guestName: 'Live Guest' };
+    const staysGateway: ActiveStaysGateway = { subscribe(_propertyId, onValue) { queueMicrotask(() => onValue([other, target])); return () => undefined; } };
+    const holidayCalendarGateway = { subscribe(_propertyId: string, onValue: (calendar: { days: Map<string, boolean>; coveredYears: Set<number> }) => void) { queueMicrotask(() => onValue({ days: new Map(), coveredYears: new Set() })); return () => undefined; } };
+
+    const { unmount } = render(<App activeStaysGateway={staysGateway} holidayCalendarGateway={holidayCalendarGateway} roomOverviewGateway={gateway(projection)} session={session} stayExtendGateway={{ extend: async () => { throw new Error('not used'); } }} />);
+    fireEvent.click((await screen.findAllByRole('button', { name: '延住處理' }))[0]!);
+    await waitFor(() => expect(screen.getByLabelText('選擇在住房')).toHaveValue('STY-live-301'));
+    // +/- one hour, never below one hour.
+    const hours = screen.getByLabelText('延住時數');
+    expect(hours).toHaveValue(2);
+    fireEvent.click(screen.getByRole('button', { name: '增加 1 小時' }));
+    expect(hours).toHaveValue(3);
+    for (let index = 0; index < 5; index += 1) fireEvent.click(screen.getByRole('button', { name: '減少 1 小時' }));
+    expect(hours).toHaveValue(1);
+    expect(screen.getByRole('button', { name: '減少 1 小時' })).toBeDisabled();
+    unmount();
+
+    render(<App activeStaysGateway={staysGateway} roomOverviewGateway={gateway(projection)} session={session} stayCheckoutGateway={{ checkout: async () => { throw new Error('not used'); } }} />);
+    fireEvent.click((await screen.findAllByRole('button', { name: '退房辦理' }))[0]!);
+    await waitFor(() => expect(screen.getByLabelText('選擇在住房')).toHaveValue('STY-live-301'));
+  });
 });

@@ -18,12 +18,15 @@ function taipeiLocalInputValue(value: string): string {
 function bookingDays(booking: BookingListItem): number { return Math.max(1, Math.round((Date.parse(booking.checkOutAt) - Date.parse(booking.checkInAt)) / ((booking.plan === '12hrs' ? 12 : 24) * 3_600_000))); }
 function errorMessage(error: unknown, text: (zhTw: string, en: string) => string): string { return error instanceof Error && error.message ? error.message : text('入住未完成，請重新確認房間狀態與資料。', 'Check-in did not complete. Confirm the room status and data.'); }
 
-export function StayCheckInPage({ session, gateway, bookingGateway, roomGateway, holidayGateway, onBack }: {
+export function StayCheckInPage({ session, gateway, bookingGateway, roomGateway, holidayGateway, initialRoomId, onInitialRoomHandled, onBack }: {
   session: StaffSession;
   gateway: StayCheckInGateway | undefined;
   bookingGateway: BookingListGateway | undefined;
   roomGateway: BookingRoomGateway | undefined;
   holidayGateway?: HolidayCalendarGateway | undefined;
+  /** Vacant room chosen on a room card; preselected once rooms load. */
+  initialRoomId?: string | null;
+  onInitialRoomHandled?: () => void;
   onBack: () => void;
 }) {
   const { text } = useLocale();
@@ -52,6 +55,12 @@ export function StayCheckInPage({ session, gateway, bookingGateway, roomGateway,
 
   useEffect(() => bookingGateway?.subscribe(session.propertyId, (value) => { setBookings(value); setLoadError(false); }, () => { setBookings(null); setLoadError(true); }), [bookingGateway, session.propertyId]);
   useEffect(() => roomGateway?.subscribe(session.propertyId, (value) => { setRooms(value); setLoadError(false); }, () => { setRooms(null); setLoadError(true); }), [roomGateway, session.propertyId]);
+
+  useEffect(() => {
+    if (!initialRoomId || rooms === null) return;
+    if (rooms.some((room) => room.roomId === initialRoomId && room.status === '可入住')) setRoomId(initialRoomId);
+    onInitialRoomHandled?.();
+  }, [initialRoomId, onInitialRoomHandled, rooms]);
 
   const chooseBooking = (nextId: string) => {
     setBookingId(nextId); setCompleted(null); setError(''); setOperationId(null);

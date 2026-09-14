@@ -34,7 +34,7 @@ type Step =
  * (confirm the system fee or correct the real hours) and a balance-collection reminder.
  * Every amount shown here is a preview; `stayCheckout` recalculates on the server.
  */
-export function StayCheckoutPage({ session, gateway, staysGateway, paymentListGateway, holidayGateway, onBack }: { session: StaffSession; gateway: StayCheckoutGateway | undefined; staysGateway: ActiveStaysGateway | undefined; paymentListGateway?: PaymentListGateway | undefined; holidayGateway?: HolidayCalendarGateway | undefined; onBack: () => void }) {
+export function StayCheckoutPage({ session, gateway, staysGateway, paymentListGateway, holidayGateway, initialRoomId, onInitialRoomHandled, onBack }: { session: StaffSession; gateway: StayCheckoutGateway | undefined; staysGateway: ActiveStaysGateway | undefined; paymentListGateway?: PaymentListGateway | undefined; holidayGateway?: HolidayCalendarGateway | undefined; initialRoomId?: string | null; onInitialRoomHandled?: () => void; onBack: () => void }) {
   const { text } = useLocale();
   const [stays, setStays] = useState<ActiveStayItem[] | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -52,6 +52,13 @@ export function StayCheckoutPage({ session, gateway, staysGateway, paymentListGa
   useEffect(() => paymentListGateway?.subscribe(session.propertyId, setPayments, () => setPayments(null)), [paymentListGateway, session.propertyId]);
   useEffect(() => holidayGateway?.subscribe(session.propertyId, setCalendar, () => setCalendar(null)), [holidayGateway, session.propertyId]);
   useEffect(() => { const interval = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(interval); }, []);
+  // Room chosen on a room card: select its active stay once stays load.
+  useEffect(() => {
+    if (!initialRoomId || stays === null) return;
+    const match = stays.find((item) => item.roomId === initialRoomId);
+    if (match) setStayId(match.stayId);
+    onInitialRoomHandled?.();
+  }, [initialRoomId, onInitialRoomHandled, stays]);
   const stay = useMemo(() => stays?.find((item) => item.stayId === stayId) ?? null, [stays, stayId]);
   const ready = Boolean(gateway && staysGateway && stays && !loadError);
   const minutesSinceCheckIn = stay ? Math.floor((now - Date.parse(stay.checkInAt)) / 60_000) : 0;

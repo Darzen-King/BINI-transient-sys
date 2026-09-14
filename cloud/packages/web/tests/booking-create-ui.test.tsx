@@ -48,7 +48,7 @@ describe('new booking UI', () => {
     });
     render(<App bookingCreateGateway={{ create } satisfies BookingCreateGateway} bookingRoomGateway={roomGateway()} session={fullAccessSession} />);
 
-    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
     fireEvent.click(screen.getByRole('button', { name: '＋ 新增預約' }));
     const room = await screen.findByLabelText('房間');
     fireEvent.change(room, { target: { value: '203' } });
@@ -84,7 +84,7 @@ describe('new booking UI', () => {
       rateType: '非假日',
     });
     render(<App bookingCreateGateway={{ create } satisfies BookingCreateGateway} bookingRoomGateway={roomGateway()} session={fullAccessSession} />);
-    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
     fireEvent.click(screen.getByRole('button', { name: '＋ 新增預約' }));
     const fill = async () => {
       fireEvent.change(await screen.findByLabelText('房間'), { target: { value: '203' } });
@@ -107,7 +107,7 @@ describe('new booking UI', () => {
     render(<App roomOverviewGateway={undefined} session={{ ...fullAccessSession, allowedPages: ['rooms', 'bookings'] }} />);
 
     expect(screen.queryByRole('button', { name: '新增預約' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
     expect(screen.queryByRole('button', { name: '＋ 新增預約' })).not.toBeInTheDocument();
   });
 
@@ -121,7 +121,7 @@ describe('new booking UI', () => {
       });
     render(<App bookingCreateGateway={{ create } satisfies BookingCreateGateway} bookingRoomGateway={roomGateway()} session={fullAccessSession} />);
 
-    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
     fireEvent.click(screen.getByRole('button', { name: '＋ 新增預約' }));
     fireEvent.change(await screen.findByLabelText('房間'), { target: { value: '203' } });
     fireEvent.change(screen.getByLabelText('住客姓名'), { target: { value: 'Chris' } });
@@ -150,7 +150,7 @@ describe('new booking UI', () => {
     });
     render(<App bookingCreateGateway={{ create: vi.fn() } satisfies BookingCreateGateway} bookingPreviewGateway={{ preview } satisfies BookingPreviewGateway} bookingRoomGateway={roomGateway()} session={fullAccessSession} />);
 
-    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
     fireEvent.click(screen.getByRole('button', { name: '＋ 新增預約' }));
     fireEvent.change(await screen.findByLabelText('房間'), { target: { value: '203' } });
     fireEvent.change(screen.getByLabelText('入住時間'), { target: { value: '2026-09-14T13:00' } });
@@ -189,7 +189,7 @@ describe('new booking UI', () => {
       session={fullAccessSession}
     />);
 
-    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
     fireEvent.click(screen.getByRole('button', { name: '＋ 新增預約' }));
     fireEvent.change(await screen.findByLabelText('房間'), { target: { value: '203' } });
     fireEvent.change(screen.getByLabelText('住客姓名'), { target: { value: 'Chris' } });
@@ -218,7 +218,7 @@ describe('new booking UI', () => {
   it('detects the v3 rate type from the check-in date and only sends a manual relabel', async () => {
     const create = vi.fn().mockResolvedValue({ status: 'created', bookingId: 'RSV-1', paymentId: null, checkInAt: '2026-09-18T05:00:00.000Z', checkOutAt: '2026-09-19T05:00:00.000Z', amountNts: 1_200, discountNts: 0, rateType: '假日' });
     render(<App bookingCreateGateway={{ create } satisfies BookingCreateGateway} bookingRoomGateway={roomGateway()} session={fullAccessSession} />);
-    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
     fireEvent.click(screen.getByRole('button', { name: '＋ 新增預約' }));
     fireEvent.change(await screen.findByLabelText('房間'), { target: { value: '203' } });
     fireEvent.change(screen.getByLabelText('住客姓名'), { target: { value: 'Chris' } });
@@ -244,7 +244,7 @@ describe('new booking UI', () => {
   it('shows the automatic check-out and amount, sends automatic pricing unless staff edit the amount (v3)', async () => {
     const create = vi.fn().mockResolvedValue({ status: 'created', bookingId: 'RSV-1', paymentId: null, checkInAt: '2026-09-17T05:00:00.000Z', checkOutAt: '2026-09-18T05:00:00.000Z', amountNts: 1_000, discountNts: 0, rateType: '非假日' });
     render(<App bookingCreateGateway={{ create } satisfies BookingCreateGateway} bookingRoomGateway={roomGateway()} session={fullAccessSession} />);
-    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
     fireEvent.click(screen.getByRole('button', { name: '＋ 新增預約' }));
     fireEvent.change(await screen.findByLabelText('房間'), { target: { value: '203' } });
     fireEvent.change(screen.getByLabelText('住客姓名'), { target: { value: 'Chris' } });
@@ -273,7 +273,7 @@ describe('new booking UI', () => {
 
   it('returns an edited amount to automatic pricing when the stay details change', async () => {
     render(<App bookingCreateGateway={{ create: vi.fn() } satisfies BookingCreateGateway} bookingRoomGateway={roomGateway()} session={fullAccessSession} />);
-    fireEvent.click(screen.getByRole('button', { name: '預約' }));
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
     fireEvent.click(screen.getByRole('button', { name: '＋ 新增預約' }));
     fireEvent.change(await screen.findByLabelText('入住時間'), { target: { value: '2026-09-17T13:00' } });
     fireEvent.change(screen.getByLabelText('金額（NT$）'), { target: { value: '500' } });

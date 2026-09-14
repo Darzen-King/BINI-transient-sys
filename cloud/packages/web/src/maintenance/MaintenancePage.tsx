@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import type { MaintenanceRoomItem, MaintenanceScheduleItem } from '@bini/cloud-shared';
 
 import type { StaffSession } from '../auth/session.js';
-import { Badge, Button, Field, Notice, ResponsiveDialog, SectionCard } from '../design-system/index.js';
+import { Badge, Button, DateTimeInput, Field, Notice, ResponsiveDialog, SectionCard } from '../design-system/index.js';
 import { labelFor, MAINTENANCE_STATUS_LABELS } from '../i18n/labels.js';
 import { useLocale } from '../i18n/locale.js';
 import type { MaintenanceGateway } from './maintenance-gateway.js';
@@ -207,8 +207,8 @@ export function MaintenancePage({ session, gateway }: { session: StaffSession; g
         <div className="booking-create-grid">
           <Field label={text('房號', 'Room')}><input disabled={!ready} name="roomId" required /></Field>
           <Field label={text('維修項目', 'Title')}><input disabled={!ready} name="title" required /></Field>
-          <Field label={text('開始時間', 'Start')}><input disabled={!ready} name="startAt" required type="datetime-local" /></Field>
-          <Field label={text('結束時間', 'End')}><input disabled={!ready} name="endAt" required type="datetime-local" /></Field>
+          <Field label={text('開始時間', 'Start')}><DateTimeInput disabled={!ready} name="startAt" required /></Field>
+          <Field label={text('結束時間', 'End')}><DateTimeInput disabled={!ready} name="endAt" required /></Field>
           <Field label={text('備註', 'Note')}><input disabled={!ready} name="note" /></Field>
         </div>
         <div className="booking-create-actions">

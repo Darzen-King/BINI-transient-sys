@@ -3,7 +3,7 @@ import type { BookingListItem, BookingRoomOption, StayCheckInResult } from '@bin
 
 import type { StaffSession } from '../auth/session.js';
 import type { BookingListGateway } from '../bookings/booking-list.js';
-import { Button, Field, Notice, SectionCard } from '../design-system/index.js';
+import { Button, DateTimeInput, Field, NumberStepper, Notice, SectionCard } from '../design-system/index.js';
 import { useLocale } from '../i18n/locale.js';
 import type { BookingRoomGateway } from '../rooms/booking-room-options.js';
 import type { StayCheckInGateway } from './stay-checkin.js';
@@ -90,10 +90,10 @@ export function StayCheckInPage({ session, gateway, bookingGateway, roomGateway,
         <Field label={text('房間', 'Room')}><select disabled={unavailable || selectedBooking !== null} onChange={(event) => setRoomId(event.target.value)} required value={roomId}><option value="">{text('選擇可入住的房間', 'Select an available room')}</option>{(rooms ?? []).map((room) => <option disabled={room.status !== '可入住' && room.roomId !== selectedBooking?.roomId} key={room.roomId} value={room.roomId}>{room.roomId} · {room.status}</option>)}</select></Field>
         <Field label={text('住客姓名', 'Guest name')}><input disabled={unavailable || selectedBooking !== null} maxLength={300} onChange={(event) => setGuestName(event.target.value)} required value={guestName} /></Field>
         <Field label={text('電話', 'Phone')}><input disabled={unavailable || selectedBooking !== null} inputMode="tel" maxLength={100} onChange={(event) => setPhone(event.target.value)} value={phone} /></Field>
-        <Field label={text('入住時間', 'Check-in')}><input disabled={unavailable || selectedBooking !== null} onChange={(event) => { setCheckInAt(event.target.value); setManualAmountNts(null); }} required type="datetime-local" value={checkInAt} /></Field>
+        <Field label={text('入住時間', 'Check-in')}><DateTimeInput disabled={unavailable || selectedBooking !== null} onChange={(event) => { setCheckInAt(event.target.value); setManualAmountNts(null); }} required value={checkInAt} /></Field>
         <CheckoutPreviewField quote={quote} />
         <Field label={text('方案', 'Plan')}><select disabled={unavailable || selectedBooking !== null} onChange={(event) => { setPlan(event.target.value === '12hrs' ? '12hrs' : '24hrs'); setManualAmountNts(null); }} value={plan}><option value="12hrs">12hrs</option><option value="24hrs">24hrs</option></select></Field>
-        <Field label={text('天數', 'Days')}><input disabled={unavailable || selectedBooking !== null} max="366" min="1" onChange={(event) => { setDays(Number(event.target.value) || 0); setManualAmountNts(null); }} required type="number" value={days || ''} /></Field>
+        <Field label={text('天數', 'Days')}><NumberStepper decrementLabel={text('減少 1 天', 'One day less')} disabled={unavailable || selectedBooking !== null} incrementLabel={text('增加 1 天', 'One day more')} max={366} min={1} onChange={(value) => { setDays(value); setManualAmountNts(null); }} value={days} /></Field>
         <Field label={text('折扣（NT$）', 'Discount (NT$)')}><input disabled={unavailable || selectedBooking !== null} min="0" onChange={(event) => { setDiscountNts(Number(event.target.value) || 0); setManualAmountNts(null); }} required type="number" value={discountNts} /></Field>
         <AmountField disabled={unavailable} label={text('房租金額（NT$）', 'Room charge (NT$)')} manualAmountNts={manualAmountNts} onChange={setManualAmountNts} quote={quote} />
       </div>

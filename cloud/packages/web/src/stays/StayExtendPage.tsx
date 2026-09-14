@@ -2,7 +2,7 @@ import { quoteStayExtension, type ActiveStayItem, type BookingHolidayCalendar, t
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 
 import type { StaffSession } from '../auth/session.js';
-import { Button, Field, Notice, SectionCard } from '../design-system/index.js';
+import { Button, Field, NumberStepper, Notice, SectionCard } from '../design-system/index.js';
 import { useLocale } from '../i18n/locale.js';
 import type { ActiveStaysGateway } from './active-stays.js';
 import type { HolidayCalendarGateway } from './holiday-calendar.js';
@@ -53,7 +53,6 @@ export function StayExtendPage({ session, gateway, staysGateway, holidayGateway,
     if (match) setStayId(match.stayId);
     onInitialRoomHandled?.();
   }, [initialRoomId, onInitialRoomHandled, stays]);
-  const stepHours = (delta: number) => setExtensionHours((current) => Math.min(168, Math.max(1, (Number.isInteger(current) ? current : 1) + delta)));
 
   const chooseStay = (nextStayId: string) => { setStayId(nextStayId); setError(''); setCompleted(null); setOperationId(null); };
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -76,7 +75,7 @@ export function StayExtendPage({ session, gateway, staysGateway, holidayGateway,
     <form className="booking-create-form" onSubmit={(event) => void submit(event)}>
       <div className="booking-create-grid">
         <Field label={text('選擇在住房', 'Select active stay')}><select disabled={unavailable} onChange={(event) => chooseStay(event.target.value)} required value={stayId}><option value="">{text('選擇房間與旅客', 'Select room and guest')}</option>{(stays ?? []).map((stay) => <option key={stay.stayId} value={stay.stayId}>{stay.roomId} · {stay.guestName} · {formatTaipei(stay.checkOutAt, locale)}</option>)}</select></Field>
-        <Field label={text('延住時數', 'Extension hours')}><div className="hour-stepper"><Button aria-label={text('減少 1 小時', 'One hour less')} disabled={unavailable || !selectedStay || extensionHours <= 1} onClick={() => stepHours(-1)} type="button" variant="outline">−</Button><input aria-label={text('延住時數', 'Extension hours')} disabled={unavailable || !selectedStay} inputMode="numeric" max="168" min="1" onChange={(event) => setExtensionHours(Math.trunc(Number(event.target.value)) || 0)} required step="1" type="number" value={extensionHours || ''} /><Button aria-label={text('增加 1 小時', 'One hour more')} disabled={unavailable || !selectedStay || extensionHours >= 168} onClick={() => stepHours(1)} type="button" variant="outline">＋</Button></div></Field>
+        <Field label={text('延住時數', 'Extension hours')}><NumberStepper decrementLabel={text('減少 1 小時', 'One hour less')} disabled={unavailable || !selectedStay} incrementLabel={text('增加 1 小時', 'One hour more')} max={168} min={1} onChange={setExtensionHours} value={extensionHours} /></Field>
       </div>
       {selectedStay ? <div className="stay-extension-details">
         <dl className="room-detail-list"><div><dt>{text('旅客／方案', 'Guest / plan')}</dt><dd><strong>{selectedStay.guestName}</strong> · {selectedStay.plan ?? '—'}</dd></div><div><dt>{text('入住時間', 'Check-in')}</dt><dd>{formatTaipei(selectedStay.checkInAt, locale)}</dd></div><div><dt>{text('目前退房', 'Current checkout')}</dt><dd>{formatTaipei(selectedStay.checkOutAt, locale)}</dd></div><div><dt>{text('原始退房', 'Original checkout')}</dt><dd>{formatTaipei(selectedStay.originalCheckOutAt, locale)}</dd></div><div><dt>{text('目前延住費', 'Current extension fee')}</dt><dd>NT$ {selectedStay.extensionFeeNts.toLocaleString()}</dd></div><div><dt>{text('目前應收', 'Current total due')}</dt><dd>NT$ {selectedStay.totalDueNts.toLocaleString()}</dd></div></dl>

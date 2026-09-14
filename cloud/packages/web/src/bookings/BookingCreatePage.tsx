@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { type BookingCreateResult, type BookingMultiCreateResult, type BookingPreviewResult, type BookingRoomOption } from '@bini/cloud-shared';
 
 import type { StaffSession } from '../auth/session.js';
-import { Button, Field, Notice, SectionCard } from '../design-system/index.js';
+import { Button, DateTimeInput, Field, NumberStepper, Notice, SectionCard } from '../design-system/index.js';
 import { useLocale } from '../i18n/locale.js';
 import type { BookingCreateGateway } from './booking-create.js';
 import type { BookingMultiCreateGateway } from './booking-multi-create.js';
@@ -236,10 +236,10 @@ export function BookingCreatePage({
           </select></Field>
           <Field label={text('住客姓名', 'Guest name')}><input disabled={!gateway} maxLength={300} name="guestName" required /></Field>
           <Field label={text('電話', 'Phone')}><input disabled={!gateway} maxLength={100} name="phone" inputMode="tel" /></Field>
-          <Field label={text('入住時間', 'Check-in')}><input disabled={!gateway} name="checkInAt" onChange={(event) => { setCheckInLocal(event.target.value); rate.onCheckInChange(event.target.value); }} required type="datetime-local" value={checkInLocal} /></Field>
+          <Field label={text('入住時間', 'Check-in')}><DateTimeInput disabled={!gateway} name="checkInAt" onChange={(event) => { setCheckInLocal(event.target.value); rate.onCheckInChange(event.target.value); }} required value={checkInLocal} /></Field>
           <CheckoutPreviewField quote={quote} />
           <Field label={text('方案', 'Plan')}><select disabled={!gateway} name="plan" onChange={(event) => setPlan(event.target.value === '12hrs' ? '12hrs' : '24hrs')} value={plan}><option value="12hrs">12hrs</option><option value="24hrs">24hrs</option></select></Field>
-          <Field label={text('天數', 'Days')}><input disabled={!gateway} max="366" min="1" name="days" onChange={(event) => setDays(Number(event.target.value) || 0)} required type="number" value={days || ''} /></Field>
+          <Field label={text('天數', 'Days')}><NumberStepper decrementLabel={text('減少 1 天', 'One day less')} disabled={!gateway} incrementLabel={text('增加 1 天', 'One day more')} max={366} min={1} onChange={setDays} value={days} name="days" /></Field>
           <Field label={text('折扣（NT$）', 'Discount (NT$)')}><input disabled={!gateway} min="0" name="discountNts" onChange={(event) => setDiscountNts(Number(event.target.value) || 0)} required type="number" value={discountNts} /></Field>
           <AmountField disabled={!gateway} manualAmountNts={manualAmountNts} onChange={setManualAmountNts} quote={quote} />
           <RateTypeField disabled={!gateway} rate={rate} />
@@ -255,10 +255,10 @@ export function BookingCreatePage({
             <div className="booking-multi-slot-heading"><strong>{text(`時段 ${index + 2}`, `Slot ${index + 2}`)}</strong><Button onClick={() => setMultiSlots((current) => current.filter((item) => item.key !== slot.key))} size="sm" type="button" variant="ghost">{text('移除', 'Remove')}</Button></div>
             <div className="booking-create-grid">
               <Field label={text('房間', 'Room')}><select disabled={!gateway || !multiGateway || rooms === null || roomError} value={slot.roomId} onChange={(event) => updateMultiSlot(slot.key, { roomId: event.target.value })} required><option disabled value="">{text('選擇房間', 'Select a room')}</option>{(rooms ?? []).map((room) => <option disabled={room.status === '月租套房'} key={room.roomId} value={room.roomId}>{room.roomId} · {roomStatusLabel(room.status, text)}</option>)}</select></Field>
-              <Field label={text('入住時間', 'Check-in')}><input disabled={!gateway || !multiGateway} required type="datetime-local" value={slot.checkInAt} onChange={(event) => updateMultiSlot(slot.key, { checkInAt: event.target.value })} /></Field>
+              <Field label={text('入住時間', 'Check-in')}><DateTimeInput disabled={!gateway || !multiGateway} required value={slot.checkInAt} onChange={(event) => updateMultiSlot(slot.key, { checkInAt: event.target.value })} /></Field>
               <CheckoutPreviewField quote={quoteForForm(slot.checkInAt, slot.plan, slot.days, slot.discountNts, calendar)} />
               <Field label={text('方案', 'Plan')}><select disabled={!gateway || !multiGateway} value={slot.plan} onChange={(event) => updateMultiSlot(slot.key, { plan: event.target.value === '12hrs' ? '12hrs' : '24hrs' })}><option value="12hrs">12hrs</option><option value="24hrs">24hrs</option></select></Field>
-              <Field label={text('天數', 'Days')}><input disabled={!gateway || !multiGateway} max="366" min="1" required type="number" value={slot.days} onChange={(event) => updateMultiSlot(slot.key, { days: Number(event.target.value) })} /></Field>
+              <Field label={text('天數', 'Days')}><NumberStepper decrementLabel={text('減少 1 天', 'One day less')} disabled={!gateway || !multiGateway} incrementLabel={text('增加 1 天', 'One day more')} max={366} min={1} onChange={(value) => updateMultiSlot(slot.key, { days: value })} value={slot.days} /></Field>
               <Field label={text('折扣（NT$）', 'Discount (NT$)')}><input disabled={!gateway || !multiGateway} min="0" required type="number" value={slot.discountNts} onChange={(event) => updateMultiSlot(slot.key, { discountNts: Number(event.target.value) })} /></Field>
               <AmountField disabled={!gateway || !multiGateway} manualAmountNts={slot.manualAmountNts} onChange={(value) => updateMultiSlot(slot.key, { manualAmountNts: value })} quote={quoteForForm(slot.checkInAt, slot.plan, slot.days, slot.discountNts, calendar)} />
             </div>

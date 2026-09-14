@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { type BookingListItem, type BookingPreviewResult, type BookingRoomOption, type BookingUpdateResult } from '@bini/cloud-shared';
 
 import type { StaffSession } from '../auth/session.js';
-import { Button, Field, Notice, SectionCard } from '../design-system/index.js';
+import { Button, DateTimeInput, Field, NumberStepper, Notice, SectionCard } from '../design-system/index.js';
 import { useLocale } from '../i18n/locale.js';
 import type { BookingRoomGateway } from '../rooms/booking-room-options.js';
 import type { BookingUpdateGateway } from './booking-update.js';
@@ -166,10 +166,10 @@ export function BookingEditPage({
           <Field label={text('房間', 'Room')}><select defaultValue={booking.roomId} disabled={!gateway || rooms === null || roomError} name="roomId" required>{(rooms ?? []).map((room) => <option disabled={room.status === '月租套房' && room.roomId !== booking.roomId} key={room.roomId} value={room.roomId}>{room.roomId} · {roomStatusLabel(room.status, text)}</option>)}</select></Field>
           <Field label={text('住客姓名', 'Guest name')}><input defaultValue={booking.guestName} disabled={!gateway} maxLength={300} name="guestName" required /></Field>
           <Field label={text('電話', 'Phone')}><input defaultValue={booking.phone ?? ''} disabled={!gateway} maxLength={100} name="phone" inputMode="tel" /></Field>
-          <Field label={text('入住時間', 'Check-in')}><input disabled={!gateway} name="checkInAt" onChange={(event) => { setCheckInLocal(event.target.value); rate.onCheckInChange(event.target.value); }} required type="datetime-local" value={checkInLocal} /></Field>
+          <Field label={text('入住時間', 'Check-in')}><DateTimeInput disabled={!gateway} name="checkInAt" onChange={(event) => { setCheckInLocal(event.target.value); rate.onCheckInChange(event.target.value); }} required value={checkInLocal} /></Field>
           <CheckoutPreviewField quote={quote} />
           <Field label={text('方案', 'Plan')}><select disabled={!gateway} name="plan" onChange={(event) => setPlan(event.target.value === '12hrs' ? '12hrs' : '24hrs')} value={plan}><option value="12hrs">12hrs</option><option value="24hrs">24hrs</option></select></Field>
-          <Field label={text('天數', 'Days')}><input disabled={!gateway} max="366" min="1" name="days" onChange={(event) => setDays(Number(event.target.value) || 0)} required type="number" value={days || ''} /></Field>
+          <Field label={text('天數', 'Days')}><NumberStepper decrementLabel={text('減少 1 天', 'One day less')} disabled={!gateway} incrementLabel={text('增加 1 天', 'One day more')} max={366} min={1} onChange={setDays} value={days} name="days" /></Field>
           <Field label={text('折扣（NT$）', 'Discount (NT$)')}><input disabled={!gateway} min="0" name="discountNts" onChange={(event) => setDiscountNts(Number(event.target.value) || 0)} required type="number" value={discountNts} /></Field>
           <AmountField disabled={!gateway} manualAmountNts={manualAmountNts} onChange={setManualAmountNts} quote={quote} />
           <RateTypeField disabled={!gateway} rate={rate} />

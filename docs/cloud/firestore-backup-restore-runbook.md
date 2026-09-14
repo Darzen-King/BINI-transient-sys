@@ -63,7 +63,7 @@ gcloud firestore databases delete --database=restore-YYYYMMDD --project bini-tra
 | 授權 | Secret Manager：`DROPBOX_APP_KEY`、`DROPBOX_APP_SECRET`、`DROPBOX_REFRESH_TOKEN`（僅 Functions 讀取） |
 | 狀態 | Firestore `system/dropboxBackup`（`lastSuccessAt`、`lastError`、各表筆數；用戶端不可讀） |
 
-內容：v3 3.9.14 的 12 張資料表（欄位名稱與 v3 SQLite 完全一致）。**不含**員工帳號（v3 還原時保留本機帳號密碼）、作廢付款、封存成本。若 Dropbox 授權為「App 資料夾」權限，實際位置在 `/Apps/<App 名稱>/BiniBloomsData/cloud_export/`，與 v3 自己的備份檔同層。
+內容：v3 3.9.14 的 12 張資料表（欄位名稱與 v3 SQLite 完全一致）。**不含**員工帳號（v3 還原時保留本機帳號密碼）、作廢付款、封存成本。本店授權為「App 資料夾」權限，Dropbox 中實際位置為 **`應用程式/BINI_Blooms_Rental_Data/BiniBloomsData/cloud_export/`**（本機 `C:\Users\Darzen\Dropbox\應用程式\BINI_Blooms_Rental_Data\BiniBloomsData\cloud_export\`），與 v3 自己的 `bini_blooms_backup.json` 同在 `BiniBloomsData` 內。
 
 ### 緊急時由單機版接手
 1. 確認雲端已停止寫入（避免兩邊同時營運）。
@@ -76,4 +76,5 @@ gcloud firestore databases delete --database=restore-YYYYMMDD --project bini-tra
 |------|------|------|
 | 2026-09-14 | 以匯出器產生 DEV 資料的 v3 JSON，用 v3 `_import_data` 還原到 v3 正式 DB 的複本 | 12 表筆數全數還原；付款 277,300、住宿紀錄 184,771、預約 130,400 與雲端一致；員工帳號保留 5→5；v3 `compute_report`（05-01～09-10）營收 448,771、訂單 166，與雲端報表相同 |
 | 2026-09-14 | 部署後手動觸發排程 | 上傳成功，581,867 bytes，979 筆稽核、94 筆付款等 |
+| 2026-09-14 | 檢查本機 Dropbox 同步資料夾 | `cloud_export/bini_blooms_backup.json` 與 `daily/bini_blooms_backup_2026-09-14.json` 皆 581,867 bytes；exported_at 23:27、schema 3.5、12 表筆數正確、不含 users |
 

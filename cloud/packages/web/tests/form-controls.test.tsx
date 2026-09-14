@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { DateTimeInput, Field, NumberStepper } from '../src/design-system/index.js';
+import { DateTimeInput, Field, NumberStepper, PasswordInput } from '../src/design-system/index.js';
 
 afterEach(cleanup);
 
@@ -37,4 +37,18 @@ describe('form controls', () => {
     fireEvent.click(screen.getByRole('button', { name: '減少 1 天' }));
     expect(input).toHaveValue(2);
   });
+
+  it('reveals and hides a typed password with the eye button', () => {
+    function Harness() { const [value, setValue] = useState(''); return <Field label="初始密碼"><PasswordInput hideLabel="隱藏密碼" onChange={(event) => setValue(event.target.value)} showLabel="顯示密碼" value={value} /></Field>; }
+    render(<Harness />);
+    const input = screen.getByLabelText('初始密碼');
+    fireEvent.change(input, { target: { value: 'abcd1234' } });
+    expect(input).toHaveAttribute('type', 'password');
+    fireEvent.click(screen.getByRole('button', { name: '顯示密碼' }));
+    expect(input).toHaveAttribute('type', 'text');
+    expect(input).toHaveValue('abcd1234');
+    fireEvent.click(screen.getByRole('button', { name: '隱藏密碼' }));
+    expect(input).toHaveAttribute('type', 'password');
+  });
 });
+

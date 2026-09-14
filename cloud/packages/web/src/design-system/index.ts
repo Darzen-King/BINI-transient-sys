@@ -11,4 +11,4 @@ export {
   type ButtonVariant,
   type NoticeTone,
 } from './components.js';
-export { DateTimeInput, NumberStepper, formatLocalDateTime } from './form-controls.js';
+export { DateTimeInput, NumberStepper, PasswordInput, formatLocalDateTime } from './form-controls.js';

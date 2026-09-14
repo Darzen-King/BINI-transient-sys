@@ -95,6 +95,12 @@
 /* iOS Safari gives native date controls an intrinsic width that can overflow narrow cards. */
 input.bds-field-control[type="date"], input.bds-field-control[type="datetime-local"] { min-width: 0; max-width: 100%; -webkit-appearance: none; appearance: none; text-align: left; }
 input.bds-field-control::-webkit-date-and-time-value { text-align: left; }
+.bds-password { position: relative; min-width: 0; }
+/* `div.` outranks page rules such as `.editor-grid input` so typed text never runs under the eye button. */
+div.bds-password > input { width: 100%; padding-right: 48px; }
+.bds-password__toggle { position: absolute; top: 50%; right: 2px; display: grid; width: 44px; height: 44px; place-items: center; padding: 0; border: 0; border-radius: var(--bds-radius-sm); background: transparent; color: var(--bds-color-text-secondary); cursor: pointer; transform: translateY(-50%); }
+.bds-password__toggle:hover:not(:disabled), .bds-password__toggle[aria-pressed="true"] { color: var(--bds-color-berry-600, currentColor); }
+.bds-password__toggle:disabled { cursor: not-allowed; opacity: .5; }
 .bds-datetime { position: relative; display: flex; align-items: center; min-width: 0; cursor: pointer; }
 .bds-datetime:focus-within { border-color: var(--bds-color-focus); box-shadow: 0 0 0 3px var(--bds-color-berry-100); }
 .bds-datetime.is-disabled { cursor: not-allowed; opacity: .6; }

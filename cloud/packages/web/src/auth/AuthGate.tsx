@@ -19,7 +19,7 @@ import { CLOUD_ROLES, type CloudPageId, type CloudRole } from '@bini/cloud-share
 
 import { App } from '../App.js';
 import { createAccountAdminGateway } from '../accounts/account-admin.js';
-import { Button, Field, Notice } from '../design-system/index.js';
+import { Button, Field, Notice, PasswordInput } from '../design-system/index.js';
 import type { FirebaseClient } from '../firebase-client.js';
 import { LanguageSwitcher, useLocale } from '../i18n/locale.js';
 import { createDataImportGateway } from '../migration/data-import.js';
@@ -366,7 +366,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
         <h1>{text('員工登入', 'Staff sign in')}</h1><p>{text('僅限管理員已建立的 BINI PMS 帳號', 'Only administrator-created BINI PMS accounts may sign in')}</p>
         {notice ? <Notice tone="success" title={notice} /> : null}{error ? <Notice tone="danger" title={text('登入失敗', 'Sign-in failed')}>{error}</Notice> : null}
         <Field label={text('電子郵件', 'Email')}><input required name="email" type="email" autoComplete="username" /></Field>
-        <Field label={text('密碼', 'Password')}><input required name="password" type="password" autoComplete="current-password" /></Field>
+        <Field label={text('密碼', 'Password')}><PasswordInput autoComplete="current-password" hideLabel={text('隱藏密碼', 'Hide password')} name="password" required showLabel={text('顯示密碼', 'Show password')} /></Field>
         <Button block loading={busy} size="lg" type="submit">{text('安全登入', 'Secure sign in')}</Button>
       </form>
     </main>

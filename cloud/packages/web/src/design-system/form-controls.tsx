@@ -68,3 +68,35 @@ export function NumberStepper({ id, className, value, onChange, min = 1, max, di
     <Button aria-label={incrementLabel} disabled={disabled || (max !== undefined && safe >= max)} onClick={() => onChange(clamp(safe + 1))} type="button" variant="outline">＋</Button>
   </div>;
 }
+
+/**
+ * Password input with a show/hide toggle so staff can check what they typed. Receives `id`/`className`/
+ * `aria-describedby` from `Field`; the toggle is a separate button so the label still names the input.
+ */
+export function PasswordInput({ id, className, name, value, onChange, required, minLength, autoComplete, disabled, showLabel, hideLabel, 'aria-describedby': describedBy }: {
+  id?: string;
+  className?: string;
+  name?: string;
+  value?: string;
+  onChange?: (event: ChangeEvent<HTMLInputElement>) => void;
+  required?: boolean;
+  minLength?: number;
+  autoComplete?: string;
+  disabled?: boolean;
+  showLabel: string;
+  hideLabel: string;
+  'aria-describedby'?: string;
+}) {
+  const [visible, setVisible] = useState(false);
+  return <div className="bds-password">
+    <input aria-describedby={describedBy} autoCapitalize="off" autoComplete={autoComplete} autoCorrect="off" className={className} disabled={disabled} id={id} minLength={minLength} name={name} onChange={onChange} required={required} spellCheck={false} type={visible ? 'text' : 'password'} value={value} />
+    <button aria-label={visible ? hideLabel : showLabel} aria-pressed={visible} className="bds-password__toggle" disabled={disabled} onClick={() => setVisible((current) => !current)} type="button">
+      <svg aria-hidden="true" fill="none" height="20" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" viewBox="0 0 24 24" width="20">
+        <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+        <circle cx="12" cy="12" r="3" />
+        {visible ? null : <path d="M4 4l16 16" />}
+      </svg>
+    </button>
+  </div>;
+}
+

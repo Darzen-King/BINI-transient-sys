@@ -9,7 +9,7 @@ import {
 
 import type { AccountAdminGateway } from './account-admin.js';
 import type { StaffSession } from '../auth/session.js';
-import { Badge, Button, Field, Notice, ResponsiveDialog } from '../design-system/index.js';
+import { Badge, Button, Field, Notice, PasswordInput, ResponsiveDialog } from '../design-system/index.js';
 import { ROLE_LABELS } from '../i18n/labels.js';
 import { useLocale, type AppLocale } from '../i18n/locale.js';
 
@@ -305,7 +305,7 @@ export function AccountManagement({ session, gateway }: {
             <div className="editor-grid">
               <Field label={text('顯示名稱', 'Display name')}><input required maxLength={80} value={editor.displayName} onChange={(event) => setEditor({ ...editor, displayName: event.target.value })} /></Field>
               <Field hint={!creating && editor.uid === session.uid ? text('為保護目前管理員帳號，登入電子郵件不可在此變更。', 'Your own sign-in email cannot be changed here.') : undefined} label={text('登入電子郵件', 'Sign-in email')}><input required disabled={!creating && editor.uid === session.uid} type="email" value={editor.email} onChange={(event) => setEditor({ ...editor, email: event.target.value })} /></Field>
-              <Field hint={text('至少 8 字元，且包含英文字母與數字。', 'At least 8 characters with letters and numbers.')} label={creating ? text('初始密碼', 'Initial password') : text('重設密碼（留空不變）', 'Reset password (leave blank to keep)')}><input required={creating} minLength={8} type="password" autoComplete="new-password" value={editor.password} onChange={(event) => setEditor({ ...editor, password: event.target.value })} /></Field>
+              <Field hint={text('至少 8 字元，且包含英文字母與數字。', 'At least 8 characters with letters and numbers.')} label={creating ? text('初始密碼', 'Initial password') : text('重設密碼（留空不變）', 'Reset password (leave blank to keep)')}><PasswordInput autoComplete="new-password" hideLabel={text('隱藏密碼', 'Hide password')} minLength={8} onChange={(event) => setEditor({ ...editor, password: event.target.value })} required={creating} showLabel={text('顯示密碼', 'Show password')} value={editor.password} /></Field>
               <RoleSelect value={editor.role} disabled={editor.uid === session.uid} onChange={chooseRole} />
             </div>
             {!creating ? <label className="switch-row"><input checked={editor.active} disabled={editor.uid === session.uid} type="checkbox" onChange={(event) => setEditor({ ...editor, active: event.target.checked })} />{text('啟用此帳號', 'Enable this account')}</label> : null}

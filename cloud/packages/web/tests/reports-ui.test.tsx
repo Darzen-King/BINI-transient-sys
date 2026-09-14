@@ -82,4 +82,21 @@ describe('reports UI', () => {
     fireEvent.click(screen.getByRole('button', { name: '日結 CSV' }));
     await waitFor(() => expect(exportDailySummaryCsv).toHaveBeenCalledWith({ propertyId: 'property-main', operationId: expect.any(String), dateFrom: '2026-09-13', dateTo: '2026-09-13' }));
   });
+
+  it('draws a readable daily chart: round revenue ticks, occupancy ticks and non-overlapping date labels', async () => {
+    const daily = Array.from({ length: 30 }, (_, index) => ({ date: `2026-09-${String(index + 1).padStart(2, '0')}`, revenueNts: index === 1 ? 5_400 : 1_200, occupancyPct: index % 3 === 0 ? 50 : 0 }));
+    const gateway: ReportGateway = { subscribe(_propertyId, _range, onValue) { queueMicrotask(() => onValue({ ...projection, daily })); return () => undefined; }, exportCsv: vi.fn() };
+    render(<App reportGateway={gateway} session={{ ...session, role: 'manager' }} />);
+    fireEvent.click(screen.getByRole('link', { name: '統計報表' }));
+    const chart = await screen.findByRole('img', { name: '營收 (NT$) / 住房率 (%)' });
+    const ticks = [...chart.querySelectorAll('.report-chart-tick:not(.report-chart-tick--occ)')].map((node) => node.textContent);
+    expect(ticks).toEqual(['0', '2,000', '4,000', '6,000', '8,000']);
+    expect([...chart.querySelectorAll('.report-chart-tick--occ')].map((node) => node.textContent)).toEqual(['0%', '25%', '50%', '75%', '100%']);
+    // Labels are spaced so neighbours are at least ~46px apart, and the last day is always labelled.
+    const labels = [...chart.querySelectorAll('.report-chart-label')];
+    const xs = labels.map((node) => Number(node.getAttribute('x')));
+    expect(labels.at(-1)?.textContent).toBe('09-30');
+    for (let index = 1; index < xs.length; index += 1) expect(xs[index]! - xs[index - 1]!).toBeGreaterThanOrEqual(46);
+  });
 });
+

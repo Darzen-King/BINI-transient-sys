@@ -399,13 +399,17 @@ h1, h2, p { margin-top: 0; }
 .report-period { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
 .report-chart-scroll { overflow-x: auto; padding: 10px 12px 8px; border: 1px solid var(--line); border-radius: var(--bds-radius-md); background: var(--bds-color-surface); }
 .report-daily-chart { display: block; }
-.report-chart-axis { stroke: var(--bds-color-border); }
-.report-chart-bar { fill: var(--bds-color-berry-300); }
-.report-chart-line { fill: none; stroke: var(--bds-color-blue-500); stroke-width: 2; }
-.report-chart-label { fill: var(--muted); font-size: 10px; }
-.report-chart-legend { display: flex; margin-top: 6px; color: var(--muted); font-size: 11px; gap: 14px; }
-.report-chart-legend span::before { display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 2px; background: var(--bds-color-berry-300); content: ""; vertical-align: -1px; }
-.report-chart-legend .line::before { height: 3px; background: var(--bds-color-blue-500); vertical-align: 2px; }
+.report-chart-axis { stroke: var(--bds-color-border-strong); }
+.report-chart-grid { stroke: var(--bds-color-border); stroke-dasharray: 3 4; }
+.report-chart-bar { fill: var(--bds-color-berry-400); }
+.report-chart-line { fill: none; stroke: var(--bds-color-blue-600); stroke-width: 2.5; stroke-linejoin: round; }
+.report-chart-dot { fill: var(--bds-color-surface); stroke: var(--bds-color-blue-600); stroke-width: 2; }
+.report-chart-label { fill: var(--bds-color-text-primary); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.report-chart-tick { fill: var(--bds-color-text-secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
+.report-chart-tick--occ { fill: var(--bds-color-blue-600); }
+.report-chart-legend { display: flex; margin-top: 8px; color: var(--bds-color-text-secondary); font-size: 13px; gap: 18px; }
+.report-chart-legend span::before { display: inline-block; width: 12px; height: 12px; margin-right: 6px; border-radius: 3px; background: var(--bds-color-berry-400); content: ""; vertical-align: -1px; }
+.report-chart-legend .line::before { height: 3px; background: var(--bds-color-blue-600); vertical-align: 3px; }
 .report-daily-details summary { cursor: pointer; color: var(--brand-dark); font-size: 12px; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
 .report-split { display: grid; gap: 0 16px; }
 .report-share-list { display: grid; overflow: hidden; border: 1px solid var(--line); border-radius: var(--bds-radius-md); }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { summarizePayments, type ReportDailyItem, type ReportProjection } from '@bini/cloud-shared';
 
 import type { StaffSession } from '../auth/session.js';
@@ -19,20 +19,60 @@ const share = (value: number, total: number) => (total > 0 ? Math.min(100, Math.
 function download(filename: string, csv: string) { const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); link.download = filename; link.click(); URL.revokeObjectURL(link.href); }
 function Metric({ label, value, detail }: { label: string; value: string; detail?: string | undefined }) { return <div><small>{label}</small><strong>{value}</strong>{detail ? <span>{detail}</span> : null}</div>; }
 
-/** Revenue bars with an occupancy line, mirroring the v3 dual-axis daily chart without a chart library. */
+/** "Nice" axis maximum and step, so the revenue scale reads in round numbers (e.g. 0 / 1,000 / 2,000). */
+export function niceScale(maxValue: number, ticks = 4): { max: number; step: number } {
+  if (!(maxValue > 0)) return { max: ticks, step: 1 };
+  const rough = maxValue / ticks;
+  const magnitude = 10 ** Math.floor(Math.log10(rough));
+  const step = [1, 2, 2.5, 5, 10].map((factor) => factor * magnitude).find((candidate) => candidate >= rough) ?? 10 * magnitude;
+  return { max: step * ticks, step };
+}
+const compactMoney = (value: number) => (value >= 10_000 ? `${Math.round(value / 1_000).toLocaleString()}k` : value.toLocaleString());
+
+/**
+ * Revenue bars with an occupancy line, mirroring the v3 dual-axis daily chart without a chart library.
+ * It fills the card width (scrolling only when days would get narrower than 18px), labels the revenue axis
+ * on the left and occupancy on the right, and thins the date labels so they never overlap.
+ */
 function DailyChart({ daily, revenueLabel, occupancyLabel }: { daily: readonly ReportDailyItem[]; revenueLabel: string; occupancyLabel: string }) {
-  const height = 180; const top = 12; const bottom = 24; const slot = 22; const width = Math.max(320, daily.length * slot);
-  const plot = height - top - bottom; const maxRevenue = Math.max(1, ...daily.map((item) => item.revenueNts));
-  const labelEvery = Math.max(1, Math.ceil(daily.length / 14));
-  const line = daily.map((item, index) => `${index * slot + slot / 2},${top + plot - (item.occupancyPct / 100) * plot}`).join(' ');
-  return <div className="report-chart-scroll">
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [available, setAvailable] = useState(640);
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return undefined;
+    const measure = () => setAvailable(Math.max(280, element.clientWidth - 24));
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  const left = 58; const right = 44; const top = 16; const bottom = 34; const height = 240;
+  const slot = Math.max(18, (available - left - right) / Math.max(1, daily.length));
+  const width = left + right + slot * daily.length;
+  const plot = height - top - bottom;
+  const scale = niceScale(Math.max(0, ...daily.map((item) => item.revenueNts)));
+  const y = (value: number) => top + plot - (value / scale.max) * plot;
+  const yOcc = (pct: number) => top + plot - (Math.min(100, pct) / 100) * plot;
+  // One label every N days so each "MM-DD" (about 38px at 12px) has room; always label the first and last day.
+  const labelEvery = Math.max(1, Math.ceil(46 / slot));
+  const barWidth = Math.max(6, Math.min(34, slot * 0.6));
+  const x = (index: number) => left + index * slot + slot / 2;
+  const line = daily.map((item, index) => `${x(index)},${yOcc(item.occupancyPct)}`).join(' ');
+  const ticks = Array.from({ length: 5 }, (_, index) => index);
+  return <div className="report-chart-scroll" ref={containerRef}>
     <svg aria-label={`${revenueLabel} / ${occupancyLabel}`} className="report-daily-chart" height={height} role="img" viewBox={`0 0 ${width} ${height}`} width={width}>
-      <line className="report-chart-axis" x1="0" x2={width} y1={top + plot} y2={top + plot} />
-      {daily.map((item, index) => { const barHeight = (item.revenueNts / maxRevenue) * plot; return <g key={item.date}>
-        <rect className="report-chart-bar" height={barHeight} rx="2" width={slot - 8} x={index * slot + 4} y={top + plot - barHeight}><title>{`${item.date} · ${money(item.revenueNts)} · ${item.occupancyPct}%`}</title></rect>
-        {index % labelEvery === 0 ? <text className="report-chart-label" textAnchor="middle" x={index * slot + slot / 2} y={height - 8}>{item.date.slice(5)}</text> : null}
+      {ticks.map((index) => { const value = scale.step * index; const lineY = y(value); return <g key={index}>
+        <line className={index === 0 ? 'report-chart-axis' : 'report-chart-grid'} x1={left} x2={width - right} y1={lineY} y2={lineY} />
+        <text className="report-chart-tick" textAnchor="end" x={left - 8} y={lineY + 4}>{compactMoney(value)}</text>
+        <text className="report-chart-tick report-chart-tick--occ" textAnchor="start" x={width - right + 8} y={lineY + 4}>{`${index * 25}%`}</text>
+      </g>; })}
+      {daily.map((item, index) => { const barTop = y(item.revenueNts); return <g key={item.date}>
+        <rect className="report-chart-bar" height={Math.max(0, top + plot - barTop)} rx="3" width={barWidth} x={x(index) - barWidth / 2} y={barTop}><title>{`${item.date} · ${money(item.revenueNts)} · ${item.occupancyPct}%`}</title></rect>
+        {(index % labelEvery === 0 && daily.length - 1 - index >= labelEvery) || index === daily.length - 1 ? <text className="report-chart-label" textAnchor="middle" x={x(index)} y={height - 12}>{item.date.slice(5)}</text> : null}
       </g>; })}
       {daily.length > 1 ? <polyline className="report-chart-line" points={line} /> : null}
+      {daily.map((item, index) => <circle className="report-chart-dot" cx={x(index)} cy={yOcc(item.occupancyPct)} key={`dot-${item.date}`} r={daily.length > 45 ? 0 : 3}><title>{`${item.date} · ${occupancyLabel} ${item.occupancyPct}%`}</title></circle>)}
     </svg>
     <div className="report-chart-legend"><span className="bar">{revenueLabel}</span><span className="line">{occupancyLabel}</span></div>
   </div>;

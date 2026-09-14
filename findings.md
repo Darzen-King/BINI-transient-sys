@@ -150,3 +150,7 @@
 - reCAPTCHA v3 網站金鑰（公開值）：`6Ld6_LotAAAAAPrNGcunVMWMY7sot1XuVkCiY_N6`，網域 `bini-transient-dev.web.app`、`bini-transient-dev.firebaseapp.com`、`localhost`。本機建置需在 `cloud/.env.local` 設定 `VITE_RECAPTCHA_SITE_KEY`（git-ignored），否則 `guard:hosting-package` 會擋下部署。
 - 首次部署後瀏覽器顯示 `@firebase/app-check: 400 error`（token 交換失敗），推測為主控台尚未登記 reCAPTCHA 密鑰；未強制執行時不影響功能。主控台完成登記後需重新確認交換成功，觀察 1–2 週再強制執行。
 
+## 2026-09-14 Callable 公開呼叫權限
+- `adminCreateStaff`／`adminListStaff`／`adminSetStaffPassword`／`adminUpdateStaff` 的 Cloud Run 服務缺少 `allUsers → roles/run.invoker`，Cloud Run 回 401「access token could not be verified」。原因：2026-09-10 首次部署建置失敗（`@bini/cloud-shared` 404），Firebase CLI 只在「建立」時設定 invoker，後續更新不補。已以 gcloud 補上並在程式加 `invoker: 'public'`。
+- 檢查方式：`gcloud run services get-iam-policy <service> --region asia-east1`；非 callable 的 `holidayautosync`（排程）與 `processoperationrequest`（Firestore 觸發）不應公開。
+

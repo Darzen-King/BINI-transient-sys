@@ -291,6 +291,7 @@ export function AccountManagement({ session, gateway }: {
       {mfaTarget ? (
         <ResponsiveDialog onClose={() => { if (!busy) setMfaTarget(null); }} title={text('重設兩步驟驗證', 'Reset two-step verification')}>
           <form className="account-editor" onSubmit={(event) => void resetMfa(event)}>
+            {error ? <Notice tone="danger" title={text('無法重設', 'Could not reset')}>{error}</Notice> : null}
             <Notice tone="warning" title={text(`將清除 ${mfaTarget.displayName || mfaTarget.email} 的驗證器並登出其所有裝置`, `This clears ${mfaTarget.displayName || mfaTarget.email}'s authenticator and signs them out everywhere`)}>{text('僅在對方遺失手機或驗證器時使用。對方下次以密碼登入時，系統會要求重新設定驗證器。此操作會寫入稽核軌跡。', 'Use only when they lost their phone or authenticator. Their next password sign-in will require setting up a new authenticator. This action is recorded in the audit trail.')}</Notice>
             <Field label={text('原因', 'Reason')}><input autoFocus maxLength={500} onChange={(event) => setMfaReason(event.target.value)} placeholder={text('例如：手機遺失', 'e.g. lost phone')} required value={mfaReason} /></Field>
             <div className="editor-actions"><Button onClick={() => setMfaTarget(null)} variant="outline">{text('取消', 'Cancel')}</Button><Button disabled={!mfaReason.trim()} loading={busy} type="submit" variant="danger">{text('確認重設', 'Confirm reset')}</Button></div>
@@ -300,6 +301,7 @@ export function AccountManagement({ session, gateway }: {
       {editor ? (
         <ResponsiveDialog onClose={() => setEditor(null)} title={creating ? text('新增人員', 'Add staff') : text('編輯人員', 'Edit staff')}>
           <form className="account-editor" onSubmit={(event) => void save(event)}>
+            {error ? <Notice tone="danger" title={text('無法儲存', 'Could not save')}>{error}</Notice> : null}
             <div className="editor-grid">
               <Field label={text('顯示名稱', 'Display name')}><input required maxLength={80} value={editor.displayName} onChange={(event) => setEditor({ ...editor, displayName: event.target.value })} /></Field>
               <Field hint={!creating && editor.uid === session.uid ? text('為保護目前管理員帳號，登入電子郵件不可在此變更。', 'Your own sign-in email cannot be changed here.') : undefined} label={text('登入電子郵件', 'Sign-in email')}><input required disabled={!creating && editor.uid === session.uid} type="email" value={editor.email} onChange={(event) => setEditor({ ...editor, email: event.target.value })} /></Field>

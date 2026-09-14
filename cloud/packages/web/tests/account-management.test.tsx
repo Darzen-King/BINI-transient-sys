@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AccountManagement } from '../src/accounts/AccountManagement.js';
@@ -107,5 +107,17 @@ describe('administrator-managed staff accounts', () => {
     render(<AccountManagement gateway={{ ...gateway(), list: vi.fn().mockResolvedValue(users) }} session={session} />);
     expect((await screen.findAllByText('admin-2@example.com')).length).toBeGreaterThan(0);
     expect(screen.queryByText('建議設定第二位系統管理員')).not.toBeInTheDocument();
+  });
+
+  it('shows a failed save inside the dialog instead of behind it', async () => {
+    const failing = { ...gateway(), create: vi.fn().mockRejectedValue(new Error('此電子郵件已被使用。')) };
+    render(<AccountManagement gateway={failing} session={session} />);
+    fireEvent.click(await screen.findByRole('button', { name: /新增使用者/ }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('顯示名稱'), { target: { value: 'BINI' } });
+    fireEvent.change(within(dialog).getByLabelText('登入電子郵件'), { target: { value: 'bini@example.com' } });
+    fireEvent.change(within(dialog).getByLabelText('初始密碼'), { target: { value: 'abcd1234' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '儲存' }));
+    expect(await within(dialog).findByText('此電子郵件已被使用。')).toBeInTheDocument();
   });
 });

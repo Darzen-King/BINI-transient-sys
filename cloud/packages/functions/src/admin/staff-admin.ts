@@ -14,7 +14,9 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { allowedPagesForProperty, hasPagePermission, hasVerifiedMfaClaims, mfaResetRefusal, roleForProperty } from './staff-access.js';
 
-const callableOptions = { region: 'asia-east1' } as const;
+// Callables must be publicly invokable at the Cloud Run layer; each handler still verifies Firebase Auth, MFA and role.
+// Stated explicitly because these functions were first created by a failed deploy and never received the invoker binding.
+const callableOptions = { region: 'asia-east1', invoker: 'public' } as const;
 
 function invalidInput(): never {
   throw new HttpsError('invalid-argument', '輸入資料格式不正確。');

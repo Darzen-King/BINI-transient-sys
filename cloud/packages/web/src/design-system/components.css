@@ -78,7 +78,8 @@
 .bds-section__heading > :not(h2) { flex: 0 1 auto; max-width: 100%; }
 .bds-section__hint { color: var(--bds-color-text-secondary); font-size: var(--bds-font-size-sm); }
 
-.bds-field { display: grid; color: var(--bds-color-text-primary); font-size: var(--bds-font-size-md); font-weight: var(--bds-font-weight-semibold); gap: 6px; }
+/* align-content: start keeps label and control at the top when a grid row is stretched by a neighbour's hint. */
+.bds-field { display: grid; align-content: start; color: var(--bds-color-text-primary); font-size: var(--bds-font-size-md); font-weight: var(--bds-font-weight-semibold); gap: 6px; }
 .bds-field__label { display: block; }
 .bds-field-control {
   width: 100%;

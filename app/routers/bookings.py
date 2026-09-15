@@ -60,9 +60,12 @@ async def booking_list(
     bookings = sorted(bookings, key=key_fn, reverse=reverse)
 
     summary  = bsvc.status_summary(db)
+    from app.services.payments import booking_deposit_totals
+    deposits = booking_deposit_totals(db, [b.id for b in bookings])
     return templates.TemplateResponse("bookings.html", {
         "request":  request,
         "bookings": bookings,
+        "deposits": deposits,
         "summary":  summary,
         "sort_by":  sort_by,
         "sort_dir": sort_dir,
@@ -328,6 +331,53 @@ async def booking_create(
 
 # ── Edit booking ─────────────────────────────────────────────────────────────
 
+def _deposit_context(db: Session, bk) -> dict:
+    """Deposit summary for the edit page: what was collected and whether more can be added."""
+    from app.services.payments import booking_deposit_payments, PAYMENT_TYPES
+    from app.services.bookings import CANCELLED_STATUSES as _CS
+    rows = booking_deposit_payments(db, bk.id) if bk else []
+    total = sum((-1.0 if p.is_refund else 1.0) * float(p.amount or 0) for p in rows)
+    return {
+        "deposit_payments":  rows,
+        "deposit_total":     max(0.0, total),
+        "deposit_can_add":   bool(bk) and bk.status not in _CS,
+        "pay_types":         PAYMENT_TYPES,
+    }
+
+
+@router.post("/bookings/{booking_id}/deposit")
+async def booking_add_deposit(
+    request:      Request,
+    booking_id:   str,
+    amount:       float = Form(0),
+    payment_type: str   = Form("cash"),
+    note:         str   = Form(""),
+    db: Session = Depends(get_db),
+):
+    """Record a deposit for a booking after it was created (forgotten at booking, or paid later)."""
+    from app.services.auth import get_current_user, require_role
+    from app.services.bookings import CANCELLED_STATUSES as _CS
+    from app.services.payments import create_payment, PAYMENT_TYPES
+    user = get_current_user(request, db)
+    if not require_role(user, "admin", "manager", "front_desk"):
+        return RedirectResponse("/login?err=auth.forbidden", status_code=303)
+    bk = bsvc.get_booking(db, booking_id)
+    if not bk:
+        return RedirectResponse("/bookings?err=error.not_found", status_code=303)
+    if bk.status in _CS:
+        return RedirectResponse(f"/bookings/{booking_id}/edit?err=error.booking_not_active", status_code=303)
+    if not amount or float(amount) <= 0:
+        return RedirectResponse(f"/bookings/{booking_id}/edit?err=error.deposit_amount", status_code=303)
+    create_payment(
+        db, bk.id, bk.room, bk.guest,
+        payment_type if payment_type in PAYMENT_TYPES else "cash", float(amount),
+        is_deposit=True,
+        note=(note or "").strip() or "預約押金（補收）",
+        created_by=user.username if user else "admin",
+    )  # writes the audit log and the cloud backup itself
+    return RedirectResponse(f"/bookings/{booking_id}/edit?msg=deposit_added", status_code=303)
+
+
 @router.get("/bookings/{booking_id}/edit", response_class=HTMLResponse)
 async def booking_edit_page(
     request:    Request,
@@ -370,6 +420,9 @@ async def booking_edit_page(
     return templates.TemplateResponse("booking_edit.html", {
         "request":            request,
         "bk":                 bk,
+        **_deposit_context(db, bk),
+        "msg":                request.query_params.get("msg", ""),
+        "deposit_err":        trans.get(request.query_params.get("err", ""), request.query_params.get("err", "")),
         "cur_days":           cur_days,
         "rooms":              rooms,
         "plans":              PLANS,
@@ -440,6 +493,9 @@ async def booking_edit_submit(
         return templates.TemplateResponse("booking_edit.html", {
             "request":            request,
             "bk":                 orig,
+            **_deposit_context(db, orig),
+            "msg":                "",
+            "deposit_err":        "",
             "cur_days":           max(1, int(days or 1)),
             "rooms":              rooms,
             "plans":              PLANS,

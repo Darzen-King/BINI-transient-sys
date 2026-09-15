@@ -53,8 +53,9 @@
           <th>{{ sort_link("checkin",  trans.get("label.checkin","Check-in")) }}</th>
           <th>{{ sort_link("checkout", trans.get("label.checkout","Check-out")) }}</th>
           <th>{{ sort_link("plan",     trans.get("label.plan","Plan")) }}</th>
-          <th>{{ trans.get("label.rate_type","Rate") }}</th>
           <th>{{ sort_link("amount",   trans.get("label.amount","Amount")) }}</th>
+          <th>{{ trans.get("label.deposit","押金") }}</th>
+          <th>{{ trans.get("label.rate_type","Rate") }}</th>
           <th>{{ sort_link("status",   trans.get("label.status","Status")) }}</th>
           <th>{{ trans.get("auth.actions","Actions") }}</th>
         </tr>
@@ -70,6 +71,14 @@
           <td>{{ b.checkout }}</td>
           <td><span class="badge bg-light text-dark border">{{ b.plan }}</span></td>
           <td>NT$ {{ "%.0f"|format(b.amount) }}</td>
+          <td>
+            {% set dep = deposits.get(b.id, 0) %}
+            {% if dep > 0 %}
+            <span class="badge rounded-pill" style="background:#dcfce7;color:#166534;font-size:.78rem">NT$ {{ "%.0f"|format(dep) }}</span>
+            {% else %}
+            <span class="text-muted" style="font-size:.78rem">{{ trans.get("booking.deposit_none_short","未收") }}</span>
+            {% endif %}
+          </td>
           <td>{{ trans.get("label.rate_type_" + ("weekday" if b.rate_type == "非假日" else "holiday"), b.rate_type) }}</td>
           <td>
             {% if b.status == "即將到店" %}

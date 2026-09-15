@@ -136,6 +136,22 @@ describe('live booking list UI', () => {
     expect(await screen.findByText('預約已更新')).toBeInTheDocument();
   });
 
+  it('keeps the booking room selected when the room list (led by a disabled monthly room) loads after the form', async () => {
+    const update = vi.fn().mockResolvedValue({
+      status: 'updated', bookingId: 'RSV-live-203', checkInAt: '2026-09-14T05:00:00.000Z', checkOutAt: '2026-09-15T05:00:00.000Z', amountNts: 1_200, discountNts: 0, rateType: '非假日',
+    });
+    const lateRooms: BookingRoomGateway = { subscribe(_propertyId, onValue) { setTimeout(() => onValue([{ roomId: '201', status: '月租套房' }, { roomId: '202', status: '使用中' }, { roomId: '203', status: '可入住' }]), 20); return () => undefined; } };
+    render(<App bookingListGateway={gateway(bookings)} bookingUpdateGateway={{ update } satisfies BookingUpdateGateway} bookingRoomGateway={lateRooms} />);
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
+    fireEvent.click(await screen.findByText('203 · Live Guest'));
+    fireEvent.click(screen.getByRole('button', { name: '修改預約' }));
+    await screen.findByText('修改預約 · RSV-live-203');
+    await waitFor(() => expect(screen.getByLabelText('房間')).toBeEnabled());
+    expect(screen.getByLabelText('房間')).toHaveValue('203');
+    fireEvent.click(screen.getByRole('button', { name: '儲存變更' }));
+    await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ roomId: '203' })));
+  });
+
   it('uses the self-excluding server preview before saving a booking edit', async () => {
     const preview = vi.fn().mockResolvedValue({
       available: true,

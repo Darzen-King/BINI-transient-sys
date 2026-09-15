@@ -679,5 +679,5 @@ h1, h2, p { margin-top: 0; }
  * every screen cut off on the right. Touch devices therefore always get 16px form controls.
  */
 @media (pointer: coarse) {
-  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea { font-size: 16px !important; }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea, .bds-datetime__display { font-size: 16px !important; }
 }

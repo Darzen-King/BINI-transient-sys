@@ -33,6 +33,8 @@ function roomStatusLabel(status: BookingRoomOption['status'], text: (zhTw: strin
 }
 
 function functionErrorMessage(error: unknown, text: (zhTw: string, en: string) => string): string {
+  // Client-side schema failures carry a raw JSON issue list; staff need a readable hint instead.
+  if (error instanceof Error && error.name === 'ZodError') return text('資料不完整或格式不正確，請檢查房間與各欄位後再試。', 'Some fields are missing or invalid. Check the room and other fields, then try again.');
   if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') return error.message;
   return text('無法修改預約，請稍後再試。', 'The booking could not be updated. Try again shortly.');
 }
@@ -62,6 +64,9 @@ export function BookingEditPage({
   const { text } = useLocale();
   const [rooms, setRooms] = useState<BookingRoomOption[] | null>(null);
   const [roomError, setRoomError] = useState(false);
+  // Controlled: the room list arrives after mount, and an uncontrolled defaultValue would be lost, leaving the browser on
+  // the first (possibly disabled monthly) option, which FormData then omits.
+  const [roomId, setRoomId] = useState(booking.roomId);
   const [checkInLocal, setCheckInLocal] = useState(() => taipeiLocalInputValue(booking.checkInAt));
   const [plan, setPlan] = useState<'12hrs' | '24hrs'>(booking.plan === '12hrs' ? '12hrs' : '24hrs');
   const [days, setDays] = useState(() => bookingDays(booking));
@@ -97,6 +102,7 @@ export function BookingEditPage({
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!gateway) return;
+    if (!roomId) { setError(text('請選擇房間。', 'Choose a room.')); return; }
     const data = new FormData(event.currentTarget);
     const operationId = pendingOperationId ?? crypto.randomUUID();
     if (!pendingOperationId) setPendingOperationId(operationId);
@@ -108,7 +114,7 @@ export function BookingEditPage({
         propertyId: session.propertyId,
         operationId,
         bookingId: booking.bookingId,
-        roomId: String(data.get('roomId') ?? ''),
+        roomId,
         guestName: String(data.get('guestName') ?? ''),
         phone: String(data.get('phone') ?? '').trim() || null,
         checkInAt: toTaipeiIso(checkInLocal),
@@ -129,7 +135,6 @@ export function BookingEditPage({
 
   const runPreview = async () => {
     if (!previewGateway || !formRef.current) return;
-    const data = new FormData(formRef.current);
     setPreviewBusy(true);
     setPreviewError('');
     setPreview(null);
@@ -137,7 +142,7 @@ export function BookingEditPage({
       setPreview(await previewGateway.preview({
         propertyId: session.propertyId,
         bookingId: booking.bookingId,
-        roomId: String(data.get('roomId') ?? ''),
+        roomId,
         checkInAt: toTaipeiIso(checkInLocal),
         plan,
         days,
@@ -163,7 +168,7 @@ export function BookingEditPage({
       </Notice> : null}
       <form className="booking-create-form" ref={formRef} onSubmit={(event) => void submit(event)}>
         <div className="booking-create-grid">
-          <Field label={text('房間', 'Room')}><select defaultValue={booking.roomId} disabled={!gateway || rooms === null || roomError} name="roomId" required>{(rooms ?? []).map((room) => <option disabled={room.status === '月租套房' && room.roomId !== booking.roomId} key={room.roomId} value={room.roomId}>{room.roomId} · {roomStatusLabel(room.status, text)}</option>)}</select></Field>
+          <Field label={text('房間', 'Room')}><select disabled={!gateway || rooms === null || roomError} name="roomId" onChange={(event) => setRoomId(event.target.value)} required value={roomId}>{rooms && !rooms.some((room) => room.roomId === roomId) ? <option value={roomId}>{roomId}</option> : null}{(rooms ?? []).map((room) => <option disabled={room.status === '月租套房' && room.roomId !== booking.roomId} key={room.roomId} value={room.roomId}>{room.roomId} · {roomStatusLabel(room.status, text)}</option>)}</select></Field>
           <Field label={text('住客姓名', 'Guest name')}><input defaultValue={booking.guestName} disabled={!gateway} maxLength={300} name="guestName" required /></Field>
           <Field label={text('電話', 'Phone')}><input defaultValue={booking.phone ?? ''} disabled={!gateway} maxLength={100} name="phone" inputMode="tel" /></Field>
           <Field label={text('入住時間', 'Check-in')}><DateTimeInput disabled={!gateway} name="checkInAt" onChange={(event) => { setCheckInLocal(event.target.value); rate.onCheckInChange(event.target.value); }} required value={checkInLocal} /></Field>

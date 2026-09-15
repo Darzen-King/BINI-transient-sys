@@ -14,6 +14,8 @@ import { AmountField, CheckoutPreviewField, pricingFor, quoteForForm, toTaipeiIs
 
 
 function functionErrorMessage(error: unknown, text: (zhTw: string, en: string) => string): string {
+  // Client-side schema failures carry a raw JSON issue list; staff need a readable hint instead.
+  if (error instanceof Error && error.name === 'ZodError') return text('資料不完整或格式不正確，請檢查房間與各欄位後再試。', 'Some fields are missing or invalid. Check the room and other fields, then try again.');
   if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
     return error.message;
   }

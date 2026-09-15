@@ -73,6 +73,12 @@ async def checkin_form(
         and (b.checkin or "") >= _cutoff           # exclude very overdue bookings
     ]
     prefill = bsvc.get_booking(db, booking_id) if booking_id else None
+    # 「入住」 on the bookings page carries booking_id: that visit IS this booking, even for a late
+    # guest, so it must stay linked. Hidden from the list, it was submitted without booking_id and
+    # the guest's own booking came back as error.conflict. A check-in started anywhere else still
+    # gets the conflict warning for a booking that has not arrived.
+    if prefill and prefill.status not in _CS and all(b.id != prefill.id for b in bookings):
+        bookings.append(prefill)
     msg     = request.query_params.get("msg", "")
     error   = request.query_params.get("error", "")
 

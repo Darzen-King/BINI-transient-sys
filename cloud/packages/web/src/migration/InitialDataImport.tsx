@@ -6,6 +6,7 @@ import {
   type V3BackupPrepareResult,
   type V3BackupPromotionResult,
   type V3BackupInspection,
+  type V3PromotionMode,
 } from '@bini/cloud-shared';
 import { useState, type ChangeEvent } from 'react';
 
@@ -32,6 +33,8 @@ export function InitialDataImport({ session, gateway }: { session: StaffSession;
   const [stageResult, setStageResult] = useState<V3BackupStageResult | null>(null);
   const [prepareResult, setPrepareResult] = useState<V3BackupPrepareResult | null>(null);
   const [promotionConfirmation, setPromotionConfirmation] = useState('');
+  // create: first import into an empty property. replace: a newer desktop backup becomes the DEV data.
+  const [promotionMode, setPromotionMode] = useState<V3PromotionMode>('create');
   const [promotionResult, setPromotionResult] = useState<V3BackupPromotionResult | null>(null);
 
   const selectFile = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -110,7 +113,7 @@ export function InitialDataImport({ session, gateway }: { session: StaffSession;
 
   const promoteImport = async () => {
     if (!stageResult || !prepareResult?.report.valid || !gateway) return;
-    const confirmation = v3PromotionConfirmationForBatch(stageResult.batchId);
+    const confirmation = v3PromotionConfirmationForBatch(stageResult.batchId, promotionMode);
     if (promotionConfirmation !== confirmation) return;
     setBusy(true);
     setError('');
@@ -120,9 +123,14 @@ export function InitialDataImport({ session, gateway }: { session: StaffSession;
         propertyId: session.propertyId,
         batchId: stageResult.batchId,
         confirmation,
+        ...(promotionMode === 'replace' ? { mode: 'replace' as const } : {}),
       }));
     } catch (promotionError) {
-      setError(errorMessage(promotionError, text('正式匯入未完成。系統不會覆寫既有營運資料；請由管理員確認同一批次的狀態後再處理。', 'Promotion did not complete. Existing operational data was not overwritten; an administrator must review this same batch before proceeding.')));
+      const message = errorMessage(promotionError, text('正式匯入未完成。系統不會覆寫既有營運資料；請由管理員確認同一批次的狀態後再處理。', 'Promotion did not complete. Existing operational data was not overwritten; an administrator must review this same batch before proceeding.'));
+      // DEV already holds an earlier import: point to the replace mode instead of a dead end.
+      setError(promotionMode === 'create' && message.includes('拒絕覆寫既有營運資料')
+        ? `${message}${text('。DEV 已有先前匯入的資料；若要以這份較新的備份為準，請在下方選擇「以此備份取代 DEV 營運資料」。', '. DEV already holds an earlier import; to use this newer backup, choose "Replace DEV data with this backup" below.')}`
+        : message);
     } finally {
       setBusy(false);
     }
@@ -228,10 +236,27 @@ export function InitialDataImport({ session, gateway }: { session: StaffSession;
           ) : null}
           {prepareResult.report.valid && stageResult ? (
             <div className="promotion-confirmation">
-              <Notice tone="warning" title={text('最後確認：將寫入 Firebase DEV', 'Final confirmation: write to Firebase DEV')}>
-                {text('這會把已對帳的資料寫入 DEV 營運 collections。系統會拒絕覆寫既有文件；請逐字輸入下列確認字串。', 'This writes reconciled data to DEV operational collections. Existing documents are never overwritten; type the exact phrase below.')}
-              </Notice>
-              <code>{v3PromotionConfirmationForBatch(stageResult.batchId)}</code>
+              <fieldset className="promotion-mode" disabled={busy}>
+                <legend>{text('寫入方式', 'Write mode')}</legend>
+                <label className="check-row">
+                  <input checked={promotionMode === 'create'} name="promotion-mode" onChange={() => { setPromotionMode('create'); setPromotionConfirmation(''); }} type="radio" />
+                  <span>{text('首次匯入（不覆寫既有資料）', 'First import (never overwrite)')}</span>
+                </label>
+                <label className="check-row">
+                  <input checked={promotionMode === 'replace'} name="promotion-mode" onChange={() => { setPromotionMode('replace'); setPromotionConfirmation(''); }} type="radio" />
+                  <span>{text('以此備份取代 DEV 營運資料', 'Replace DEV data with this backup')}</span>
+                </label>
+              </fieldset>
+              {promotionMode === 'replace' ? (
+                <Notice tone="danger" title={text('將以此備份取代 DEV 營運資料', 'This backup will replace DEV operational data')}>
+                  {text('房間、預約、在住、住宿紀錄、付款、日結、成本、月租、假日與維修會完全換成備份內容；DEV 上不在備份中的資料（例如雲端測試建立的預約、付款）會被移除。執行前會自動把受影響的資料存成快照，雲端操作的稽核紀錄會保留。請逐字輸入下列確認字串。', 'Rooms, bookings, stays, stay logs, payments, cashier sessions, costs, monthly rentals, holidays and maintenance become exactly the backup; DEV data not in the backup (such as bookings or payments created while testing in the cloud) is removed. Affected documents are snapshotted first and cloud audit history is kept. Type the exact phrase below.')}
+                </Notice>
+              ) : (
+                <Notice tone="warning" title={text('最後確認：將寫入 Firebase DEV', 'Final confirmation: write to Firebase DEV')}>
+                  {text('這會把已對帳的資料寫入 DEV 營運 collections。系統會拒絕覆寫既有文件；請逐字輸入下列確認字串。', 'This writes reconciled data to DEV operational collections. Existing documents are never overwritten; type the exact phrase below.')}
+                </Notice>
+              )}
+              <code>{v3PromotionConfirmationForBatch(stageResult.batchId, promotionMode)}</code>
               <label>
                 <span>{text('確認字串', 'Confirmation phrase')}</span>
                 <input
@@ -245,12 +270,13 @@ export function InitialDataImport({ session, gateway }: { session: StaffSession;
               </label>
               <Button
                 block
-                disabled={promotionConfirmation !== v3PromotionConfirmationForBatch(stageResult.batchId)}
+                disabled={promotionConfirmation !== v3PromotionConfirmationForBatch(stageResult.batchId, promotionMode)}
                 loading={busy}
                 onClick={() => void promoteImport()}
                 size="lg"
+                variant={promotionMode === 'replace' ? 'danger' : 'primary'}
               >
-                {text('確認並寫入 Firebase DEV', 'Confirm and write to Firebase DEV')}
+                {promotionMode === 'replace' ? text('確認取代 Firebase DEV 營運資料', 'Confirm and replace Firebase DEV data') : text('確認並寫入 Firebase DEV', 'Confirm and write to Firebase DEV')}
               </Button>
             </div>
           ) : null}
@@ -259,7 +285,9 @@ export function InitialDataImport({ session, gateway }: { session: StaffSession;
 
       {promotionResult ? (
         <Notice tone="success" title={promotionResult.status === 'already_promoted' ? text('此批次已完成正式匯入', 'This batch was already promoted') : text('DEV 正式匯入完成', 'DEV promotion completed')}>
-          {text(`已驗證並寫入 ${promotionResult.documentCount} 筆資料。此動作只作用於 Firebase DEV；完整 PMS 流程仍需逐項驗收。`, `${promotionResult.documentCount} verified documents were written. This affects Firebase DEV only; the full PMS workflow still requires per-feature acceptance.`)}
+          {promotionResult.mode === 'replace'
+            ? text(`已以備份取代 DEV 營運資料：寫入並驗證 ${promotionResult.documentCount} 筆，覆蓋 ${promotionResult.overwrittenCount ?? 0} 筆、移除 ${promotionResult.removedCount ?? 0} 筆（事前快照 ${promotionResult.snapshotCount ?? 0} 筆）。`, `DEV data replaced from the backup: ${promotionResult.documentCount} documents written and verified, ${promotionResult.overwrittenCount ?? 0} overwritten, ${promotionResult.removedCount ?? 0} removed (${promotionResult.snapshotCount ?? 0} snapshotted first).`)
+            : text(`已驗證並寫入 ${promotionResult.documentCount} 筆資料。此動作只作用於 Firebase DEV；完整 PMS 流程仍需逐項驗收。`, `${promotionResult.documentCount} verified documents were written. This affects Firebase DEV only; the full PMS workflow still requires per-feature acceptance.`)}
         </Notice>
       ) : null}
     </SectionCard>

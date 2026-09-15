@@ -5,9 +5,11 @@ import {
   V3_MIGRATION_SCHEMA_VERSION,
   V3_MIGRATION_TRANSFORM_VERSION,
   V3PromotionPlanError,
+  V3_REPLACE_COLLECTIONS,
   buildV3PromotionPlan,
   canAttachV3PropertyToCloudBootstrap,
   matchesV3PromotionDocument,
+  planV3Replacement,
   v3BackupPromoteInputSchema,
   v3PromotionConfirmationForBatch,
   v3DocumentId,
@@ -110,6 +112,28 @@ describe('v3 prepared backup promotion contract', () => {
     const alteredCount = fixture();
     alteredCount.batch.preparedRowCount -= 1;
     expect(() => buildV3PromotionPlan(alteredCount)).toThrow(V3PromotionPlanError);
+  });
+
+  it('uses a separate REPLACE phrase for replace mode, so a first-import phrase can never replace data', () => {
+    const candidate = fixture();
+    expect(v3PromotionConfirmationForBatch(batchId, 'replace')).toBe(`REPLACE DEV ${batchId.slice(0, 12)}`);
+    expect(v3BackupPromoteInputSchema.safeParse({ ...candidate.request, mode: 'replace' }).success).toBe(false);
+    expect(v3BackupPromoteInputSchema.safeParse({ ...candidate.request, mode: 'replace', confirmation: v3PromotionConfirmationForBatch(batchId, 'replace') }).success).toBe(true);
+    expect(v3BackupPromoteInputSchema.safeParse({ ...candidate.request, mode: 'overwrite' }).success).toBe(false);
+  });
+
+  it('plans a replacement: rewrite backup paths, remove everything else, keep only cloud audit history', () => {
+    expect(V3_REPLACE_COLLECTIONS).toEqual(expect.arrayContaining(['rooms', 'bookings', 'stays', 'stayLogs', 'payments', 'monthlyRentals', 'auditLogs']));
+    expect(V3_REPLACE_COLLECTIONS).not.toContain('properties');
+    const root = 'properties/property-main';
+    const decision = planV3Replacement([
+      { path: `${root}/rooms/201`, data: { migrationImport: {} } },
+      { path: `${root}/bookings/RSV-CLOUD`, data: {} },
+      { path: `${root}/stays/STY-OLD`, data: { migrationImport: {} } },
+      { path: `${root}/auditLogs/v3-activity_logs-9`, data: { migrationImport: {} } },
+      { path: `${root}/auditLogs/cloud-op`, data: { action: 'stay.checkout' } },
+    ], new Set([`${root}/rooms/201`]));
+    expect(decision).toEqual({ overwrite: [`${root}/rooms/201`], remove: [`${root}/bookings/RSV-CLOUD`, `${root}/stays/STY-OLD`, `${root}/auditLogs/v3-activity_logs-9`], keep: [`${root}/auditLogs/cloud-op`] });
   });
 
   it('requires the batch-specific human confirmation phrase', () => {

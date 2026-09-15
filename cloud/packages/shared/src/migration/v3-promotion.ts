@@ -35,22 +35,62 @@ const sourceTableSchema = z.enum([
 ] satisfies [V3SourceTable, ...V3SourceTable[]]);
 
 export const V3_PROMOTION_CONFIRMATION_PREFIX = 'PROMOTE DEV';
+export const V3_REPLACE_CONFIRMATION_PREFIX = 'REPLACE DEV';
+
+/**
+ * - create: first import into an empty property; existing documents are never overwritten.
+ * - replace: re-import a newer desktop backup; the property's operational data becomes exactly the backup
+ *   (every replaced or removed document is snapshotted first). Cloud-written audit history is kept.
+ */
+export const V3_PROMOTION_MODES = ['create', 'replace'] as const;
+export type V3PromotionMode = (typeof V3_PROMOTION_MODES)[number];
 
 /** A human-visible confirmation prevents an accidental click from writing prepared data. */
-export function v3PromotionConfirmationForBatch(batchId: string): string {
+export function v3PromotionConfirmationForBatch(batchId: string, mode: V3PromotionMode = 'create'): string {
   if (!batchIdSchema.safeParse(batchId).success) throw new Error('batch id is invalid');
-  return `${V3_PROMOTION_CONFIRMATION_PREFIX} ${batchId.slice(0, 12)}`;
+  return `${mode === 'replace' ? V3_REPLACE_CONFIRMATION_PREFIX : V3_PROMOTION_CONFIRMATION_PREFIX} ${batchId.slice(0, 12)}`;
 }
 
 export const v3BackupPromoteInputSchema = z.object({
   propertyId: propertyIdSchema,
   batchId: batchIdSchema,
   confirmation: z.string().trim().min(1).max(64),
+  mode: z.enum(V3_PROMOTION_MODES).optional(),
 }).strict().superRefine((value, context) => {
-  if (value.confirmation !== v3PromotionConfirmationForBatch(value.batchId)) {
+  if (value.confirmation !== v3PromotionConfirmationForBatch(value.batchId, value.mode ?? 'create')) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['confirmation'], message: 'promotion confirmation does not match this batch' });
   }
 });
+
+/** Operational collections a replace promotion rebuilds from the backup (the property root is updated in place). */
+export const V3_REPLACE_COLLECTIONS: readonly string[] = [...new Set(
+  V3_AUTHORITATIVE_ENTITY_MAPPINGS.map((mapping) => mapping.targetCollection).filter((collection) => collection !== 'properties'),
+)];
+
+export interface V3ReplacementDecision {
+  /** Existing documents the backup rewrites (snapshotted first). */
+  overwrite: string[];
+  /** Existing documents absent from the backup: snapshotted, then deleted. */
+  remove: string[];
+  /** Cloud-written audit history that is not part of the backup and stays. */
+  keep: string[];
+}
+
+/** Decides, per existing document of the replaced collections, whether a replace promotion overwrites, removes or keeps it. */
+export function planV3Replacement(
+  existing: readonly { path: string; data: unknown }[],
+  targetPaths: ReadonlySet<string>,
+): V3ReplacementDecision {
+  const decision: V3ReplacementDecision = { overwrite: [], remove: [], keep: [] };
+  for (const document of existing) {
+    if (targetPaths.has(document.path)) { decision.overwrite.push(document.path); continue; }
+    const collection = document.path.split('/').slice(-2, -1)[0];
+    const imported = Object.hasOwn(asRecord(document.data) ?? {}, 'migrationImport');
+    if (collection === 'auditLogs' && !imported) decision.keep.push(document.path);
+    else decision.remove.push(document.path);
+  }
+  return decision;
+}
 
 export type V3BackupPromoteInput = z.infer<typeof v3BackupPromoteInputSchema>;
 
@@ -59,6 +99,11 @@ export interface V3BackupPromotionResult {
   status: 'promoted' | 'already_promoted';
   transformVersion: typeof V3_MIGRATION_TRANSFORM_VERSION;
   documentCount: number;
+  mode?: V3PromotionMode;
+  /** replace only: existing documents rewritten, removed, and snapshotted beforehand. */
+  overwrittenCount?: number;
+  removedCount?: number;
+  snapshotCount?: number;
 }
 
 export interface V3PromotionBatchMetadata {

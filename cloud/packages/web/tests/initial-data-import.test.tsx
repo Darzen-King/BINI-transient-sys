@@ -106,6 +106,37 @@ describe('initial v3 data import', () => {
     expect(await screen.findByText('DEV 正式匯入完成')).toBeInTheDocument();
   });
 
+  it('re-imports a newer backup in replace mode with its own confirmation phrase and explains a refused first import', async () => {
+    const api = gateway();
+    api.promote = vi.fn()
+      .mockRejectedValueOnce(new Error('拒絕覆寫既有營運資料：properties/property-main/auditLogs/v3-activity_logs-1'))
+      .mockResolvedValueOnce({ batchId, status: 'promoted', transformVersion: 1, documentCount: 3, mode: 'replace', overwrittenCount: 2, removedCount: 5, snapshotCount: 7 });
+    render(<LocaleProvider><InitialDataImport session={session} gateway={api} /></LocaleProvider>);
+    const file = new File([backup()], 'bini_blooms_backup.json', { type: 'application/json' });
+    Object.defineProperty(file, 'text', { value: vi.fn().mockResolvedValue(backup()) });
+    fireEvent.change(screen.getByLabelText('選擇 Dropbox 備份檔'), { target: { files: [file] } });
+    await screen.findByRole('button', { name: '建立 DEV 匯入暫存批次' });
+    fireEvent.click(screen.getAllByRole('checkbox')[0]!);
+    fireEvent.click(screen.getByRole('button', { name: '建立 DEV 匯入暫存批次' }));
+    fireEvent.click(await screen.findByRole('button', { name: '產生 DEV 轉換與對帳報告' }));
+    await screen.findByText('對帳通過，資料已準備完成');
+
+    fireEvent.change(screen.getByLabelText('正式匯入確認字串'), { target: { value: v3PromotionConfirmationForBatch(batchId) } });
+    fireEvent.click(screen.getByRole('button', { name: '確認並寫入 Firebase DEV' }));
+    expect(await screen.findByText(/請在下方選擇「以此備份取代 DEV 營運資料」/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('radio', { name: '以此備份取代 DEV 營運資料' }));
+    expect(screen.getByText('將以此備份取代 DEV 營運資料')).toBeInTheDocument();
+    const replace = screen.getByRole('button', { name: '確認取代 Firebase DEV 營運資料' });
+    // The first-import phrase does not unlock a replacement.
+    fireEvent.change(screen.getByLabelText('正式匯入確認字串'), { target: { value: v3PromotionConfirmationForBatch(batchId) } });
+    expect(replace).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('正式匯入確認字串'), { target: { value: v3PromotionConfirmationForBatch(batchId, 'replace') } });
+    fireEvent.click(replace);
+    await waitFor(() => expect(api.promote).toHaveBeenLastCalledWith({ propertyId: 'property-main', batchId, confirmation: v3PromotionConfirmationForBatch(batchId, 'replace'), mode: 'replace' }));
+    expect(await screen.findByText(/覆蓋 2 筆、移除 5 筆（事前快照 7 筆）/)).toBeInTheDocument();
+  });
+
   it('does not expose the import workflow to non-admin staff', () => {
     render(<LocaleProvider><InitialDataImport session={{ ...session, role: 'manager' }} gateway={gateway()} /></LocaleProvider>);
     expect(screen.getByText('權限不足')).toBeInTheDocument();

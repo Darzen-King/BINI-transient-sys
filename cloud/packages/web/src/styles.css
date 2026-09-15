@@ -698,3 +698,9 @@ h1, h2, p { margin-top: 0; }
 .check-row input[type="checkbox"] { flex: none; width: 22px; height: 22px; min-height: 0; margin: 0; accent-color: var(--bds-color-berry-600); cursor: pointer; }
 .check-row:has(input:checked) { border-color: var(--bds-color-berry-300); background: var(--bds-color-berry-50); }
 .check-row:has(input:disabled) { cursor: not-allowed; opacity: .6; }
+
+/* Import write-mode choice inside the promotion box (overrides the box's full-width input/label rules). */
+.promotion-mode { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.promotion-mode legend { margin-bottom: 6px; color: var(--bds-color-neutral-700); font-size: 13px; font-weight: 800; }
+.promotion-confirmation .promotion-mode label.check-row { display: flex; color: var(--bds-color-text-primary); font-size: 15px; }
+.promotion-confirmation .promotion-mode input[type="radio"] { flex: none; width: 22px; height: 22px; min-height: 0; margin: 0; padding: 0; accent-color: var(--bds-color-berry-600); }

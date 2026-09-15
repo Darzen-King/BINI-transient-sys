@@ -1,13 +1,16 @@
 import {
   V3_MIGRATION_TRANSFORM_VERSION,
+  V3_REPLACE_COLLECTIONS,
   buildV3PromotionPlan,
+  planV3Replacement,
   canAttachV3PropertyToCloudBootstrap,
   matchesV3PromotionDocument,
   v3BackupPromoteInputSchema,
   type V3BackupPromotionResult,
+  type V3PromotionMode,
   type V3PromotionPlan,
 } from '@bini/cloud-shared';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { FieldValue, Timestamp, getFirestore, type DocumentReference } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
@@ -174,11 +177,71 @@ async function writePromotionChunks(plan: V3PromotionPlan): Promise<void> {
   }
 }
 
+interface ReplacementSummary { overwrittenCount: number; removedCount: number; snapshotCount: number }
+
+/**
+ * Replace mode, step 1: every existing document the backup rewrites or removes is copied to
+ * migrationImports/{batchId}/replacedDocuments before anything changes, so a DEV operator can recover it
+ * (in addition to Firestore point-in-time recovery). Step 2 deletes documents absent from the backup.
+ * Cloud-written audit history is kept.
+ */
+export async function snapshotAndClearForReplace(importRef: DocumentReference, plan: V3PromotionPlan, attemptId: string): Promise<ReplacementSummary> {
+  const database = getFirestore();
+  const root = `properties/${plan.propertyId}`;
+  const existing: { path: string; data: Record<string, unknown> }[] = [];
+  for (const collection of V3_REPLACE_COLLECTIONS) {
+    const snapshot = await database.collection(`${root}/${collection}`).get();
+    for (const document of snapshot.docs) existing.push({ path: document.ref.path, data: document.data() });
+  }
+  const propertySnapshot = await database.doc(root).get();
+  if (propertySnapshot.exists) existing.push({ path: root, data: propertySnapshot.data() ?? {} });
+
+  const decision = planV3Replacement(existing, new Set(plan.documents.map((document) => document.targetPath)));
+  const affected = new Set([...decision.overwrite, ...decision.remove]);
+  const toSnapshot = existing.filter((document) => affected.has(document.path));
+  const capturedAt = FieldValue.serverTimestamp();
+  for (const snapshotChunk of chunks(toSnapshot, 400)) {
+    const batch = database.batch();
+    for (const document of snapshotChunk) {
+      const id = createHash('sha256').update(document.path).digest('hex');
+      batch.set(importRef.collection('replacedDocuments').doc(id), { path: document.path, data: document.data, attemptId, capturedAt });
+    }
+    await batch.commit();
+  }
+  for (const removeChunk of chunks(decision.remove, 400)) {
+    const batch = database.batch();
+    for (const path of removeChunk) batch.delete(database.doc(path));
+    await batch.commit();
+  }
+  return { overwrittenCount: decision.overwrite.length, removedCount: decision.remove.length, snapshotCount: toSnapshot.length };
+}
+
+/** Replace mode, step 3: write every backup document as-is; the property root keeps its cloud settings. */
+export async function writeReplaceChunks(plan: V3PromotionPlan): Promise<void> {
+  const database = getFirestore();
+  const marker = markerFor(plan);
+  for (const documentChunk of chunks(plan.documents, PROMOTION_WRITE_CHUNK_SIZE)) {
+    const batch = database.batch();
+    for (const document of documentChunk) {
+      const ref = database.doc(document.targetPath);
+      if (document.sourceTable === 'properties') {
+        // mergeFields replaces these two fields whole (a plain merge would keep stale keys of the previous legacy row).
+        batch.set(ref, { legacyV3Import: document.data, migrationImport: { ...marker, promotedAt: FieldValue.serverTimestamp() } }, { mergeFields: ['legacyV3Import', 'migrationImport'] });
+      } else {
+        batch.set(ref, { ...document.data, migrationImport: { ...marker, promotedAt: FieldValue.serverTimestamp() } });
+      }
+    }
+    await batch.commit();
+  }
+}
+
 async function finishPromotion(
   importRef: DocumentReference,
   actorUid: string,
   attemptId: string,
   plan: V3PromotionPlan,
+  mode: V3PromotionMode = 'create',
+  replacement: ReplacementSummary | null = null,
 ): Promise<void> {
   const database = getFirestore();
   const auditRef = database.doc(`properties/${plan.propertyId}/auditLogs/migration-${plan.batchId}-${attemptId}`);
@@ -204,17 +267,21 @@ async function finishPromotion(
         documentCount: plan.documents.length,
         sourceChecksumSha256: plan.checksumSha256,
         transformVersion: V3_MIGRATION_TRANSFORM_VERSION,
+        mode,
+        ...(replacement ?? {}),
         completedAt: FieldValue.serverTimestamp(),
       },
     }, { merge: true });
     transaction.create(auditRef, {
       actorUid,
-      action: 'migration.v3_backup_promoted',
+      action: mode === 'replace' ? 'migration.v3_backup_replaced' : 'migration.v3_backup_promoted',
       targetUid: plan.batchId,
       details: {
         documentCount: plan.documents.length,
         sourceChecksumSha256: plan.checksumSha256,
         transformVersion: V3_MIGRATION_TRANSFORM_VERSION,
+        mode,
+        ...(replacement ?? {}),
       },
       createdAt: FieldValue.serverTimestamp(),
     });
@@ -287,15 +354,25 @@ export const adminPromotePreparedV3Backup = onCall(callableOptions, async (reque
       };
     }
 
-    await assertTargetsAreSafe(plan, false);
-    await writePromotionChunks(plan);
+    const mode: V3PromotionMode = input.mode ?? 'create';
+    let replacement: ReplacementSummary | null = null;
+    if (mode === 'replace') {
+      replacement = await snapshotAndClearForReplace(importRef, plan, attemptId);
+      await writeReplaceChunks(plan);
+    } else {
+      await assertTargetsAreSafe(plan, false);
+      await writePromotionChunks(plan);
+    }
+    // Both modes end with every backup document present exactly as prepared.
     await assertTargetsAreSafe(plan, true);
-    await finishPromotion(importRef, actorUid, attemptId, plan);
+    await finishPromotion(importRef, actorUid, attemptId, plan, mode, replacement);
     return {
       batchId: input.batchId,
       status: 'promoted',
       transformVersion: V3_MIGRATION_TRANSFORM_VERSION,
       documentCount: plan.documents.length,
+      mode,
+      ...(replacement ?? {}),
     };
   } catch (error) {
     const safeError = callableError(error);

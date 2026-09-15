@@ -1,6 +1,6 @@
-/* global self, caches, URL, fetch */
+/* global self, caches, URL, fetch, clients */
 
-const CACHE_NAME = 'bini-pms-v4-migration-2';
+const CACHE_NAME = 'bini-pms-v4-migration-3';
 const APP_SHELL = [
   '/',
   '/manifest.webmanifest',
@@ -35,4 +35,32 @@ self.addEventListener('fetch', (event) => {
       })
       .catch(() => caches.match(event.request).then((cached) => cached ?? caches.match('/'))),
   );
+});
+
+// Background reminders (Firebase Cloud Messaging, data-only). The server sends title/body/tag; this worker shows the
+// notification itself so installed iPhone apps, Android and desktop browsers behave the same. iOS requires every push
+// to show a notification, so one is always shown.
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try { payload = event.data ? event.data.json() : {}; } catch { payload = {}; }
+  const data = payload.data || {};
+  const notification = payload.notification || {};
+  const title = notification.title || data.title || 'BINI PMS';
+  event.waitUntil(self.registration.showNotification(title, {
+    body: notification.body || data.body || '',
+    tag: data.tag || undefined,
+    icon: '/pwa-192.png',
+    badge: '/pwa-192.png',
+    lang: 'zh-Hant',
+    data: { url: data.url || '/' },
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = new URL((event.notification.data && event.notification.data.url) || '/', self.location.origin).href;
+  event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+    const existing = windows.find((client) => new URL(client.url).origin === self.location.origin);
+    return existing ? existing.focus() : clients.openWindow(target);
+  }));
 });

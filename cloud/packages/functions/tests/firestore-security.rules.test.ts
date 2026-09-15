@@ -182,6 +182,13 @@ describe('authorised reads', () => {
 });
 
 describe('authoritative collections are server-only', () => {
+  it('push tokens and reminder logs are closed to every client, admins included', async () => {
+    await assertFails(getDoc(doc(asAdmin(), 'pushTokens/abc')));
+    await assertFails(setDoc(doc(asStaff(), 'pushTokens/abc'), { uid: 'staff-1', token: 'x' }));
+    await assertFails(getDoc(doc(asAdmin(), `properties/${PROPERTY}/pushReminderLog/k1`)));
+    await assertFails(setDoc(doc(asStaff(), `properties/${PROPERTY}/pushReminderLog/k1`), { kind: 'booking_soon' }));
+  });
+
   it('a member cannot write a booking directly', async () => {
     await assertFails(
       setDoc(doc(asStaff(), `properties/${PROPERTY}/bookings/b2`), { version: 1, room: '203' }),

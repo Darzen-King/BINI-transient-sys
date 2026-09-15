@@ -52,6 +52,7 @@ import type { ActiveStaysGateway } from '../stays/active-stays.js';
 import type { HolidayCalendarGateway } from '../stays/holiday-calendar.js';
 import type { StayCheckInGateway } from '../stays/stay-checkin.js';
 import type { StayCheckoutGateway } from '../stays/stay-checkout.js';
+import type { PushGateway, PushState } from '../notifications/push.js';
 import type { StayExtendGateway } from '../stays/stay-extend.js';
 
 type Doc = { id: string; data: Record<string, unknown> };
@@ -131,7 +132,18 @@ const rooms: BookingRoomGateway = { subscribe: (_p, onValue) => emit(onValue, ()
 const activeStays: ActiveStaysGateway = { subscribe: (_p, onValue) => emit(onValue, () => buildActiveStayItems(data.stays)) };
 const holidayCalendar: HolidayCalendarGateway = { subscribe: (_p, onValue) => emit(onValue, () => buildHolidayCalendar(data.holidays)) };
 
+// Local visual QA only: pretends the device can receive push and toggles state in memory.
+let previewPushState: PushState = 'off';
+const previewPush: PushGateway = {
+  state: () => previewPushState,
+  enable: async () => { previewPushState = 'on'; },
+  disable: async () => { previewPushState = 'off'; },
+  sendTest: async () => ({ sentCount: 1, failedCount: 0 }),
+  refresh: async () => undefined,
+};
+
 export const previewGateways = {
+  pushGateway: previewPush,
   accountGateway: { list: async () => [
     { uid: 'preview-admin', email: 'preview@example.com', displayName: 'Preview Admin', role: 'admin', active: true, allowedPages: [...CLOUD_PAGE_IDS], lastLoginAt: iso(-HOUR), mfaEnrolled: true },
     { uid: 'front-desk-01', email: 'frontdesk.with.a.very.long.address@example.com', displayName: '櫃檯 小芳', role: 'front_desk', active: true, allowedPages: ['rooms', 'bookings', 'bookings_new', 'checkin', 'checkout', 'payments'], lastLoginAt: null, mfaEnrolled: false },

@@ -18,6 +18,7 @@ import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { CLOUD_ROLES, type CloudPageId, type CloudRole } from '@bini/cloud-shared';
 
 import { App } from '../App.js';
+import { createPushGateway } from '../notifications/push.js';
 import { createAccountAdminGateway } from '../accounts/account-admin.js';
 import { Button, Field, Notice, PasswordInput } from '../design-system/index.js';
 import type { FirebaseClient } from '../firebase-client.js';
@@ -109,6 +110,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const bookingListGateway = useMemo(() => createBookingListGateway(client.db), [client.db]);
+  const pushGateway = useMemo(() => createPushGateway(client.functions), [client.functions]);
   const bookingCancelGateway = useMemo(() => createBookingCancelGateway(client.functions), [client.functions]);
   const bookingCreateGateway = useMemo(() => createBookingCreateGateway(client.functions), [client.functions]);
   const bookingMultiCreateGateway = useMemo(() => createBookingMultiCreateGateway(client.functions), [client.functions]);
@@ -287,6 +289,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
       session={session}
       onSwitchProperty={switchProperty}
       propertyNameGateway={propertyNameGateway}
+      pushGateway={pushGateway}
       accountGateway={createAccountAdminGateway(client.functions)}
       dataImportGateway={createDataImportGateway(client.functions)}
       bookingListGateway={bookingListGateway}

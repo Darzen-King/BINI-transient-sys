@@ -63,6 +63,8 @@ import type { PropertyNameGateway } from './auth/property-session.js';
 import { CheckoutSoonBanner } from './stays/CheckoutSoonBanner.js';
 import { enableChimeOnFirstInteraction } from './alerts/chime.js';
 import { AppIcon, type AppIconName } from './design-system/icons.js';
+import { PushNotificationPanel, PushNotificationPrompt } from './notifications/PushNotificationPanel.js';
+import type { PushGateway } from './notifications/push.js';
 
 /** Shown only to accounts granted more than one property; switching restarts the app in that property. */
 function PropertySwitcher({ className, session, gateway, onSwitch }: { className: string; session: StaffSession; gateway: PropertyNameGateway | undefined; onSwitch: ((propertyId: string) => void) | undefined }) {
@@ -569,8 +571,9 @@ function BookingsView({ canCreate, canCancel, onOpenBookingCreate, propertyId, g
   );
 }
 
-function MoreView({ isAdmin, allowedPages, onOpenPage, onLogout }: {
+function MoreView({ isAdmin, allowedPages, pushGateway, onOpenPage, onLogout }: {
   isAdmin: boolean;
+  pushGateway: PushGateway | undefined;
   allowedPages: CloudPageId[];
   onOpenPage: (pageId: CloudPageId | UtilityViewId) => void;
   onLogout: () => void;
@@ -582,6 +585,7 @@ function MoreView({ isAdmin, allowedPages, onOpenPage, onLogout }: {
   );
   return (
     <ShellSection title={text('更多功能', 'More')}>
+      {pushGateway ? <PushNotificationPanel gateway={pushGateway} /> : null}
       <div className="more-grid">
         <button onClick={() => onOpenPage('hub')}>Prototype Hub<span>›</span></button>
         {isAdmin ? <button onClick={() => onOpenPage('initial_import')}>{text('初始資料導入', 'Initial data import')}<span>›</span></button> : null}
@@ -634,7 +638,7 @@ function FoundationPage({ pageId, isAdmin, allowedPages, onOpenInitialImport, on
   );
 }
 
-function ActiveView({ view, onAction, targetRoomId, onOpenPayment, onOpenRoomPage, onTargetRoomHandled, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, bookingCreateGateway, bookingMultiCreateGateway, bookingPreviewGateway, bookingRoomGateway, roomOverviewGateway, roomTimelineGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, costGateway, reportGateway, auditGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, holidayGateway, propertyGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
+function ActiveView({ view, onAction, targetRoomId, onOpenPayment, onOpenRoomPage, onTargetRoomHandled, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, bookingCreateGateway, bookingMultiCreateGateway, bookingPreviewGateway, bookingRoomGateway, roomOverviewGateway, roomTimelineGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, costGateway, reportGateway, auditGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, holidayGateway, propertyGateway, pushGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
   view: ViewId;
   onAction: (action: string) => void;
   targetRoomId: string | null;
@@ -669,6 +673,7 @@ function ActiveView({ view, onAction, targetRoomId, onOpenPayment, onOpenRoomPag
   holidayCalendarGateway: HolidayCalendarGateway | undefined;
   holidayGateway: HolidayGateway | undefined;
   propertyGateway: PropertyGateway | undefined;
+  pushGateway: PushGateway | undefined;
   onOpenBookingCreate: () => void;
   onOpenPage: (pageId: CloudPageId | UtilityViewId) => void;
   onLogout: () => void;
@@ -690,7 +695,7 @@ function ActiveView({ view, onAction, targetRoomId, onOpenPayment, onOpenRoomPag
   if (view === 'properties') return <PropertyManagementPage gateway={propertyGateway} session={session} />;
   if (view === 'accounts' || view === 'users') return <AccountManagement session={session} gateway={accountGateway} />;
   if (view === 'initial_import') return <InitialDataImport session={session} gateway={dataImportGateway} />;
-  if (view === 'more') return <MoreView isAdmin={session.role === 'admin'} allowedPages={session.allowedPages} onOpenPage={onOpenPage} onLogout={onLogout} />;
+  if (view === 'more') return <MoreView isAdmin={session.role === 'admin'} allowedPages={session.allowedPages} pushGateway={pushGateway} onOpenPage={onOpenPage} onLogout={onLogout} />;
   if (view === 'today' || view === 'rooms') return <TodayView canCheckIn={session.allowedPages.includes('checkin')} canCreate={session.allowedPages.includes('bookings_new')} canCheckout={session.allowedPages.includes('checkout')} canExtend={session.allowedPages.includes('extend')} canImport={session.role === 'admin'} canPayment={session.allowedPages.includes('payments')} onAction={onAction} onOpenBookingCreate={onOpenBookingCreate} onOpenCheckIn={(roomId) => onOpenRoomPage('checkin', roomId)} onOpenCheckout={(roomId) => onOpenRoomPage('checkout', roomId)} onOpenExtend={(roomId) => onOpenRoomPage('extend', roomId)} onOpenInitialImport={() => onOpenPage('initial_import')} onOpenPayment={onOpenPayment} propertyId={session.propertyId} roomOverviewGateway={roomOverviewGateway} />;
   return <FoundationPage allowedPages={session.allowedPages} isAdmin={session.role === 'admin'} onOpenInitialImport={() => onOpenPage('initial_import')} onOpenPage={onOpenPage} pageId={view} />;
 }
@@ -743,6 +748,7 @@ export function App({
   holidayGateway,
   propertyGateway,
   propertyNameGateway,
+  pushGateway,
   onSwitchProperty,
   onLogout,
 }: {
@@ -777,6 +783,7 @@ export function App({
   holidayGateway?: HolidayGateway;
   propertyGateway?: PropertyGateway;
   propertyNameGateway?: PropertyNameGateway;
+  pushGateway?: PushGateway;
   onSwitchProperty?: (propertyId: string) => void;
   onLogout?: () => void | Promise<void>;
 }) {
@@ -837,6 +844,7 @@ export function App({
           <small>{text('登入與帳號管理已接 Firebase；其餘 PMS 模組將依全功能對照矩陣逐項接入。', 'Authentication and account management use Firebase; remaining PMS modules are being connected against the parity matrix.')}</small>
         </Notice>
 
+        {pushGateway && view !== 'more' ? <PushNotificationPrompt gateway={pushGateway} onOpenSettings={() => setView('more')} /> : null}
         {session.allowedPages.includes('bookings') ? <BookingSoonBanner cancelGateway={bookingCancelGateway} gateway={bookingSoonGateway} propertyId={session.propertyId} /> : null}
         {session.allowedPages.includes('rooms') || session.allowedPages.includes('checkout') ? <CheckoutSoonBanner gateway={activeStaysGateway} onOpenRooms={() => setView(mobileViewForPage('rooms'))} propertyId={session.propertyId} /> : null}
 
@@ -875,6 +883,7 @@ export function App({
           holidayCalendarGateway={holidayCalendarGateway}
           holidayGateway={holidayGateway}
           propertyGateway={propertyGateway}
+          pushGateway={pushGateway}
           onOpenBookingCreate={() => setView('bookings_new')}
           onOpenPage={(pageId) => setView(pageId === 'users' ? 'accounts' : pageId)}
           onLogout={logout}

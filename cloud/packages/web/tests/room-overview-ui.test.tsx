@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { RoomOverviewProjection } from '@bini/cloud-shared';
@@ -11,6 +11,8 @@ import type { PaymentCreateGateway } from '../src/payments/payment-create.js';
 import type { PaymentListGateway } from '../src/payments/payment-list.js';
 import type { RoomOverviewGateway } from '../src/rooms/room-overview.js';
 import type { ActiveStaysGateway } from '../src/stays/active-stays.js';
+import type { BookingListGateway } from '../src/bookings/booking-list.js';
+import type { BookingRoomGateway } from '../src/rooms/booking-room-options.js';
 
 afterEach(cleanup);
 
@@ -32,7 +34,7 @@ const projection: RoomOverviewProjection = {
     actions: ['extend', 'payment', 'checkout'],
   }],
   summary: { arrivalsToday: 4, departuresToday: 1, cleaningPending: 2 },
-  upNext: [{ bookingId: 'future-1', roomId: '302', guestName: 'Next Guest', checkInAt: '2026-09-12T14:30:00+08:00', paidNts: 500 }],
+  upNext: [{ bookingId: 'future-1', roomId: '302', guestName: 'Next Guest', checkInAt: '2026-09-12T14:30:00+08:00', checkOutAt: '2026-09-13T14:30:00+08:00', paidNts: 500 }],
 };
 
 function gateway(value: RoomOverviewProjection): RoomOverviewGateway {
@@ -45,6 +47,31 @@ function gateway(value: RoomOverviewProjection): RoomOverviewGateway {
 }
 
 describe('live room overview UI', () => {
+  it('opens an up-next booking with real actions and checks it in as that booking', async () => {
+    const session: StaffSession = { uid: 'front-1', email: 'front@example.com', displayName: 'Front Desk', propertyId: 'property-main', role: 'front_desk', allowedPages: ['rooms', 'bookings', 'checkin'] };
+    const booking = { bookingId: 'future-1', roomId: '302', guestName: 'Next Guest', phone: null, checkInAt: '2026-09-12T14:30:00+08:00', checkOutAt: '2026-09-13T14:30:00+08:00', plan: '24hrs', amountNts: 1_000, discountNts: 0, rateType: '非假日', status: '已預約' } as const;
+    const bookingListGateway: BookingListGateway = { subscribe(_propertyId, onValue) { queueMicrotask(() => onValue([booking])); return () => undefined; } };
+    const bookingRoomGateway: BookingRoomGateway = { subscribe(_propertyId, onValue) { queueMicrotask(() => onValue([{ roomId: '302', status: '可入住' }])); return () => undefined; } };
+    render(<App bookingListGateway={bookingListGateway} bookingRoomGateway={bookingRoomGateway} roomOverviewGateway={gateway(projection)} session={session} stayCheckInGateway={{ checkIn: async () => { throw new Error('not used'); } }} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '查看 302 · Next Guest 預約' }));
+    const dialog = screen.getByRole('dialog', { name: '302 · Next Guest' });
+    expect(dialog).toHaveTextContent('future-1');
+    expect(dialog).toHaveTextContent('2026-09-13 14:30');
+    expect(dialog).toHaveTextContent('已收 NT$ 500');
+    expect(dialog).not.toHaveTextContent('手機流程骨架');
+    fireEvent.click(within(dialog).getByRole('button', { name: '辦理入住' }));
+    await waitFor(() => expect(screen.getByLabelText('關聯預約（選填）')).toHaveValue('future-1'));
+  });
+
+  it('shows only the room actions this account may open, never a placeholder sheet', async () => {
+    const session: StaffSession = { uid: 'hk-1', email: 'hk@example.com', displayName: 'Housekeeping', propertyId: 'property-main', role: 'housekeeping', allowedPages: ['rooms'] };
+    render(<App roomOverviewGateway={gateway(projection)} session={session} />);
+    const card = (await screen.findByRole('button', { name: '查看 301 房詳細資料' })).closest('article')!;
+    expect(card.querySelector('.room-card-actions')).toBeNull();
+    expect(screen.queryByText('完成介面預覽')).not.toBeInTheDocument();
+  });
+
   it('renders the same live projection in detailed desktop markup and the mobile dialog', async () => {
     render(<App roomOverviewGateway={gateway(projection)} />);
 

@@ -50,6 +50,7 @@ export interface RoomOverviewUpcomingItem {
   roomId: string;
   guestName: string;
   checkInAt: string;
+  checkOutAt: string;
   paidNts: number;
 }
 
@@ -257,6 +258,7 @@ export function buildRoomOverviewProjection(
       roomId: booking.data.roomId,
       guestName: booking.data.guestName,
       checkInAt: booking.data.checkInAt,
+      checkOutAt: booking.data.checkOutAt,
       paidNts: Math.max(0, paidByBooking.get(booking.id) ?? 0),
     })),
   };

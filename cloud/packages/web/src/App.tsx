@@ -292,9 +292,11 @@ function RoomDetails({ room }: { room: RoomViewModel }) {
   );
 }
 
-function RoomActions({ room, onAction, onOpenCheckIn, onOpenExtend, onOpenPayment, onOpenCheckout }: { room: RoomViewModel; onAction: (action: string) => void; onOpenCheckIn?: ((roomId: string) => void) | undefined; onOpenExtend?: ((roomId: string) => void) | undefined; onOpenPayment?: ((roomId: string) => void) | undefined; onOpenCheckout?: ((roomId: string) => void) | undefined }) {
+function RoomActions({ room, onOpenCheckIn, onOpenExtend, onOpenPayment, onOpenCheckout }: { room: RoomViewModel; onOpenCheckIn?: ((roomId: string) => void) | undefined; onOpenExtend?: ((roomId: string) => void) | undefined; onOpenPayment?: ((roomId: string) => void) | undefined; onOpenCheckout?: ((roomId: string) => void) | undefined }) {
   const { locale } = useLocale();
-  const actions = room.actions.filter((action) => action !== 'payment' || onOpenPayment);
+  const handlers = { checkin: onOpenCheckIn, extend: onOpenExtend, payment: onOpenPayment, checkout: onOpenCheckout } as const;
+  // Only actions this account may open; there is no placeholder flow any more.
+  const actions = room.actions.filter((action) => handlers[action]);
   if (actions.length === 0) return null;
   return (
     <div className="room-card-actions">
@@ -302,7 +304,7 @@ function RoomActions({ room, onAction, onOpenCheckIn, onOpenExtend, onOpenPaymen
         <Button
           className={`room-action room-action--${action}`}
           key={action}
-          onClick={() => action === 'checkin' && onOpenCheckIn ? onOpenCheckIn(room.number) : action === 'extend' && onOpenExtend ? onOpenExtend(room.number) : action === 'payment' && onOpenPayment ? onOpenPayment(room.number) : action === 'checkout' && onOpenCheckout ? onOpenCheckout(room.number) : onAction(`${room.number} · ${actionLabels[action][locale === 'zh-TW' ? 0 : 1]}`)}
+          onClick={() => handlers[action]?.(room.number)}
           size="sm"
           variant={action === 'checkin' ? 'primary' : 'outline'}
         >{action === 'payment' ? '💵 ' : ''}{actionLabels[action][locale === 'zh-TW' ? 0 : 1]}</Button>
@@ -315,15 +317,17 @@ function ShellSection({ title, hint, children }: { title: string; hint?: string;
   return <SectionCard hint={hint} title={title}>{children}</SectionCard>;
 }
 
-function TodayView({ canCreate, canCheckIn, canExtend, canPayment, canCheckout, canImport, onAction, onOpenBookingCreate, onOpenCheckIn, onOpenExtend, onOpenPayment, onOpenCheckout, onOpenInitialImport, propertyId, roomOverviewGateway }: {
+function TodayView({ canCreate, canCheckIn, canExtend, canPayment, canCheckout, canImport, canViewBookings, onOpenBookingCreate, onOpenBookingCheckIn, onOpenBookings, onOpenCheckIn, onOpenExtend, onOpenPayment, onOpenCheckout, onOpenInitialImport, propertyId, roomOverviewGateway }: {
   canCreate: boolean;
   canCheckIn: boolean;
   canExtend: boolean;
   canPayment: boolean;
   canCheckout: boolean;
   canImport: boolean;
-  onAction: (action: string) => void;
+  canViewBookings: boolean;
   onOpenBookingCreate: () => void;
+  onOpenBookingCheckIn: (bookingId: string) => void;
+  onOpenBookings: () => void;
   onOpenCheckIn: (roomId?: string) => void;
   onOpenExtend: (roomId?: string) => void;
   onOpenPayment: (roomId: string) => void;
@@ -336,6 +340,7 @@ function TodayView({ canCreate, canCheckIn, canExtend, canPayment, canCheckout, 
   const [projection, setProjection] = useState<RoomOverviewProjection | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [selectedRoomNumber, setSelectedRoomNumber] = useState<string | null>(null);
+  const [selectedUpNextId, setSelectedUpNextId] = useState<string | null>(null);
   const [roomFilter, setRoomFilter] = useState<RoomState | 'all'>('all');
   const stateLabel = (state: RoomState) => roomStateLabels[state][locale === 'zh-TW' ? 0 : 1];
   const roomViewModels = roomOverviewGateway
@@ -346,6 +351,7 @@ function TodayView({ canCreate, canCheckIn, canExtend, canPayment, canCheckout, 
     : { arrivalsToday: 3, departuresToday: 2, cleaningPending: 1 };
   const visibleRoomViewModels = roomFilter === 'all' ? roomViewModels : roomViewModels.filter((room) => room.state === roomFilter);
   const selectedRoom = roomViewModels.find((room) => room.number === selectedRoomNumber) ?? null;
+  const selectedUpNext = projection?.upNext.find((item) => item.bookingId === selectedUpNextId) ?? null;
 
   useEffect(() => {
     if (!roomOverviewGateway) return undefined;
@@ -405,7 +411,7 @@ function TodayView({ canCreate, canCheckIn, canExtend, canPayment, canCheckout, 
                 <span className="mobile-detail-affordance" aria-hidden="true">{text('查看詳細資料', 'View details')} ›</span>
               </button>
               <RoomDetails room={room} />
-              <RoomActions room={room} onAction={onAction} onOpenCheckIn={canCheckIn ? onOpenCheckIn : undefined} onOpenExtend={canExtend ? onOpenExtend : undefined} onOpenPayment={canPayment ? onOpenPayment : undefined} onOpenCheckout={canCheckout ? onOpenCheckout : undefined} />
+              <RoomActions room={room} onOpenCheckIn={canCheckIn ? onOpenCheckIn : undefined} onOpenExtend={canExtend ? onOpenExtend : undefined} onOpenPayment={canPayment ? onOpenPayment : undefined} onOpenCheckout={canCheckout ? onOpenCheckout : undefined} />
             </article>
           ))}
         </div>
@@ -415,7 +421,7 @@ function TodayView({ canCreate, canCheckIn, canExtend, canPayment, canCheckout, 
       <ShellSection title={text('接下來要處理', 'Up next')} hint={text('依時間排序', 'By time')}>
         <div className="task-list">
           {roomOverviewGateway ? projection?.upNext.map((item) => (
-            <button key={item.bookingId} onClick={() => onAction(`${item.roomId} · ${item.guestName}`)}>
+            <button aria-label={text(`查看 ${item.roomId} · ${item.guestName} 預約`, `View booking ${item.roomId} · ${item.guestName}`)} key={item.bookingId} onClick={() => setSelectedUpNextId(item.bookingId)}>
               <span className="time">{formatTaipeiTime(item.checkInAt, locale)}</span>
               <span><strong>{item.roomId} · {item.guestName}</strong><small>{item.paidNts > 0 ? text('預約入住 · 已有收款', 'Arrival · Payment received') : text('預約入住 · 尚未收款', 'Arrival · Payment due')}</small></span><span>›</span>
             </button>
@@ -435,7 +441,23 @@ function TodayView({ canCreate, canCheckIn, canExtend, canPayment, canCheckout, 
         >
             <Badge className="status-pill">{stateLabel(selectedRoom.state)}</Badge>
             <RoomDetails room={selectedRoom} />
-            <RoomActions room={selectedRoom} onAction={(action) => { setSelectedRoomNumber(null); onAction(action); }} onOpenCheckIn={canCheckIn ? (roomId) => { setSelectedRoomNumber(null); onOpenCheckIn(roomId); } : undefined} onOpenExtend={canExtend ? (roomId) => { setSelectedRoomNumber(null); onOpenExtend(roomId); } : undefined} onOpenPayment={canPayment ? (roomId) => { setSelectedRoomNumber(null); onOpenPayment(roomId); } : undefined} onOpenCheckout={canCheckout ? (roomId) => { setSelectedRoomNumber(null); onOpenCheckout(roomId); } : undefined} />
+            <RoomActions room={selectedRoom} onOpenCheckIn={canCheckIn ? (roomId) => { setSelectedRoomNumber(null); onOpenCheckIn(roomId); } : undefined} onOpenExtend={canExtend ? (roomId) => { setSelectedRoomNumber(null); onOpenExtend(roomId); } : undefined} onOpenPayment={canPayment ? (roomId) => { setSelectedRoomNumber(null); onOpenPayment(roomId); } : undefined} onOpenCheckout={canCheckout ? (roomId) => { setSelectedRoomNumber(null); onOpenCheckout(roomId); } : undefined} />
+        </ResponsiveDialog>
+      ) : null}
+
+      {selectedUpNext ? (
+        <ResponsiveDialog className="up-next-sheet" onClose={() => setSelectedUpNextId(null)} title={`${selectedUpNext.roomId} · ${selectedUpNext.guestName}`}>
+          <dl className="room-detail-list">
+            <div><dt>{text('預約編號', 'Booking')}</dt><dd>{selectedUpNext.bookingId}</dd></div>
+            <div><dt>{text('入住時間', 'Check-in')}</dt><dd>{formatTaipeiDateTime(selectedUpNext.checkInAt, locale)}</dd></div>
+            <div><dt>{text('退房時間', 'Check-out')}</dt><dd>{formatTaipeiDateTime(selectedUpNext.checkOutAt, locale)}</dd></div>
+            <div><dt>{text('收款', 'Payment')}</dt><dd className={selectedUpNext.paidNts > 0 ? 'success-text' : 'danger-text'}>{selectedUpNext.paidNts > 0 ? text(`已收 NT$ ${selectedUpNext.paidNts.toLocaleString()}`, `Received NT$ ${selectedUpNext.paidNts.toLocaleString()}`) : text('尚未收款', 'Payment due')}</dd></div>
+          </dl>
+          <div className="booking-detail-actions">
+            {canCheckIn ? <Button onClick={() => { const bookingId = selectedUpNext.bookingId; setSelectedUpNextId(null); onOpenBookingCheckIn(bookingId); }}>{text('辦理入住', 'Check in')}</Button> : null}
+            {canViewBookings ? <Button onClick={() => { setSelectedUpNextId(null); onOpenBookings(); }} variant="outline">{text('前往預約管理', 'Open bookings')}</Button> : null}
+            <Button onClick={() => setSelectedUpNextId(null)} variant="ghost">{text('關閉', 'Close')}</Button>
+          </div>
         </ResponsiveDialog>
       ) : null}
     </>
@@ -641,9 +663,8 @@ function FoundationPage({ pageId, isAdmin, allowedPages, onOpenInitialImport, on
   );
 }
 
-function ActiveView({ view, onAction, targetRoomId, targetBookingId, onOpenPayment, onOpenRoomPage, onTargetRoomHandled, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, bookingCreateGateway, bookingMultiCreateGateway, bookingPreviewGateway, bookingRoomGateway, roomOverviewGateway, roomTimelineGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, onOpenBookingCheckIn, costGateway, reportGateway, auditGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, holidayGateway, propertyGateway, pushGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
+function ActiveView({ view, targetRoomId, targetBookingId, onOpenPayment, onOpenRoomPage, onTargetRoomHandled, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, bookingCreateGateway, bookingMultiCreateGateway, bookingPreviewGateway, bookingRoomGateway, roomOverviewGateway, roomTimelineGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, onOpenBookingCheckIn, costGateway, reportGateway, auditGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, holidayGateway, propertyGateway, pushGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
   view: ViewId;
-  onAction: (action: string) => void;
   targetRoomId: string | null;
   targetBookingId: string | null;
   onOpenPayment: (roomId: string) => void;
@@ -701,7 +722,7 @@ function ActiveView({ view, onAction, targetRoomId, targetBookingId, onOpenPayme
   if (view === 'accounts' || view === 'users') return <AccountManagement session={session} gateway={accountGateway} />;
   if (view === 'initial_import') return <InitialDataImport session={session} gateway={dataImportGateway} />;
   if (view === 'more') return <MoreView isAdmin={session.role === 'admin'} allowedPages={session.allowedPages} pushGateway={pushGateway} onOpenPage={onOpenPage} onLogout={onLogout} />;
-  if (view === 'today' || view === 'rooms') return <TodayView canCheckIn={session.allowedPages.includes('checkin')} canCreate={session.allowedPages.includes('bookings_new')} canCheckout={session.allowedPages.includes('checkout')} canExtend={session.allowedPages.includes('extend')} canImport={session.role === 'admin'} canPayment={session.allowedPages.includes('payments')} onAction={onAction} onOpenBookingCreate={onOpenBookingCreate} onOpenCheckIn={(roomId) => onOpenRoomPage('checkin', roomId)} onOpenCheckout={(roomId) => onOpenRoomPage('checkout', roomId)} onOpenExtend={(roomId) => onOpenRoomPage('extend', roomId)} onOpenInitialImport={() => onOpenPage('initial_import')} onOpenPayment={onOpenPayment} propertyId={session.propertyId} roomOverviewGateway={roomOverviewGateway} />;
+  if (view === 'today' || view === 'rooms') return <TodayView canCheckIn={session.allowedPages.includes('checkin')} canCreate={session.allowedPages.includes('bookings_new')} canCheckout={session.allowedPages.includes('checkout')} canExtend={session.allowedPages.includes('extend')} canImport={session.role === 'admin'} canPayment={session.allowedPages.includes('payments')} canViewBookings={session.allowedPages.includes('bookings')} onOpenBookingCheckIn={onOpenBookingCheckIn} onOpenBookingCreate={onOpenBookingCreate} onOpenBookings={() => onOpenPage('bookings')} onOpenCheckIn={(roomId) => onOpenRoomPage('checkin', roomId)} onOpenCheckout={(roomId) => onOpenRoomPage('checkout', roomId)} onOpenExtend={(roomId) => onOpenRoomPage('extend', roomId)} onOpenInitialImport={() => onOpenPage('initial_import')} onOpenPayment={onOpenPayment} propertyId={session.propertyId} roomOverviewGateway={roomOverviewGateway} />;
   return <FoundationPage allowedPages={session.allowedPages} isAdmin={session.role === 'admin'} onOpenInitialImport={() => onOpenPage('initial_import')} onOpenPage={onOpenPage} pageId={view} />;
 }
 
@@ -797,7 +818,6 @@ export function App({
   // Reminder tones (arrivals / check-outs) need audio unlocked by a first tap on mobile browsers.
   useEffect(() => enableChimeOnFirstInteraction(), []);
   const [view, setView] = useState<ViewId>('today');
-  const [sheetAction, setSheetAction] = useState<string | null>(null);
   // Room chosen on a room card, handed to the page it opens so staff never re-select it.
   const [targetRoomId, setTargetRoomId] = useState<string | null>(null);
   const [targetBookingId, setTargetBookingId] = useState<string | null>(null);
@@ -856,7 +876,6 @@ export function App({
 
         <main className="page-content"><ActiveView
           view={view}
-          onAction={setSheetAction}
           targetRoomId={targetRoomId}
           targetBookingId={targetBookingId}
           onOpenBookingCheckIn={(bookingId) => { setTargetRoomId(null); setTargetBookingId(bookingId); setView('checkin'); }}
@@ -906,12 +925,6 @@ export function App({
         ))}
       </nav>
 
-      {sheetAction ? (
-        <ResponsiveDialog className="action-sheet" onClose={() => setSheetAction(null)} title={sheetAction}>
-            <p className="foundation-notice">{text('這是手機流程骨架；正式欄位與 Firebase 寫入會在下一個 domain milestone 接入。', 'This is the mobile workflow foundation. Live fields and Firebase writes will arrive with the next domain milestone.')}</p>
-            <Button block onClick={() => setSheetAction(null)} size="lg">{text('完成介面預覽', 'Close preview')}</Button>
-        </ResponsiveDialog>
-      ) : null}
     </div>
   );
 }

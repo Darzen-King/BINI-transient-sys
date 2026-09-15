@@ -12,6 +12,9 @@ import type { BookingUpdateGateway } from '../src/bookings/booking-update.js';
 import type { BookingUpdatePreviewGateway } from '../src/bookings/booking-update-preview.js';
 import type { BookingRoomGateway } from '../src/rooms/booking-room-options.js';
 import type { BookingSoonGateway } from '../src/bookings/booking-soon.js';
+import type { PaymentCreateGateway } from '../src/payments/payment-create.js';
+import type { PaymentListGateway } from '../src/payments/payment-list.js';
+import type { StaffSession } from '../src/auth/session.js';
 
 afterEach(cleanup);
 
@@ -57,6 +60,32 @@ function soonGateway(value: BookingSoonItem[]): BookingSoonGateway {
 }
 
 describe('live booking list UI', () => {
+  it('shows the deposit a booking has paid and opens Payments to collect one', async () => {
+    const session: StaffSession = { uid: 'front-1', email: 'front@example.com', displayName: 'Front', propertyId: 'property-main', role: 'front_desk', allowedPages: ['bookings', 'payments'] };
+    const payment = (paymentId: string, amountNts: number, extra: Record<string, unknown> = {}) => ({ paymentId, bookingId: 'RSV-live-203', roomId: '203', guestName: 'Live Guest', paymentType: 'cash' as const, amountNts, deposit: true, refund: false, status: 'paid' as const, note: null, createdAt: '2026-09-13T09:00:00.000Z', ...extra });
+    const payments: PaymentListGateway = { subscribe(_propertyId, onValue) { queueMicrotask(() => onValue([payment('P-1', 800), payment('P-2', 300, { refund: true }), payment('P-3', 999, { status: 'voided' })])); return () => undefined; } };
+    const createGateway = { create: vi.fn(), manualCreate: vi.fn() } satisfies PaymentCreateGateway;
+    const stays = { subscribe(_propertyId: string, onValue: (value: never[]) => void) { queueMicrotask(() => onValue([])); return () => undefined; } };
+    render(<App activeStaysGateway={stays} bookingListGateway={gateway(bookings)} paymentCreateGateway={createGateway} paymentListGateway={payments} session={session} />);
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
+    // 800 paid − 300 refunded; the voided payment is ignored.
+    expect(await screen.findByText('押金 NT$ 500')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('203 · Live Guest'));
+    expect(screen.getByText('已收押金').nextSibling).toHaveTextContent('NT$ 500');
+    fireEvent.click(screen.getByRole('button', { name: '收取押金' }));
+    await waitFor(() => expect(screen.getByLabelText('收款對象')).toHaveValue('booking:RSV-live-203'));
+    expect(screen.getByLabelText('記為訂金')).toBeChecked();
+  });
+
+  it('marks a booking without any deposit so staff do not assume it was paid', async () => {
+    const payments: PaymentListGateway = { subscribe(_propertyId, onValue) { queueMicrotask(() => onValue([])); return () => undefined; } };
+    render(<App bookingListGateway={gateway(bookings)} paymentListGateway={payments} />);
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
+    expect(await screen.findByText('未收押金')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('203 · Live Guest'));
+    expect(screen.getByText('已收押金').nextSibling).toHaveTextContent('尚未收取押金');
+  });
+
   it('renders Firestore bookings and filters them without falling back to preview entries', async () => {
     render(<App bookingListGateway={gateway(bookings)} />);
     fireEvent.click(screen.getByRole('link', { name: '預約管理' }));

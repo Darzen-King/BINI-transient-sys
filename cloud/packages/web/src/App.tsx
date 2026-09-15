@@ -63,6 +63,7 @@ import type { PropertyNameGateway } from './auth/property-session.js';
 import { CheckoutSoonBanner } from './stays/CheckoutSoonBanner.js';
 import { enableChimeOnFirstInteraction } from './alerts/chime.js';
 import { AppIcon, type AppIconName } from './design-system/icons.js';
+import { bookingDepositTotals } from '@bini/cloud-shared';
 import { PushNotificationPanel, PushNotificationPrompt } from './notifications/PushNotificationPanel.js';
 import type { PushGateway } from './notifications/push.js';
 
@@ -470,12 +471,15 @@ const previewBookings: BookingListItem[] = [
   { bookingId: 'RSV-preview-205', roomId: '205', guestName: 'Michael', phone: null, checkInAt: '2026-09-14T13:00:00+08:00', checkOutAt: '2026-09-15T13:00:00+08:00', plan: '12hrs', amountNts: 800, discountNts: 0, rateType: '非假日', status: '已預約' },
 ];
 
-function BookingsView({ canCreate, canCancel, onOpenBookingCreate, onOpenCheckIn, propertyId, gateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, roomGateway, holidayGateway, session }: {
+function BookingsView({ canCreate, canCancel, onOpenBookingCreate, onOpenCheckIn, onOpenDeposit, paymentListGateway, propertyId, gateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, roomGateway, holidayGateway, session }: {
   canCreate: boolean;
   canCancel: boolean;
   onOpenBookingCreate: () => void;
   /** Opens check-in with this booking linked; undefined without check-in permission. */
   onOpenCheckIn?: ((bookingId: string) => void) | undefined;
+  /** Opens Payments with this booking selected for a deposit; undefined without payment permission. */
+  onOpenDeposit?: ((bookingId: string) => void) | undefined;
+  paymentListGateway?: PaymentListGateway | undefined;
   propertyId: string;
   gateway: BookingListGateway | undefined;
   bookingCancelGateway: BookingCancelGateway | undefined;
@@ -496,6 +500,9 @@ function BookingsView({ canCreate, canCancel, onOpenBookingCreate, onOpenCheckIn
   const [cancelledAt, setCancelledAt] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [editingBooking, setEditingBooking] = useState<BookingListItem | null>(null);
+  const [deposits, setDeposits] = useState<Map<string, number>>(() => new Map());
+  useEffect(() => paymentListGateway?.subscribe(propertyId, (payments) => setDeposits(bookingDepositTotals(payments)), () => setDeposits(new Map())), [paymentListGateway, propertyId]);
+  const depositLabel = (bookingId: string) => { const paid = deposits.get(bookingId) ?? 0; return paid > 0 ? text(`押金 NT$ ${paid.toLocaleString()}`, `Deposit NT$ ${paid.toLocaleString()}`) : text('未收押金', 'No deposit'); };
   const visibleBookings = gateway
     ? (bookings ?? []).filter((booking) => [booking.bookingId, booking.roomId, booking.guestName, booking.phone ?? ''].some((value) => value.toLocaleLowerCase('zh-TW').includes(query.trim().toLocaleLowerCase('zh-TW'))))
     : previewBookings.filter((booking) => [booking.bookingId, booking.roomId, booking.guestName, booking.phone ?? ''].some((value) => value.toLocaleLowerCase('zh-TW').includes(query.trim().toLocaleLowerCase('zh-TW'))));
@@ -559,7 +566,7 @@ function BookingsView({ canCreate, canCancel, onOpenBookingCreate, onOpenCheckIn
       {gateway && bookings === null && !loadError ? <div className="empty-card">{text('正在載入即時預約…', 'Loading live bookings…')}</div> : null}
       <div className="booking-list">
         {visibleBookings.map((booking) => (
-          <button key={booking.bookingId} onClick={() => setSelectedBooking(booking)}><span><strong>{booking.roomId} · {booking.guestName}</strong><small>{formatTaipeiDateTime(booking.checkInAt, locale)} · {booking.plan} · NT$ {booking.amountNts.toLocaleString()}</small></span><Badge tone="success">{text('已預約', 'Booked')}</Badge></button>
+          <button key={booking.bookingId} onClick={() => setSelectedBooking(booking)}><span><strong>{booking.roomId} · {booking.guestName}</strong><small>{formatTaipeiDateTime(booking.checkInAt, locale)} · {booking.plan} · NT$ {booking.amountNts.toLocaleString()}{paymentListGateway ? <> · <span className={(deposits.get(booking.bookingId) ?? 0) > 0 ? 'success-text' : undefined}>{depositLabel(booking.bookingId)}</span></> : null}</small></span><Badge tone="success">{text('已預約', 'Booked')}</Badge></button>
         ))}
         {bookings !== null && visibleBookings.length === 0 ? <div className="empty-card">{query ? text('找不到符合的有效預約。', 'No matching active bookings.') : text('目前沒有有效預約。', 'There are no active bookings.')}</div> : null}
       </div>
@@ -576,6 +583,7 @@ function BookingsView({ canCreate, canCancel, onOpenBookingCreate, onOpenCheckIn
             <div><dt>{text('退房', 'Check-out')}</dt><dd>{formatTaipeiDateTime(selectedBooking.checkOutAt, locale)}</dd></div>
             <div><dt>{text('方案／金額', 'Plan / amount')}</dt><dd>{selectedBooking.plan} · NT$ {selectedBooking.amountNts.toLocaleString()}</dd></div>
             <div><dt>{text('折扣', 'Discount')}</dt><dd>NT$ {selectedBooking.discountNts.toLocaleString()}</dd></div>
+            {paymentListGateway ? <div><dt>{text('已收押金', 'Deposit paid')}</dt><dd className={(deposits.get(selectedBooking.bookingId) ?? 0) > 0 ? 'success-text' : 'danger-text'}>{(deposits.get(selectedBooking.bookingId) ?? 0) > 0 ? `NT$ ${(deposits.get(selectedBooking.bookingId) ?? 0).toLocaleString()}` : text('尚未收取押金', 'No deposit yet')}</dd></div> : null}
             <div><dt>{text('電話', 'Phone')}</dt><dd>{selectedBooking.phone ?? '—'}</dd></div>
           </dl>
           {cancelledAt ? <Notice tone="success" title={text('預約已取消', 'Booking cancelled')}>{text(`已於 ${formatTaipeiDateTime(cancelledAt, locale)} 寫入稽核紀錄。`, `The audit record was written at ${formatTaipeiDateTime(cancelledAt, locale)}.`)}</Notice> : null}
@@ -584,6 +592,7 @@ function BookingsView({ canCreate, canCancel, onOpenBookingCreate, onOpenCheckIn
           {confirmCancel && !cancelledAt ? <Notice tone="warning" title={text('確認取消預約？', 'Confirm cancellation?')}>{text('取消後會立即釋放此時段，且會寫入稽核紀錄。', 'This immediately releases the time slot and writes an audit record.')}</Notice> : null}
           <div className="booking-detail-actions">
             {onOpenCheckIn && !cancelledAt ? <Button onClick={() => { const next = selectedBooking.bookingId; closeDetails(); onOpenCheckIn(next); }}>{text('辦理入住', 'Check in')}</Button> : null}
+            {onOpenDeposit && !cancelledAt ? <Button onClick={() => { const next = selectedBooking.bookingId; closeDetails(); onOpenDeposit(next); }} variant="secondary">{text('收取押金', 'Collect deposit')}</Button> : null}
             {canCancel && bookingUpdateGateway && !cancelledAt ? <Button onClick={() => { const next = selectedBooking; closeDetails(); setEditingBooking(next); }} variant="secondary">{text('修改預約', 'Edit booking')}</Button> : null}
             {canCancel && bookingCancelGateway && !cancelledAt && !confirmCancel ? <Button onClick={() => setConfirmCancel(true)} variant="danger">{text('取消預約', 'Cancel booking')}</Button> : null}
             {canCancel && bookingCancelGateway && !cancelledAt && confirmCancel ? <Button loading={cancelBusy} onClick={() => void cancelBooking()} variant="danger">{text('確認取消', 'Confirm cancellation')}</Button> : null}
@@ -663,13 +672,14 @@ function FoundationPage({ pageId, isAdmin, allowedPages, onOpenInitialImport, on
   );
 }
 
-function ActiveView({ view, targetRoomId, targetBookingId, onOpenPayment, onOpenRoomPage, onTargetRoomHandled, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, bookingCreateGateway, bookingMultiCreateGateway, bookingPreviewGateway, bookingRoomGateway, roomOverviewGateway, roomTimelineGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, onOpenBookingCheckIn, costGateway, reportGateway, auditGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, holidayGateway, propertyGateway, pushGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
+function ActiveView({ view, targetRoomId, targetBookingId, onOpenPayment, onOpenRoomPage, onTargetRoomHandled, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, bookingCreateGateway, bookingMultiCreateGateway, bookingPreviewGateway, bookingRoomGateway, roomOverviewGateway, roomTimelineGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, onOpenBookingCheckIn, onOpenBookingDeposit, costGateway, reportGateway, auditGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, holidayGateway, propertyGateway, pushGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
   view: ViewId;
   targetRoomId: string | null;
   targetBookingId: string | null;
   onOpenPayment: (roomId: string) => void;
   onOpenRoomPage: (pageId: 'checkin' | 'extend' | 'checkout', roomId?: string) => void;
   onOpenBookingCheckIn: (bookingId: string) => void;
+  onOpenBookingDeposit: (bookingId: string) => void;
   onTargetRoomHandled: () => void;
   session: StaffSession;
   accountGateway: AccountAdminGateway | undefined;
@@ -704,7 +714,7 @@ function ActiveView({ view, targetRoomId, targetBookingId, onOpenPayment, onOpen
   onOpenPage: (pageId: CloudPageId | UtilityViewId) => void;
   onLogout: () => void;
 }) {
-  if (view === 'bookings') return <BookingsView bookingCancelGateway={bookingCancelGateway} bookingUpdateGateway={bookingUpdateGateway} bookingUpdatePreviewGateway={bookingUpdatePreviewGateway} canCancel={session.allowedPages.includes('bookings')} canCreate={session.allowedPages.includes('bookings_new')} gateway={bookingListGateway} onOpenCheckIn={session.allowedPages.includes('checkin') ? onOpenBookingCheckIn : undefined} holidayGateway={holidayCalendarGateway} onOpenBookingCreate={onOpenBookingCreate} propertyId={session.propertyId} roomGateway={bookingRoomGateway} session={session} />;
+  if (view === 'bookings') return <BookingsView bookingCancelGateway={bookingCancelGateway} bookingUpdateGateway={bookingUpdateGateway} bookingUpdatePreviewGateway={bookingUpdatePreviewGateway} canCancel={session.allowedPages.includes('bookings')} canCreate={session.allowedPages.includes('bookings_new')} gateway={bookingListGateway} onOpenCheckIn={session.allowedPages.includes('checkin') ? onOpenBookingCheckIn : undefined} onOpenDeposit={session.allowedPages.includes('payments') && paymentCreateGateway?.manualCreate ? onOpenBookingDeposit : undefined} paymentListGateway={paymentListGateway} holidayGateway={holidayCalendarGateway} onOpenBookingCreate={onOpenBookingCreate} propertyId={session.propertyId} roomGateway={bookingRoomGateway} session={session} />;
   if (view === 'bookings_new') return <BookingCreatePage gateway={bookingCreateGateway} holidayGateway={holidayCalendarGateway} multiGateway={bookingMultiCreateGateway} onViewBookings={() => onOpenPage('bookings')} previewGateway={bookingPreviewGateway} roomGateway={bookingRoomGateway} session={session} />;
   if (view === 'checkin') return <StayCheckInPage bookingGateway={bookingListGateway} gateway={stayCheckInGateway} holidayGateway={holidayCalendarGateway} initialBookingId={targetBookingId} initialRoomId={targetRoomId} onInitialRoomHandled={onTargetRoomHandled} onBack={() => onOpenPage('rooms')} roomGateway={bookingRoomGateway} session={session} />;
   if (view === 'extend') return <StayExtendPage gateway={stayExtendGateway} holidayGateway={holidayCalendarGateway} initialRoomId={targetRoomId} onInitialRoomHandled={onTargetRoomHandled} onBack={() => onOpenPage('rooms')} session={session} staysGateway={activeStaysGateway} />;
@@ -713,7 +723,7 @@ function ActiveView({ view, targetRoomId, targetBookingId, onOpenPayment, onOpen
   if (view === 'maintenance') return <MaintenancePage gateway={maintenanceGateway} session={session} />;
   if (view === 'room_management') return <RoomManagementPage gateway={roomManagementGateway} session={session} />;
   if (view === 'gantt') return <RoomTimelinePage gateway={roomTimelineGateway} session={session} />;
-  if (view === 'payments') return <PaymentsPage bookingGateway={bookingListGateway} createGateway={paymentCreateGateway} roomGateway={bookingRoomGateway} initialRoomId={targetRoomId} listGateway={paymentListGateway} onInitialRoomHandled={onTargetRoomHandled} session={session} staysGateway={activeStaysGateway} />;
+  if (view === 'payments') return <PaymentsPage bookingGateway={bookingListGateway} createGateway={paymentCreateGateway} roomGateway={bookingRoomGateway} initialBookingId={targetBookingId} initialRoomId={targetRoomId} listGateway={paymentListGateway} onInitialRoomHandled={onTargetRoomHandled} session={session} staysGateway={activeStaysGateway} />;
   if (view === 'costs') return <CostManagementPage gateway={costGateway} session={session} />;
   if (view === 'reports') return <ReportsPage gateway={reportGateway} session={session} />;
   if (view === 'audit') return <AuditTrailPage gateway={auditGateway} session={session} />;
@@ -879,6 +889,7 @@ export function App({
           targetRoomId={targetRoomId}
           targetBookingId={targetBookingId}
           onOpenBookingCheckIn={(bookingId) => { setTargetRoomId(null); setTargetBookingId(bookingId); setView('checkin'); }}
+          onOpenBookingDeposit={(bookingId) => { setTargetRoomId(null); setTargetBookingId(bookingId); setView('payments'); }}
           onOpenPayment={(roomId) => { setTargetRoomId(roomId || null); if (roomId) setView('payments'); }}
           onOpenRoomPage={(pageId, roomId) => { setTargetRoomId(roomId ?? null); setView(pageId); }}
           onTargetRoomHandled={() => { setTargetRoomId(null); setTargetBookingId(null); }}

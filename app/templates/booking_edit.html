@@ -6,6 +6,13 @@
   <h2 class="fw-bold mb-0">{{ trans.get("booking.edit_title","修改預約") }} — {{ bk.id }}</h2>
 </div>
 
+{% if msg == "deposit_added" %}
+<div class="flash-bar alert alert-success">{{ trans.get("booking.msg_deposit_added","✅ 押金已記錄，並已連結此預約") }}</div>
+{% endif %}
+{% if deposit_err %}
+<div class="flash-bar alert alert-danger">⚠ {{ deposit_err }}</div>
+{% endif %}
+
 <!-- Server-side error banner -->
 {% if error_msg %}
 <div class="flash-bar alert alert-danger">
@@ -141,8 +148,56 @@
     </div>
   </div>
 
-  <!-- ── RIGHT: validation status panel ── -->
+  <!-- ── RIGHT: deposit + validation status panel ── -->
   <div class="col-lg-5">
+    <div class="card rounded-3 border-0 shadow-sm p-3 mb-4" id="depositPanel">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="fw-semibold mb-0">💰 {{ trans.get("booking.deposit_title","押金") }}</h6>
+        {% if deposit_total > 0 %}
+        <span class="badge rounded-pill" style="background:#dcfce7;color:#166534;font-size:.85rem">{{ trans.get("booking.deposit_paid","已收押金") }} NT$ {{ "%.0f"|format(deposit_total) }}</span>
+        {% else %}
+        <span class="badge rounded-pill bg-light text-muted border" style="font-size:.85rem">{{ trans.get("booking.deposit_none","尚未收取押金") }}</span>
+        {% endif %}
+      </div>
+      {% if deposit_payments %}
+      <table class="table table-sm mb-3" style="font-size:.8rem">
+        <tbody>
+          {% for p in deposit_payments %}
+          <tr>
+            <td class="text-muted">{{ p.created_at }}</td>
+            <td>{{ trans.get("payment.type." + p.payment_type, p.payment_type) }}</td>
+            <td class="text-end {{ 'text-danger' if p.is_refund else 'text-success' }} fw-semibold">{{ "−" if p.is_refund else "" }}NT$ {{ "%.0f"|format(p.amount) }}</td>
+          </tr>
+          {% if p.note %}<tr><td colspan="3" class="text-muted border-0 pt-0" style="font-size:.74rem">{{ p.note }}</td></tr>{% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+      {% if deposit_can_add %}
+      <form method="post" action="/bookings/{{ bk.id }}/deposit" class="row g-2 align-items-end">
+        <div class="col-6">
+          <label class="form-label fw-semibold mb-1" style="font-size:.8rem">{{ trans.get("booking.deposit_amount","押金金額 (NT$)") }}</label>
+          <input type="number" name="amount" class="form-control form-control-sm" min="1" step="100" required>
+        </div>
+        <div class="col-6">
+          <label class="form-label fw-semibold mb-1" style="font-size:.8rem">{{ trans.get("payment.type","付款方式") }}</label>
+          <select name="payment_type" class="form-select form-select-sm">
+            {% for pt in pay_types %}
+            <option value="{{ pt }}">{{ trans.get("payment.type." + pt, pt) }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <input type="text" name="note" class="form-control form-control-sm" maxlength="200"
+                 placeholder="{{ trans.get('booking.deposit_note_placeholder','備註（選填），例如：客人事後補付') }}">
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-success btn-sm w-100">＋ {{ trans.get("booking.deposit_add_btn","記錄押金") }}</button>
+          <div class="form-text" style="font-size:.72rem">{{ trans.get("booking.deposit_hint","押金會記錄到付款管理並連結此預約，入住與退房時自動計入已收款。") }}</div>
+        </div>
+      </form>
+      {% endif %}
+    </div>
     <div class="card rounded-3 border-0 shadow-sm p-3" id="validationPanel">
       <h6 class="fw-semibold mb-3 text-muted">{{ trans.get("label.conflict","Conflict Check") }}</h6>
 

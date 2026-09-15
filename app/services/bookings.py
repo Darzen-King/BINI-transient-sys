@@ -341,6 +341,12 @@ def edit_booking(
     if maint_conflict:
         return None, "error.maintenance_conflict"
 
+    if bk.room != room:
+        # Deposits collected for this booking follow it to the new room, otherwise the
+        # stay would not count them as paid after check-in (payments are matched per room).
+        from app.models import Payment as _Payment
+        for _p in db.query(_Payment).filter(_Payment.booking_id == booking_id).all():
+            _p.room_id = room
     bk.room      = room
     bk.checkin   = checkin
     bk.checkout  = checkout

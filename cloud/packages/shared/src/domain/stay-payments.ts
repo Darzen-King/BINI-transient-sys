@@ -34,3 +34,17 @@ export function summarizeStayPayments(stay: StayPaymentScope, payments: readonly
     balanceDueNts: Math.max(0, stay.totalDueNts - totalPaidNts),
   };
 }
+
+/**
+ * Net deposit collected per booking (deposit refunds subtract; voided payments ignored), so booking
+ * management shows what a guest has already paid before arrival.
+ */
+export function bookingDepositTotals(payments: readonly StayPaymentRecord[]): Map<string, number> {
+  const totals = new Map<string, number>();
+  for (const payment of payments) {
+    if (!payment.bookingId || !payment.deposit || payment.status === 'voided') continue;
+    totals.set(payment.bookingId, (totals.get(payment.bookingId) ?? 0) + (payment.refund ? -payment.amountNts : payment.amountNts));
+  }
+  for (const [bookingId, total] of totals) totals.set(bookingId, Math.max(0, total));
+  return totals;
+}

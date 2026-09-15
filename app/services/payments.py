@@ -92,6 +92,30 @@ def create_payment(
     return p
 
 
+def booking_deposit_payments(db: Session, booking_id: str) -> list[Payment]:
+    """Deposit records (and deposit refunds) linked to one booking, oldest first."""
+    if not booking_id:
+        return []
+    return (
+        db.query(Payment)
+        .filter(Payment.booking_id == booking_id, Payment.is_deposit == 1)
+        .order_by(Payment.created_at, Payment.id)
+        .all()
+    )
+
+
+def booking_deposit_totals(db: Session, booking_ids: list[str]) -> dict[str, float]:
+    """Net deposit received per booking id (deposit refunds subtract), for the bookings list."""
+    ids = [booking_id for booking_id in booking_ids if booking_id]
+    if not ids:
+        return {}
+    totals: dict[str, float] = {}
+    for p in db.query(Payment).filter(Payment.booking_id.in_(ids), Payment.is_deposit == 1).all():
+        sign = -1.0 if p.is_refund else 1.0
+        totals[p.booking_id] = totals.get(p.booking_id, 0.0) + sign * float(p.amount or 0)
+    return {booking_id: max(0.0, total) for booking_id, total in totals.items()}
+
+
 def get_payments(
     db: Session,
     booking_id: str | None = None,

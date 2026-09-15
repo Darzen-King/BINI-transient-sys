@@ -319,7 +319,8 @@ describe("payments UI", () => {
     fireEvent.change(screen.getByLabelText("收款金額（NT$）"), {
       target: { value: "1000" },
     });
-    fireEvent.click(screen.getByLabelText("記為訂金"));
+    // Choosing a booking that has not checked in ticks the deposit automatically.
+    expect(screen.getByLabelText("記為訂金")).toBeChecked();
     fireEvent.click(screen.getByRole("button", { name: "確認收取訂金" }));
     await waitFor(() =>
       expect(manualCreate).toHaveBeenCalledWith({

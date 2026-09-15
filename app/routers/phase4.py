@@ -60,12 +60,21 @@ async def payments_page(
     # in the Add-Payment modal (manual entry stays available as a fallback).
     from app.services.stays import get_all_active_stays
     active_stays = get_all_active_stays(db)
+    # Bookings not checked in yet → staff can record their deposit (booking_id linked).
+    from app.models import Booking
+    upcoming_bookings = (
+        db.query(Booking).filter(Booking.status == "已預約").order_by(Booking.checkin).all()
+    )
+    from app.services.payments import booking_deposit_totals
+    booking_deposits = booking_deposit_totals(db, [b.id for b in upcoming_bookings])
 
     return templates.TemplateResponse("payments.html", {
         "request":    request,
         "payments":   payments,
         "summary":    summary,
         "active_stays": active_stays,
+        "upcoming_bookings": upcoming_bookings,
+        "booking_deposits": booking_deposits,
         "date_from":  date_from,
         "date_to":    date_to,
         "room_id":    room_id or "",
@@ -100,6 +109,7 @@ async def add_payment(
         payment_type, amount,
         is_deposit = is_deposit == "1",
         is_refund  = is_refund  == "1",
+        note       = (note or "").strip(),
         created_by = user.username if user else "admin",
     )
     # Audit log now written at service layer (payments.create_payment)

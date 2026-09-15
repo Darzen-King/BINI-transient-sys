@@ -156,27 +156,44 @@
       <form method="post" action="/payments/add">
       <div class="modal-body">
         <div class="row g-3">
-          {% if active_stays %}
+          <!-- Always shown (it used to disappear when no room was occupied). -->
           <div class="col-12">
             <label class="form-label fw-semibold" style="font-size:.84rem">
-              {{ trans.get("payment.select_guest","Select checked-in guest") }}
+              {{ trans.get("payment.select_target","選擇房客或預約") }}
             </label>
             <select id="paySelectStay" class="form-select form-select-sm">
               <option value="">— {{ trans.get("payment.manual_input","Manual input") }} —</option>
-              {% for s in active_stays %}
-              <option value="{{ s.room }}"
-                      data-guest="{{ s.guest }}"
-                      data-room="{{ s.room }}"
-                      data-booking="{{ s.booking_id or '' }}">
-                {{ s.room }} · {{ s.guest }}
-              </option>
-              {% endfor %}
+              <optgroup label="{{ trans.get('payment.group_stays','在住房客') }}">
+                {% for s in active_stays %}
+                <option value="{{ s.room }}"
+                        data-guest="{{ s.guest }}"
+                        data-room="{{ s.room }}"
+                        data-booking="{{ s.booking_id or '' }}"
+                        data-kind="stay">
+                  {{ s.room }} · {{ s.guest }}
+                </option>
+                {% else %}
+                <option disabled>{{ trans.get("payment.no_active_stays","目前沒有在住房客") }}</option>
+                {% endfor %}
+              </optgroup>
+              <optgroup label="{{ trans.get('payment.group_bookings','未入住預約（收押金）') }}">
+                {% for b in upcoming_bookings %}
+                <option value="booking:{{ b.id }}"
+                        data-guest="{{ b.guest }}"
+                        data-room="{{ b.room }}"
+                        data-booking="{{ b.id }}"
+                        data-kind="booking">
+                  {{ b.room }} · {{ b.guest }} · {{ (b.checkin or "")[:16] }}{% if booking_deposits.get(b.id, 0) > 0 %} · {{ trans.get("booking.deposit_paid","已收押金") }} NT$ {{ "%.0f"|format(booking_deposits.get(b.id)) }}{% endif %}
+                </option>
+                {% else %}
+                <option disabled>{{ trans.get("payment.no_upcoming_bookings","目前沒有未入住的預約") }}</option>
+                {% endfor %}
+              </optgroup>
             </select>
             <div class="form-text" style="font-size:.74rem">
-              {{ trans.get("payment.select_guest_hint","Pick a guest to auto-fill, or leave as Manual input to type freely.") }}
+              {{ trans.get("payment.select_target_hint","選擇房客或預約會自動帶入資料；選擇預約時自動勾選「押金」並連結該預約。也可保留「手動輸入」。") }}
             </div>
           </div>
-          {% endif %}
           <!-- Hidden booking link, filled when a guest is selected from the dropdown -->
           <input type="hidden" name="booking_id" id="payBookingId" value="">
           <div class="col-6">
@@ -245,6 +262,13 @@
     if (guest)   guest.value   = opt.getAttribute("data-guest")   || "";
     if (room)    room.value    = opt.getAttribute("data-room")    || "";
     if (booking) booking.value = opt.getAttribute("data-booking") || "";
+    // A booking that has not checked in yet can only take a deposit.
+    var deposit = document.getElementById("isDeposit");
+    var refund  = document.getElementById("isRefund");
+    if (opt.getAttribute("data-kind") === "booking") {
+      if (deposit) deposit.checked = true;
+      if (refund)  refund.checked  = false;
+    }
   });
 })();
 

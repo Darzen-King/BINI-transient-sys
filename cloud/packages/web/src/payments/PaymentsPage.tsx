@@ -64,6 +64,7 @@ export function PaymentsPage({
   session,
   bookingGateway,
   createGateway,
+  initialBookingId,
   initialRoomId,
   listGateway,
   onInitialRoomHandled,
@@ -73,6 +74,8 @@ export function PaymentsPage({
   session: StaffSession;
   bookingGateway?: BookingListGateway | undefined;
   createGateway: PaymentCreateGateway | undefined;
+  /** Booking chosen in booking management: preselected for a deposit once bookings load. */
+  initialBookingId?: string | null;
   initialRoomId?: string | null;
   listGateway: PaymentListGateway | undefined;
   onInitialRoomHandled?: () => void;
@@ -160,6 +163,14 @@ export function PaymentsPage({
         : undefined,
     [canManual, roomGateway, session.propertyId],
   );
+  useEffect(() => {
+    if (!initialBookingId || bookings === null) return;
+    if (canManual && bookings.some((booking) => booking.bookingId === initialBookingId)) {
+      setTargetKey(`booking:${initialBookingId}`);
+      setDeposit(true);
+    }
+    onInitialRoomHandled?.();
+  }, [bookings, canManual, initialBookingId, onInitialRoomHandled]);
   useEffect(() => {
     if (!initialRoomId || stays === null) return;
     const matchingStay = stays.find((stay) => stay.roomId === initialRoomId);
@@ -495,6 +506,8 @@ export function PaymentsPage({
                 disabled={!ready}
                 onChange={(event) => {
                   setTargetKey(event.target.value);
+                  // A booking that has not checked in can only take a deposit.
+                  if (event.target.value.startsWith("booking:")) setDeposit(true);
                   setOperationId(null);
                   setOtherRoomId("");
                   setOtherGuestName("");

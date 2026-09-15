@@ -159,6 +159,8 @@ export const bookingUpdateInputSchema = z.object({
   pricingMode: z.enum(['automatic', 'manual']),
   manualAmountNts: ntsAmountSchema.optional(),
   rateType: z.enum(BOOKING_RATE_TYPES).optional(),
+  /** Booking version the edit form was opened with; a different stored version means another device saved first. */
+  expectedVersion: z.number().int().min(0),
 }).strict().superRefine((input, context) => {
   if (input.pricingMode === 'manual' && input.manualAmountNts === undefined) {
     context.addIssue({

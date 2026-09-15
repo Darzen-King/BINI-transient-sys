@@ -51,9 +51,14 @@ export function BookingEditPage({
   previewGateway,
   roomGateway,
   holidayGateway,
+  latestBooking,
+  onReload,
   onBack,
 }: {
   booking: BookingListItem;
+  /** Live copy of this booking (undefined while unknown, null once it left the active list on another device). */
+  latestBooking?: BookingListItem | null | undefined;
+  onReload?: ((booking: BookingListItem) => void) | undefined;
   session: StaffSession;
   gateway: BookingUpdateGateway | undefined;
   previewGateway: BookingUpdatePreviewGateway | undefined;
@@ -123,6 +128,7 @@ export function BookingEditPage({
         discountNts,
         ...pricingFor(quote, manualAmountNts),
         ...(rate.manual ? { rateType: rate.manual } : {}),
+        expectedVersion: booking.version ?? 0,
       });
       setUpdated(result);
       setPendingOperationId(null);
@@ -159,6 +165,8 @@ export function BookingEditPage({
   return (
     <SectionCard hint={text('伺服器重新檢查衝突與價格', 'Server rechecks conflicts and pricing')} title={text(`修改預約 · ${booking.bookingId}`, `Edit booking · ${booking.bookingId}`)}>
       <p className="booking-create-intro">{text('會排除這筆預約自身後，重新檢查房間、有效預約、在住房與未完成維修；既有訂金付款不會在此表單被修改。', 'The server excludes this booking itself, then rechecks the room, active bookings, stays, and unfinished maintenance. Existing deposit payments are not changed here.')}</p>
+      {!updated && !busy && latestBooking === null ? <Notice tone="danger" title={text('此預約已被其他裝置取消或辦理入住', 'This booking was cancelled or checked in on another device')}>{text('無法再修改，請返回預約管理確認。', 'It can no longer be edited. Go back to bookings to check.')}</Notice> : null}
+      {!updated && !busy && latestBooking && (latestBooking.version ?? 0) !== (booking.version ?? 0) ? <Notice tone="warning" title={text('此預約已被其他裝置修改', 'This booking was changed on another device')}>{text('畫面上的資料已過期，儲存會被拒絕以免蓋掉對方的修改。請載入最新資料後再修改。', 'This form is out of date; saving is refused so the other change is not overwritten. Load the latest data, then edit again.')}{onReload ? <div><Button onClick={() => onReload(latestBooking)} size="sm" variant="outline">{text('載入最新資料', 'Load latest data')}</Button></div> : null}</Notice> : null}
       {!gateway ? <Notice tone="warning" title={text('預覽模式', 'Preview mode')}>{text('此介面尚未接上 Firebase 寫入服務。', 'This preview is not connected to Firebase writes.')}</Notice> : null}
       {roomError ? <Notice tone="danger" title={text('無法載入房間', 'Unable to load rooms')}>{text('房間清單載入失敗時不提供送出。', 'Submission is unavailable when the room list fails to load.')}</Notice> : null}
       {roomGateway && rooms === null && !roomError ? <p className="booking-create-loading">{text('正在載入可選房間…', 'Loading room choices…')}</p> : null}
@@ -187,7 +195,7 @@ export function BookingEditPage({
           {!preview.available ? <p>{preview.reason === 'room_unavailable' ? text('找不到房間或此房為月租套房，不能修改為短期預約。', 'The room is unavailable or monthly-only.') : text(`與 ${preview.conflict?.id ?? ''} 的既有時段衝突。`, `Conflicts with ${preview.conflict?.id ?? ''}.`)}</p> : null}
         </Notice> : null}
         {error ? <Notice tone="danger" title={text('無法修改預約', 'Booking could not be updated')}>{error}</Notice> : null}
-        <div className="booking-create-actions"><Button disabled={!gateway || rooms === null || roomError} loading={busy} size="lg" type="submit">{text('儲存變更', 'Save changes')}</Button><Button onClick={onBack} type="button" variant="outline">{text('返回預約管理', 'Back to bookings')}</Button></div>
+        <div className="booking-create-actions"><Button disabled={!gateway || rooms === null || roomError || (!updated && latestBooking === null)} loading={busy} size="lg" type="submit">{text('儲存變更', 'Save changes')}</Button><Button onClick={onBack} type="button" variant="outline">{text('返回預約管理', 'Back to bookings')}</Button></div>
       </form>
     </SectionCard>
   );

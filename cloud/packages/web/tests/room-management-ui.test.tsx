@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RoomManagementItem } from '@bini/cloud-shared';
 
@@ -11,13 +11,31 @@ import type { RoomManagementGateway } from '../src/room-management/room-manageme
 
 const session: StaffSession = { uid: 'manager-1', email: 'manager@example.com', displayName: 'Manager', propertyId: 'property-main', role: 'manager', allowedPages: ['room_management'] };
 const rooms: RoomManagementItem[] = [
-  { roomId: '201', status: '可入住', note: 'Near lift', maintenanceNote: null, maintenanceDueDate: null, activeStay: null, monthly: null },
-  { roomId: '202', status: '使用中', note: null, maintenanceNote: null, maintenanceDueDate: null, activeStay: { stayId: 'STY-202', guestName: 'Juvy', checkInAt: '2026-09-12T07:00:00.000Z', checkOutAt: '2026-09-14T03:00:00.000Z' }, monthly: null },
-  { roomId: '206', status: '月租套房', note: null, maintenanceNote: null, maintenanceDueDate: null, activeStay: null, monthly: { rentalId: 'MR-live', tenantName: 'Carlos', tenantPhone: null, startDate: '2026-09-01', endDate: '2026-10-01', depositNts: 2_000, rentNts: 9_000, paymentType: 'cash', note: null } },
+  { roomId: '201', version: 4, status: '可入住', note: 'Near lift', maintenanceNote: null, maintenanceDueDate: null, activeStay: null, monthly: null },
+  { roomId: '202', version: 9, status: '使用中', note: null, maintenanceNote: null, maintenanceDueDate: null, activeStay: { stayId: 'STY-202', guestName: 'Juvy', checkInAt: '2026-09-12T07:00:00.000Z', checkOutAt: '2026-09-14T03:00:00.000Z' }, monthly: null },
+  { roomId: '206', version: 2, status: '月租套房', note: null, maintenanceNote: null, maintenanceDueDate: null, activeStay: null, monthly: { rentalId: 'MR-live', tenantName: 'Carlos', tenantPhone: null, startDate: '2026-09-01', endDate: '2026-10-01', depositNts: 2_000, rentNts: 9_000, paymentType: 'cash', note: null } },
 ];
 afterEach(cleanup);
 
 describe('room management UI', () => {
+  it('refuses to overwrite a room changed on another device and lets staff load the latest data', async () => {
+    let emit: (value: RoomManagementItem[]) => void = () => undefined;
+    const update = vi.fn().mockResolvedValue({ status: 'updated', roomId: '201', roomStatus: '可入住', updatedAt: '2026-09-15T15:00:00.000Z' });
+    const gateway: RoomManagementGateway = { subscribe(_propertyId, onValue) { emit = onValue; queueMicrotask(() => onValue(rooms)); return () => undefined; }, update, createMonthly: vi.fn(), renewMonthly: vi.fn(), checkoutMonthly: vi.fn(), transferStay: vi.fn() };
+    render(<App roomManagementGateway={gateway} session={session} />);
+    fireEvent.click(screen.getByRole('link', { name: '房間管理' }));
+    fireEvent.click(await screen.findByRole('button', { name: '201 詳細資料' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '編輯房態／備註' }));
+    // A phone saves a new note for 201 while this dialog is open.
+    await act(async () => emit(rooms.map((room) => (room.roomId === '201' ? { ...room, version: 5, note: 'Changed on phone' } : room))));
+    expect(screen.getByText('此房間資料已被其他裝置修改')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '載入最新資料' }));
+    expect(screen.queryByText('此房間資料已被其他裝置修改')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('一般備註')).toHaveValue('Changed on phone');
+    fireEvent.click(screen.getByRole('button', { name: '儲存變更' }));
+    await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ roomId: '201', expectedVersion: 5, note: 'Changed on phone' })));
+  });
+
   it('opens mobile-compatible room details and uses callable operations for monthly actions', async () => {
     const renewMonthly = vi.fn().mockResolvedValue({ status: 'renewed', roomId: '206', rentalId: 'MR-next', previousRentalId: 'MR-live', startDate: '2026-10-01', endDate: '2026-11-01', paymentId: 'PAY-1', updatedAt: '2026-09-12T08:00:00.000Z' });
     const gateway: RoomManagementGateway = { subscribe(_propertyId, onValue) { queueMicrotask(() => onValue(rooms)); return () => undefined; }, update: vi.fn(), createMonthly: vi.fn(), renewMonthly, checkoutMonthly: vi.fn(), transferStay: vi.fn() };

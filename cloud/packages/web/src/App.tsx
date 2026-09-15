@@ -555,7 +555,7 @@ function BookingsView({ canCreate, canCancel, onOpenBookingCreate, onOpenCheckIn
   };
 
   if (editingBooking) {
-    return <BookingEditPage booking={editingBooking} gateway={bookingUpdateGateway} onBack={() => setEditingBooking(null)} holidayGateway={holidayGateway} previewGateway={bookingUpdatePreviewGateway} roomGateway={roomGateway} session={session} />;
+    return <BookingEditPage booking={editingBooking} gateway={bookingUpdateGateway} key={`${editingBooking.bookingId}-${editingBooking.version ?? 0}`} latestBooking={bookings === null ? undefined : bookings.find((item) => item.bookingId === editingBooking.bookingId) ?? null} onBack={() => setEditingBooking(null)} onReload={setEditingBooking} holidayGateway={holidayGateway} previewGateway={bookingUpdatePreviewGateway} roomGateway={roomGateway} session={session} />;
   }
 
   return (

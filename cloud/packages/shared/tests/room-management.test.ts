@@ -22,8 +22,10 @@ describe('room management domain and contracts', () => {
   });
 
   it('requires maintenance details only when setting a maintenance room', () => {
-    expect(roomManagementUpdateInputSchema.safeParse({ propertyId: 'property-main', operationId: '00000000-0000-4000-8000-000000000001', roomId: '201', status: '維修中', note: null, maintenanceNote: null, maintenanceDueDate: null }).success).toBe(false);
-    expect(roomManagementUpdateInputSchema.safeParse({ propertyId: 'property-main', operationId: '00000000-0000-4000-8000-000000000001', roomId: '201', status: '維修中', note: 'blocked', maintenanceNote: 'air conditioner', maintenanceDueDate: '2026-09-15' }).success).toBe(true);
+    expect(roomManagementUpdateInputSchema.safeParse({ propertyId: 'property-main', operationId: '00000000-0000-4000-8000-000000000001', roomId: '201', status: '維修中', note: null, maintenanceNote: null, maintenanceDueDate: null, expectedVersion: 2 }).success).toBe(false);
+    expect(roomManagementUpdateInputSchema.safeParse({ propertyId: 'property-main', operationId: '00000000-0000-4000-8000-000000000001', roomId: '201', status: '維修中', note: 'blocked', maintenanceNote: 'air conditioner', maintenanceDueDate: '2026-09-15', expectedVersion: 2 }).success).toBe(true);
+    expect(roomManagementUpdateInputSchema.safeParse({ propertyId: 'property-main', operationId: '00000000-0000-4000-8000-000000000001', roomId: '201', status: '可入住', note: null, maintenanceNote: null, maintenanceDueDate: null }).success).toBe(false);
+    expect(buildRoomManagementItems([{ id: '201', data: { roomId: '201', status: '可入住', version: 7 } }], [])[0]?.version).toBe(7);
   });
 
   it('rejects negative monthly amounts before a callable request', () => {

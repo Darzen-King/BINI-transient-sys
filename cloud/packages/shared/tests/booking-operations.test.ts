@@ -154,8 +154,13 @@ describe('booking update contract', () => {
       discountNts: 0,
       pricingMode: 'manual',
       manualAmountNts: 1_500,
+      expectedVersion: 3,
     });
     expect(quoteBooking(updated, calendar).amountNts).toBe(1_500);
+    // The version the form was opened with is mandatory, so a stale edit can always be detected.
+    const withoutVersion: Record<string, unknown> = { ...updated };
+    delete withoutVersion.expectedVersion;
+    expect(bookingUpdateInputSchema.safeParse(withoutVersion).success).toBe(false);
     expect(() => bookingUpdateInputSchema.parse({ ...updated, pricingMode: 'automatic', manualAmountNts: 1_500 })).toThrow(/自動計價/);
   });
 });
@@ -233,7 +238,7 @@ describe('v3 rate-type label override', () => {
     expect(input({ rateType: '假日' }).rateType).toBe('假日');
     expect(input().rateType).toBeUndefined();
     expect(() => input({ rateType: 'weekend' })).toThrow();
-    const updated = bookingUpdateInputSchema.parse({ ...input(), bookingId: 'RSV-1', rateType: '非假日' });
+    const updated = bookingUpdateInputSchema.parse({ ...input(), bookingId: 'RSV-1', rateType: '非假日', expectedVersion: 1 });
     expect(updated.rateType).toBe('非假日');
   });
 });

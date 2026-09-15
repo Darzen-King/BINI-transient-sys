@@ -20,6 +20,8 @@ export interface BookingListItem {
   rateType: string | null;
   pricingMode?: 'automatic' | 'manual';
   status: typeof CLOUD_ACTIVE_BOOKING_STATUSES[number];
+  /** Document version when read; an edit sends it back so a concurrent change from another device is refused. */
+  version?: number;
 }
 
 const dateTimeSchema = z.string().refine((value) => Number.isFinite(Date.parse(value)), 'invalid datetime');
@@ -36,6 +38,7 @@ const bookingSchema = z.object({
   rateType: z.string().trim().max(100).nullable().optional(),
   pricingMode: z.enum(['automatic', 'manual']).optional(),
   status: z.enum(['已預約', '已取消', 'No-show', '已入住']),
+  version: z.number().int().min(0).optional(),
 }).passthrough();
 
 /**
@@ -77,5 +80,6 @@ export function buildActiveBookingList(
       rateType: booking.rateType ?? null,
       ...(booking.pricingMode ? { pricingMode: booking.pricingMode } : {}),
       status: booking.status,
+      ...(booking.version !== undefined ? { version: booking.version } : {}),
     }));
 }

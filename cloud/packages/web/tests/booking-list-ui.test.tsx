@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { BookingListItem, BookingSoonItem } from '@bini/cloud-shared';
@@ -30,6 +30,7 @@ const bookings: BookingListItem[] = [{
   discountNts: 0,
   rateType: '非假日',
   status: '已預約',
+  version: 3,
 }];
 
 function gateway(value: BookingListItem[]): BookingListGateway {
@@ -208,6 +209,37 @@ describe('live booking list UI', () => {
     })));
     expect(await screen.findByText('此時段可修改')).toBeInTheDocument();
     expect(screen.getByText(/排除目前這筆預約/)).toBeInTheDocument();
+  });
+
+  it('warns when another device changed the booking, refuses the stale form, and reloads the latest data', async () => {
+    let emit: (value: BookingListItem[]) => void = () => undefined;
+    const update = vi.fn().mockResolvedValue({ status: 'updated', bookingId: 'RSV-live-203', checkInAt: '2026-09-14T05:00:00.000Z', checkOutAt: '2026-09-15T05:00:00.000Z', amountNts: 1_200, discountNts: 0, rateType: '非假日' });
+    const live: BookingListGateway = { subscribe(_propertyId, onValue) { emit = onValue; queueMicrotask(() => onValue(bookings)); return () => undefined; } };
+    render(<App bookingListGateway={live} bookingUpdateGateway={{ update } satisfies BookingUpdateGateway} bookingRoomGateway={roomGateway()} />);
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
+    fireEvent.click(await screen.findByText('203 · Live Guest'));
+    fireEvent.click(screen.getByRole('button', { name: '修改預約' }));
+    await screen.findByText('修改預約 · RSV-live-203');
+
+    // The phone changes the phone number while this form is open.
+    await act(async () => emit([{ ...bookings[0]!, phone: '0911-000-000', version: 4 }]));
+    expect(screen.getByText('此預約已被其他裝置修改')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '載入最新資料' }));
+    expect(screen.queryByText('此預約已被其他裝置修改')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('電話')).toHaveValue('0911-000-000');
+    await waitFor(() => expect(screen.getByRole('button', { name: '儲存變更' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: '儲存變更' }));
+    await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ expectedVersion: 4, phone: '0911-000-000' })));
+
+    // Cancelled on the other device: the form can no longer be saved.
+    await screen.findByText('預約已更新');
+    fireEvent.click(screen.getAllByRole('button', { name: '返回預約管理' })[0]!);
+    fireEvent.click(await screen.findByText('203 · Live Guest'));
+    fireEvent.click(screen.getByRole('button', { name: '修改預約' }));
+    await screen.findByText('修改預約 · RSV-live-203');
+    await act(async () => emit([]));
+    expect(screen.getByText('此預約已被其他裝置取消或辦理入住')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '儲存變更' })).toBeDisabled();
   });
 
   it('reuses the update operation id when a save is retried', async () => {

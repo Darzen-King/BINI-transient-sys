@@ -197,6 +197,8 @@ export const bookingUpdate = onCall(callableOptions, async (request): Promise<Bo
 
     const booking = bookingSnapshot.data() ?? {};
     const bookingLabel = `bookings/${input.bookingId}`;
+    // Another device saved this booking after the form was opened: never overwrite its change.
+    if (requiredVersion(booking, bookingLabel) !== input.expectedVersion) throw new HttpsError('aborted', '此預約剛被其他裝置修改，請重新載入後再修改。');
     if (requiredText(booking, 'propertyId', bookingLabel) !== input.propertyId) {
       throw new HttpsError('data-loss', `${bookingLabel} 的館別識別碼不一致。`);
     }

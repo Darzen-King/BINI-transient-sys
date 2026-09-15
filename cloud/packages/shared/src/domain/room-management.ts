@@ -4,6 +4,8 @@ import { CLOUD_ROOM_STATUSES, type CloudRoomStatus } from './room-overview.js';
 
 export interface RoomManagementItem {
   roomId: string;
+  /** Room document version when read; edits send it back to refuse overwriting another device's change. */
+  version: number;
   status: CloudRoomStatus;
   note: string | null;
   maintenanceNote: string | null;
@@ -26,6 +28,7 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const roomSchema = z.object({
   roomId: z.string().trim().min(1).max(128), status: z.enum(CLOUD_ROOM_STATUSES),
   note: z.string().nullable().optional(), maintenanceNote: z.string().nullable().optional(), maintenanceDueDate: isoDate.nullable().optional(),
+  version: z.number().int().min(0).optional(),
 }).passthrough();
 const monthlySchema = z.object({
   roomId: z.string().trim().min(1).max(128), tenantName: z.string().trim().min(1).max(300), tenantPhone: z.string().nullable().optional(),
@@ -51,6 +54,6 @@ export function buildRoomManagementItems(rooms: readonly { id: string; data: unk
   return rooms.map((source) => {
     const room = roomSchema.parse(source.data);
     if (source.id !== room.roomId) throw new Error(`rooms/${source.id} identity does not match its document id`);
-    return { roomId: room.roomId, status: room.status, note: room.note ?? null, maintenanceNote: room.maintenanceNote ?? null, maintenanceDueDate: room.maintenanceDueDate ?? null, activeStay: activeStayByRoom.get(room.roomId) ?? null, monthly: activeByRoom.get(room.roomId) ?? null };
+    return { roomId: room.roomId, version: room.version ?? 0, status: room.status, note: room.note ?? null, maintenanceNote: room.maintenanceNote ?? null, maintenanceDueDate: room.maintenanceDueDate ?? null, activeStay: activeStayByRoom.get(room.roomId) ?? null, monthly: activeByRoom.get(room.roomId) ?? null };
   }).sort((left, right) => left.roomId.localeCompare(right.roomId, undefined, { numeric: true }));
 }

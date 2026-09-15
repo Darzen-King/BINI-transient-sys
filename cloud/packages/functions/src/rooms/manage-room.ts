@@ -28,6 +28,7 @@ export const roomManagementUpdate = onCall(options, async (request): Promise<Roo
     const roomSnapshot = await transaction.get(roomRef);
     if (!roomSnapshot.exists) throw new HttpsError('not-found', '找不到房間。');
     const room = roomSnapshot.data() ?? {}; validRoom(room, input.propertyId, input.roomId);
+    if (validVersion(room, `rooms/${input.roomId}`) !== input.expectedVersion) throw new HttpsError('aborted', '此房間資料剛被其他裝置修改，請重新載入後再修改。');
     const previousStatus = room.status;
     if (!['可入住', '使用中', '即將退房', '待清潔', '清潔中', '維修中', '月租套房'].includes(previousStatus)) throw new HttpsError('data-loss', '房間狀態不受支援。');
     if (previousStatus === '月租套房') throw new HttpsError('failed-precondition', '月租房請使用月租流程，不能直接變更房態。');

@@ -18,6 +18,8 @@ export const roomManagementUpdateInputSchema = z.object({
   note: z.string().trim().max(2_000).nullable(),
   maintenanceNote: z.string().trim().max(2_000).nullable(),
   maintenanceDueDate: isoDate.nullable(),
+  /** Room version the edit dialog was opened with. */
+  expectedVersion: z.number().int().min(0),
 }).strict().superRefine((input, context) => {
   if (input.status === '維修中' && !input.maintenanceNote) context.addIssue({ code: z.ZodIssueCode.custom, path: ['maintenanceNote'], message: '維修中必須填寫維修說明。' });
   if (input.status === '維修中' && !input.maintenanceDueDate) context.addIssue({ code: z.ZodIssueCode.custom, path: ['maintenanceDueDate'], message: '維修中必須填寫預計完成日。' });

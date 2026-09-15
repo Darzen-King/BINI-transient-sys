@@ -160,9 +160,15 @@ def renew_monthly_rental(
     room_id: str,
     payment_type: str | None = None,
     created_by: str = "admin",
+    expected_end: str | None = None,
 ) -> tuple[MonthlyRental | None, str | None]:
     """
     Renew an active monthly rental for one more month (續租).
+
+    ``expected_end`` is the end date the operator saw when pressing 確認續租. If the
+    rental's end date no longer matches, it was already renewed (a repeated click
+    while the first request was still backing up to the cloud), so nothing is
+    renewed again and ``error.monthly_already_renewed`` is returned.
 
     Implemented as close-and-reopen: the current row is marked "renewed" and a
     NEW row is created for the next period (start = old end, end = +1 month).
@@ -179,6 +185,8 @@ def renew_monthly_rental(
         return None, "error.monthly_not_found"
 
     new_start = (rental.end_date or "")[:10]
+    if expected_end and new_start != expected_end.strip()[:10]:
+        return None, "error.monthly_already_renewed"
     try:
         datetime.strptime(new_start, DATE_FMT)
     except Exception:

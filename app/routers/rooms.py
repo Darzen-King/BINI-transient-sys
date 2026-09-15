@@ -284,6 +284,7 @@ async def monthly_renew(
     request:      Request,
     room_id:      str = Form(...),
     payment_type: str = Form("cash"),
+    expected_end: str = Form(""),
     db: Session = Depends(get_db),
 ):
     from urllib.parse import quote
@@ -292,6 +293,7 @@ async def monthly_renew(
     rental, err = msvc.renew_monthly_rental(
         db, room_id, payment_type=payment_type,
         created_by=cu.username if cu else "admin",
+        expected_end=expected_end or None,
     )
     if err:
         return RedirectResponse(f"/room-management?err={quote(err)}", status_code=303)

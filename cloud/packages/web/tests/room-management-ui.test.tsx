@@ -27,7 +27,31 @@ describe('room management UI', () => {
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText('Carlos')).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: '續租一個月' }));
-    await waitFor(() => expect(renewMonthly).toHaveBeenCalledWith({ propertyId: 'property-main', operationId: expect.any(String), roomId: '206', paymentType: 'cash' }));
+    const renew = screen.getByRole('dialog');
+    expect(renew).toHaveTextContent('2026-10-01 ~ 2026-11-01');
+    expect(renew).toHaveTextContent('NT$ 9,000');
+    fireEvent.click(within(renew).getByRole('button', { name: '確認續租' }));
+    await waitFor(() => expect(renewMonthly).toHaveBeenCalledWith({ propertyId: 'property-main', operationId: expect.any(String), roomId: '206', paymentType: 'cash', expectedEndDate: '2026-10-01' }));
+  });
+
+  it('renews only once however many times the confirm button is tapped while the server is slow', async () => {
+    let finish: (value: unknown) => void = () => undefined;
+    const renewMonthly = vi.fn().mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    const gateway: RoomManagementGateway = { subscribe(_propertyId, onValue) { queueMicrotask(() => onValue(rooms)); return () => undefined; }, update: vi.fn(), createMonthly: vi.fn(), renewMonthly, checkoutMonthly: vi.fn(), transferStay: vi.fn() };
+    render(<App roomManagementGateway={gateway} session={session} />);
+    fireEvent.click(screen.getByRole('link', { name: '房間管理' }));
+    fireEvent.click(await screen.findByRole('button', { name: '206 詳細資料' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '續租一個月' }));
+    const confirm = within(screen.getByRole('dialog')).getByRole('button', { name: '確認續租' });
+    const form = confirm.closest('form')!;
+    fireEvent.submit(form); fireEvent.submit(form); fireEvent.submit(form);
+    expect(await screen.findByText('續租處理中，請稍候，請勿重複按…')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: '處理中…' })).toBeDisabled();
+    fireEvent.submit(form);
+    expect(renewMonthly).toHaveBeenCalledTimes(1);
+    finish({ status: 'renewed', roomId: '206', rentalId: 'MR-next', previousRentalId: 'MR-live', startDate: '2026-10-01', endDate: '2026-11-01', paymentId: 'PAY-1', updatedAt: '2026-09-12T08:00:00.000Z' });
+    expect(await screen.findByText('月租已續租一個月（2026-10-01 ~ 2026-11-01），租金已記入付款紀錄。')).toBeInTheDocument();
+    expect(renewMonthly).toHaveBeenCalledTimes(1);
   });
 
   it('uses the mobile detail dialog to submit an atomic room transfer', async () => {

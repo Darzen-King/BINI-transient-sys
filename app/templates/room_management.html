@@ -350,9 +350,10 @@
         <h5 class="modal-title fw-bold">🔁 {{ trans.get("monthly.renew_title","月租續租") }}</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
-      <form method="post" action="/room-management/monthly/renew">
+      <form method="post" action="/room-management/monthly/renew" id="monthlyRenewForm">
         <div class="modal-body">
           <input type="hidden" name="room_id" id="mrRoomId">
+          <input type="hidden" name="expected_end" id="mrExpectedEnd">
           <div class="rounded-2 p-2 mb-3" style="background:#f0fdf4;font-size:.85rem">
             {{ trans.get("room.id","房間") }}: <strong id="mrRoomLabel"></strong>
             <span class="ms-2 text-muted" id="mrTenant"></span>
@@ -379,10 +380,14 @@
           <div class="text-muted mt-2" style="font-size:.76rem">
             {{ trans.get("monthly.renew_hint","押金結轉不重複收取；續租租金將記錄至付款記錄。") }}
           </div>
+          <div class="alert alert-info py-2 mt-2 mb-0 d-none" id="mrProcessing" style="font-size:.82rem">
+            <span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+            {{ trans.get("monthly.renew_processing","續租處理中（含雲端備份），請稍候，請勿重複按…") }}
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ trans.get("auth.cancel","取消") }}</button>
-          <button type="submit" class="btn btn-success btn-sm">🔁 {{ trans.get("monthly.renew_confirm","確認續租") }}</button>
+          <button type="submit" class="btn btn-success btn-sm" id="mrSubmit">🔁 {{ trans.get("monthly.renew_confirm","確認續租") }}</button>
         </div>
       </form>
     </div>
@@ -517,12 +522,26 @@ function setRefundFull() { document.getElementById('moRefund').value = _moDeposi
 const monthlyRenewModal = new bootstrap.Modal(document.getElementById('monthlyRenewModal'));
 function openMonthlyRenew(roomId, tenant, endDate, rent) {
   document.getElementById('mrRoomId').value = roomId;
+  document.getElementById('mrExpectedEnd').value = (endDate || '').slice(0, 10);
   document.getElementById('mrRoomLabel').textContent = roomId;
   document.getElementById('mrTenant').textContent = tenant;
   document.getElementById('mrPeriod').textContent = endDate + ' ~ ' + _addOneMonth(endDate);
   document.getElementById('mrRent').textContent = 'NT$ ' + (parseFloat(rent) || 0).toLocaleString();
   monthlyRenewModal.show();
 }
+// Renewal waits for the cloud backup before the page reloads; lock the modal so a
+// second click cannot renew another month.
+document.getElementById('monthlyRenewForm').addEventListener('submit', function (event) {
+  if (this.dataset.submitting === '1') { event.preventDefault(); return; }
+  this.dataset.submitting = '1';
+  const btn = document.getElementById('mrSubmit');
+  setTimeout(function () {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>{{ trans.get("monthly.renew_processing_btn","處理中…") }}';
+    document.querySelectorAll('#monthlyRenewModal [data-bs-dismiss="modal"]').forEach(function (el) { el.disabled = true; });
+    document.getElementById('mrProcessing').classList.remove('d-none');
+  }, 0);
+});
 
 // ── Transfer Modal ────────────────────────────────────────────────────────
 const transferModal = new bootstrap.Modal(document.getElementById('transferModal'));

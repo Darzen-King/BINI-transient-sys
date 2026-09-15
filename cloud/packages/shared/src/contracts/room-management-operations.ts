@@ -48,7 +48,8 @@ export const monthlyRentalCreateInputSchema = z.object({
 }).strict();
 export type MonthlyRentalCreateInput = z.infer<typeof monthlyRentalCreateInputSchema>;
 
-export const monthlyRentalRenewInputSchema = z.object({ propertyId, operationId, roomId, paymentType: z.enum(BOOKING_PAYMENT_TYPES) }).strict();
+// expectedEndDate is the end date staff saw: a repeated tap after the rental already moved on is refused, never renewed twice.
+export const monthlyRentalRenewInputSchema = z.object({ propertyId, operationId, roomId, paymentType: z.enum(BOOKING_PAYMENT_TYPES), expectedEndDate: isoDate }).strict();
 export type MonthlyRentalRenewInput = z.infer<typeof monthlyRentalRenewInputSchema>;
 
 export const monthlyRentalCheckoutInputSchema = z.object({

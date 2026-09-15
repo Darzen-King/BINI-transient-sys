@@ -238,11 +238,11 @@
 
     <!-- Language switcher -->
     <div class="lang-switcher">
-      <form method="post" action="/set-lang">
+      <form method="post" action="/set-lang" data-allow-resubmit>
         <input type="hidden" name="lang" value="zh">
         <button type="submit" class="{% if lang=='zh' %}active{% endif %}">中文</button>
       </form>
-      <form method="post" action="/set-lang">
+      <form method="post" action="/set-lang" data-allow-resubmit>
         <input type="hidden" name="lang" value="en">
         <button type="submit" class="{% if lang=='en' %}active{% endif %}">EN</button>
       </form>
@@ -413,6 +413,39 @@
 </div>
 
 <script>
+// ── Double-submit guard ────────────────────────────────────────────────────
+// Many actions also back up to the cloud before the page reloads, so a slow
+// response looked like "nothing happened" and operators clicked again, repeating
+// the action. A POST form submits once; its buttons show 處理中… until the next
+// page loads. Forms can opt out with data-allow-resubmit.
+document.addEventListener('submit', function (event) {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement) || event.defaultPrevented) return;
+  if ((form.getAttribute('method') || 'get').toLowerCase() !== 'post' || form.hasAttribute('data-allow-resubmit')) return;
+  if (form.dataset.guardSubmitting === '1') { event.preventDefault(); return; }
+  form.dataset.guardSubmitting = '1';
+  const buttons = Array.from(form.querySelectorAll('button[type="submit"], button:not([type]), input[type="submit"]'));
+  if (form.id) buttons.push(...document.querySelectorAll('[form="' + form.id + '"]'));
+  // Disable after the browser has captured the submitter's name/value.
+  setTimeout(function () {
+    buttons.forEach(function (btn) {
+      btn.disabled = true;
+      if (btn.tagName === 'BUTTON' && !btn.dataset.keepLabel) btn.dataset.originalLabel = btn.innerHTML, btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>{{ trans.get("label.processing","處理中…") }}';
+    });
+  }, 0);
+});
+// Coming back with the browser's back button must not leave buttons locked.
+window.addEventListener('pageshow', function (event) {
+  if (!event.persisted) return;
+  document.querySelectorAll('form[data-guard-submitting="1"]').forEach(function (form) {
+    delete form.dataset.guardSubmitting;
+    form.querySelectorAll('[disabled]').forEach(function (btn) {
+      btn.disabled = false;
+      if (btn.dataset.originalLabel) { btn.innerHTML = btn.dataset.originalLabel; delete btn.dataset.originalLabel; }
+    });
+  });
+});
+
 // ── 15-min checkout warning ────────────────────────────────────────────────
 // Persist alerted rooms in sessionStorage to avoid repeat chimes on page navigation
 const _alertedData = JSON.parse(sessionStorage.getItem("_checkoutAlerted") || "[]");

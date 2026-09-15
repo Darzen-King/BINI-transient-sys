@@ -16,9 +16,18 @@ function taipeiLocalInputValue(value: string): string {
   return `${part.year}-${part.month}-${part.day}T${part.hour}:${part.minute}`;
 }
 function bookingDays(booking: BookingListItem): number { return Math.max(1, Math.round((Date.parse(booking.checkOutAt) - Date.parse(booking.checkInAt)) / ((booking.plan === '12hrs' ? 12 : 24) * 3_600_000))); }
+/**
+ * The booking a room is holding right now: due within the next hour or already past its arrival but not its check-out.
+ * A room-card check-in links it, so a late guest never collides with their own reservation.
+ */
+export function heldBookingForRoom(bookings: readonly BookingListItem[], roomId: string, nowMillis: number): BookingListItem | null {
+  return bookings
+    .filter((booking) => booking.roomId === roomId && Date.parse(booking.checkInAt) <= nowMillis + 3_600_000 && Date.parse(booking.checkOutAt) > nowMillis)
+    .sort((left, right) => Date.parse(left.checkInAt) - Date.parse(right.checkInAt))[0] ?? null;
+}
 function errorMessage(error: unknown, text: (zhTw: string, en: string) => string): string { return error instanceof Error && error.message ? error.message : text('入住未完成，請重新確認房間狀態與資料。', 'Check-in did not complete. Confirm the room status and data.'); }
 
-export function StayCheckInPage({ session, gateway, bookingGateway, roomGateway, holidayGateway, initialRoomId, onInitialRoomHandled, onBack }: {
+export function StayCheckInPage({ session, gateway, bookingGateway, roomGateway, holidayGateway, initialRoomId, initialBookingId, onInitialRoomHandled, onBack }: {
   session: StaffSession;
   gateway: StayCheckInGateway | undefined;
   bookingGateway: BookingListGateway | undefined;
@@ -26,6 +35,8 @@ export function StayCheckInPage({ session, gateway, bookingGateway, roomGateway,
   holidayGateway?: HolidayCalendarGateway | undefined;
   /** Vacant room chosen on a room card; preselected once rooms load. */
   initialRoomId?: string | null;
+  /** Booking chosen from the booking detail; preselected once bookings load. */
+  initialBookingId?: string | null;
   onInitialRoomHandled?: () => void;
   onBack: () => void;
 }) {
@@ -56,12 +67,6 @@ export function StayCheckInPage({ session, gateway, bookingGateway, roomGateway,
   useEffect(() => bookingGateway?.subscribe(session.propertyId, (value) => { setBookings(value); setLoadError(false); }, () => { setBookings(null); setLoadError(true); }), [bookingGateway, session.propertyId]);
   useEffect(() => roomGateway?.subscribe(session.propertyId, (value) => { setRooms(value); setLoadError(false); }, () => { setRooms(null); setLoadError(true); }), [roomGateway, session.propertyId]);
 
-  useEffect(() => {
-    if (!initialRoomId || rooms === null) return;
-    if (rooms.some((room) => room.roomId === initialRoomId && room.status === '可入住')) setRoomId(initialRoomId);
-    onInitialRoomHandled?.();
-  }, [initialRoomId, onInitialRoomHandled, rooms]);
-
   const chooseBooking = (nextId: string) => {
     setBookingId(nextId); setCompleted(null); setError(''); setOperationId(null);
     if (!nextId) setManualAmountNts(null);
@@ -69,6 +74,14 @@ export function StayCheckInPage({ session, gateway, bookingGateway, roomGateway,
     if (!booking) return;
     setRoomId(booking.roomId); setGuestName(booking.guestName); setPhone(booking.phone ?? ''); setCheckInAt(taipeiLocalInputValue(booking.checkInAt)); setPlan(booking.plan === '12hrs' ? '12hrs' : '24hrs'); setDays(bookingDays(booking)); setDiscountNts(booking.discountNts); setManualAmountNts(booking.amountNts);
   };
+  // Room card or booking detail: link the booking (even a late arrival's), else preselect the vacant room.
+  useEffect(() => {
+    if ((!initialRoomId && !initialBookingId) || rooms === null || bookings === null) return;
+    const linked = initialBookingId ? bookings.find((item) => item.bookingId === initialBookingId) ?? null : heldBookingForRoom(bookings, initialRoomId ?? '', Date.now());
+    if (linked) chooseBooking(linked.bookingId);
+    else if (initialRoomId && rooms.some((room) => room.roomId === initialRoomId && room.status === '可入住')) setRoomId(initialRoomId);
+    onInitialRoomHandled?.();
+  }, [bookings, initialBookingId, initialRoomId, onInitialRoomHandled, rooms]);
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); if (!gateway || !rooms || loadError) return;
     const nextOperationId = operationId ?? crypto.randomUUID(); if (!operationId) setOperationId(nextOperationId);

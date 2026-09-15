@@ -463,7 +463,9 @@ async function _doConflictCheck() {
   showCIBadge(T_CI.checking, 'checking');
 
   try {
-    const url = `/api/check-availability?room=${encodeURIComponent(room)}&checkin=${encodeURIComponent(ci)}&checkout=${encodeURIComponent(co)}`;
+    // Exclude the linked booking so a guest's own reservation is never reported as a conflict.
+    const bookingId = document.getElementById('bookingSelect').value;
+    const url = `/api/check-availability?room=${encodeURIComponent(room)}&checkin=${encodeURIComponent(ci)}&checkout=${encodeURIComponent(co)}&exclude=${encodeURIComponent(bookingId)}&allow_past=1`;
     const res  = await fetch(url);
     const data = await res.json();
     if (data.available) {

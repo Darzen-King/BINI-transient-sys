@@ -19,6 +19,12 @@ import { requirePropertyPage } from '../admin/staff-admin.js';
 const callableOptions = { region: 'asia-east1', maxInstances: 10, timeoutSeconds: 60, memory: '512MiB' } as const;
 type FirestoreRecord = Record<string, unknown>;
 
+/** Imported v3 bookings store `+08:00` times and cloud quotes use UTC `Z`; compare the instant, not the text. */
+export function sameInstant(left: string, right: string): boolean {
+  const leftMillis = Date.parse(left);
+  return Number.isFinite(leftMillis) && leftMillis === Date.parse(right);
+}
+
 function requiredText(data: FirestoreRecord, field: string, label: string): string {
   const value = data[field];
   if (typeof value !== 'string' || value.trim() === '') throw new HttpsError('data-loss', `${label} 缺少有效 ${field}。`);
@@ -127,7 +133,7 @@ export const stayCheckIn = onCall(callableOptions, async (request): Promise<Stay
       const label = `bookings/${input.bookingId}`;
       if (requiredText(sourceBooking, 'propertyId', label) !== input.propertyId || requiredText(sourceBooking, 'bookingId', label) !== input.bookingId) throw new HttpsError('data-loss', `${label} 的識別碼不一致。`);
       if (requiredText(sourceBooking, 'status', label) !== '已預約') throw new HttpsError('failed-precondition', '來源預約已處理，無法辦理入住。');
-      if (requiredText(sourceBooking, 'roomId', label) !== input.roomId || requiredText(sourceBooking, 'guestName', label) !== input.guestName || requiredText(sourceBooking, 'checkInAt', label) !== quote.checkInAt || requiredText(sourceBooking, 'checkOutAt', label) !== quote.checkOutAt || requiredText(sourceBooking, 'plan', label) !== input.plan) {
+      if (requiredText(sourceBooking, 'roomId', label) !== input.roomId || requiredText(sourceBooking, 'guestName', label) !== input.guestName || !sameInstant(requiredText(sourceBooking, 'checkInAt', label), quote.checkInAt) || !sameInstant(requiredText(sourceBooking, 'checkOutAt', label), quote.checkOutAt) || requiredText(sourceBooking, 'plan', label) !== input.plan) {
         throw new HttpsError('failed-precondition', '來源預約資料已變更，請重新載入後再辦理入住。');
       }
     }

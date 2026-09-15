@@ -67,12 +67,27 @@ async def checkin_form(
     # Also exclude bookings whose check-in was more than 30 minutes ago and not yet checked in
     # (those are auto-no-showed by the polling API, just hide them here too)
     _cutoff = (_dt.now() - _td(minutes=35)).strftime("%Y-%m-%d %H:%M")
+    # A late guest still holds the booking until its check-out, so a booking stays selectable while
+    # check-out is in the future. Dropping it made the form submit without booking_id, and the
+    # server then reported the guest's own booking as a conflict (error.conflict).
     bookings = [
         b for b in bsvc.get_all_bookings(db)
         if b.status not in _CS                    # exclude cancelled/checkedin
-        and (b.checkin or "") >= _cutoff           # exclude very overdue bookings
+        and ((b.checkin or "") >= _cutoff or (b.checkout or "") > _now_s)
     ]
     prefill = bsvc.get_booking(db, booking_id) if booking_id else None
+    # Room-card check-in: link the booking this room is holding now (arriving within the hour or
+    # already due), otherwise the check-in collides with that same booking.
+    if not prefill and room:
+        _soon = (_dt.now() + _td(minutes=60)).strftime("%Y-%m-%d %H:%M")
+        _held = sorted(
+            (b for b in bookings if b.room == room and (b.checkin or "") <= _soon and (b.checkout or "") > _now_s),
+            key=lambda b: b.checkin or "",
+        )
+        prefill = _held[0] if _held else None
+    # Never let the form lose the booking it was opened for.
+    if prefill and prefill.status not in _CS and all(b.id != prefill.id for b in bookings):
+        bookings.append(prefill)
     msg     = request.query_params.get("msg", "")
     error   = request.query_params.get("error", "")
 

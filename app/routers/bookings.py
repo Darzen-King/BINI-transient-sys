@@ -81,6 +81,7 @@ async def check_availability(
     checkin:  str = Query(...),
     checkout: str = Query(...),
     exclude:  str = Query(default=""),
+    allow_past: str = Query(default=""),
     db: Session = Depends(get_db),
 ):
     """
@@ -92,7 +93,8 @@ async def check_availability(
     co = checkout.replace("T", " ")[:16]
 
     # 1. Date validation
-    date_err = validate_booking_dates(ci, co)
+    # Check-in accepts a past arrival (a late guest), exactly like POST /checkin does.
+    date_err = validate_booking_dates(ci, co, allow_past=(allow_past == "1"))
     if date_err:
         return JSONResponse({"available": False, "reason": date_err, "detail": None})
 

@@ -448,10 +448,12 @@ const previewBookings: BookingListItem[] = [
   { bookingId: 'RSV-preview-205', roomId: '205', guestName: 'Michael', phone: null, checkInAt: '2026-09-14T13:00:00+08:00', checkOutAt: '2026-09-15T13:00:00+08:00', plan: '12hrs', amountNts: 800, discountNts: 0, rateType: '非假日', status: '已預約' },
 ];
 
-function BookingsView({ canCreate, canCancel, onOpenBookingCreate, propertyId, gateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, roomGateway, holidayGateway, session }: {
+function BookingsView({ canCreate, canCancel, onOpenBookingCreate, onOpenCheckIn, propertyId, gateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, roomGateway, holidayGateway, session }: {
   canCreate: boolean;
   canCancel: boolean;
   onOpenBookingCreate: () => void;
+  /** Opens check-in with this booking linked; undefined without check-in permission. */
+  onOpenCheckIn?: ((bookingId: string) => void) | undefined;
   propertyId: string;
   gateway: BookingListGateway | undefined;
   bookingCancelGateway: BookingCancelGateway | undefined;
@@ -559,6 +561,7 @@ function BookingsView({ canCreate, canCancel, onOpenBookingCreate, propertyId, g
           {!bookingCancelGateway ? <Notice tone="warning" title={text('預覽模式', 'Preview mode')}>{text('預覽不會寫入預約資料。', 'Preview mode does not write booking data.')}</Notice> : null}
           {confirmCancel && !cancelledAt ? <Notice tone="warning" title={text('確認取消預約？', 'Confirm cancellation?')}>{text('取消後會立即釋放此時段，且會寫入稽核紀錄。', 'This immediately releases the time slot and writes an audit record.')}</Notice> : null}
           <div className="booking-detail-actions">
+            {onOpenCheckIn && !cancelledAt ? <Button onClick={() => { const next = selectedBooking.bookingId; closeDetails(); onOpenCheckIn(next); }}>{text('辦理入住', 'Check in')}</Button> : null}
             {canCancel && bookingUpdateGateway && !cancelledAt ? <Button onClick={() => { const next = selectedBooking; closeDetails(); setEditingBooking(next); }} variant="secondary">{text('修改預約', 'Edit booking')}</Button> : null}
             {canCancel && bookingCancelGateway && !cancelledAt && !confirmCancel ? <Button onClick={() => setConfirmCancel(true)} variant="danger">{text('取消預約', 'Cancel booking')}</Button> : null}
             {canCancel && bookingCancelGateway && !cancelledAt && confirmCancel ? <Button loading={cancelBusy} onClick={() => void cancelBooking()} variant="danger">{text('確認取消', 'Confirm cancellation')}</Button> : null}
@@ -638,12 +641,14 @@ function FoundationPage({ pageId, isAdmin, allowedPages, onOpenInitialImport, on
   );
 }
 
-function ActiveView({ view, onAction, targetRoomId, onOpenPayment, onOpenRoomPage, onTargetRoomHandled, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, bookingCreateGateway, bookingMultiCreateGateway, bookingPreviewGateway, bookingRoomGateway, roomOverviewGateway, roomTimelineGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, costGateway, reportGateway, auditGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, holidayGateway, propertyGateway, pushGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
+function ActiveView({ view, onAction, targetRoomId, targetBookingId, onOpenPayment, onOpenRoomPage, onTargetRoomHandled, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, bookingCreateGateway, bookingMultiCreateGateway, bookingPreviewGateway, bookingRoomGateway, roomOverviewGateway, roomTimelineGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, onOpenBookingCheckIn, costGateway, reportGateway, auditGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, holidayGateway, propertyGateway, pushGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
   view: ViewId;
   onAction: (action: string) => void;
   targetRoomId: string | null;
+  targetBookingId: string | null;
   onOpenPayment: (roomId: string) => void;
   onOpenRoomPage: (pageId: 'checkin' | 'extend' | 'checkout', roomId?: string) => void;
+  onOpenBookingCheckIn: (bookingId: string) => void;
   onTargetRoomHandled: () => void;
   session: StaffSession;
   accountGateway: AccountAdminGateway | undefined;
@@ -678,9 +683,9 @@ function ActiveView({ view, onAction, targetRoomId, onOpenPayment, onOpenRoomPag
   onOpenPage: (pageId: CloudPageId | UtilityViewId) => void;
   onLogout: () => void;
 }) {
-  if (view === 'bookings') return <BookingsView bookingCancelGateway={bookingCancelGateway} bookingUpdateGateway={bookingUpdateGateway} bookingUpdatePreviewGateway={bookingUpdatePreviewGateway} canCancel={session.allowedPages.includes('bookings')} canCreate={session.allowedPages.includes('bookings_new')} gateway={bookingListGateway} holidayGateway={holidayCalendarGateway} onOpenBookingCreate={onOpenBookingCreate} propertyId={session.propertyId} roomGateway={bookingRoomGateway} session={session} />;
+  if (view === 'bookings') return <BookingsView bookingCancelGateway={bookingCancelGateway} bookingUpdateGateway={bookingUpdateGateway} bookingUpdatePreviewGateway={bookingUpdatePreviewGateway} canCancel={session.allowedPages.includes('bookings')} canCreate={session.allowedPages.includes('bookings_new')} gateway={bookingListGateway} onOpenCheckIn={session.allowedPages.includes('checkin') ? onOpenBookingCheckIn : undefined} holidayGateway={holidayCalendarGateway} onOpenBookingCreate={onOpenBookingCreate} propertyId={session.propertyId} roomGateway={bookingRoomGateway} session={session} />;
   if (view === 'bookings_new') return <BookingCreatePage gateway={bookingCreateGateway} holidayGateway={holidayCalendarGateway} multiGateway={bookingMultiCreateGateway} onViewBookings={() => onOpenPage('bookings')} previewGateway={bookingPreviewGateway} roomGateway={bookingRoomGateway} session={session} />;
-  if (view === 'checkin') return <StayCheckInPage bookingGateway={bookingListGateway} gateway={stayCheckInGateway} holidayGateway={holidayCalendarGateway} initialRoomId={targetRoomId} onInitialRoomHandled={onTargetRoomHandled} onBack={() => onOpenPage('rooms')} roomGateway={bookingRoomGateway} session={session} />;
+  if (view === 'checkin') return <StayCheckInPage bookingGateway={bookingListGateway} gateway={stayCheckInGateway} holidayGateway={holidayCalendarGateway} initialBookingId={targetBookingId} initialRoomId={targetRoomId} onInitialRoomHandled={onTargetRoomHandled} onBack={() => onOpenPage('rooms')} roomGateway={bookingRoomGateway} session={session} />;
   if (view === 'extend') return <StayExtendPage gateway={stayExtendGateway} holidayGateway={holidayCalendarGateway} initialRoomId={targetRoomId} onInitialRoomHandled={onTargetRoomHandled} onBack={() => onOpenPage('rooms')} session={session} staysGateway={activeStaysGateway} />;
   if (view === 'checkout') return <StayCheckoutPage gateway={stayCheckoutGateway} holidayGateway={holidayCalendarGateway} initialRoomId={targetRoomId} onInitialRoomHandled={onTargetRoomHandled} onBack={() => onOpenPage('rooms')} paymentListGateway={paymentListGateway} session={session} staysGateway={activeStaysGateway} />;
   if (view === 'housekeeping') return <HousekeepingPage gateway={housekeepingGateway} session={session} />;
@@ -795,6 +800,7 @@ export function App({
   const [sheetAction, setSheetAction] = useState<string | null>(null);
   // Room chosen on a room card, handed to the page it opens so staff never re-select it.
   const [targetRoomId, setTargetRoomId] = useState<string | null>(null);
+  const [targetBookingId, setTargetBookingId] = useState<string | null>(null);
   const visibleMobileNavigation = mobileNavigation.filter((item) => !item.requiredPage || session.allowedPages.includes(item.requiredPage));
   const visibleDesktopPages = pagesAllowedForNavigation(session.allowedPages).filter(
     (page) => page.id !== 'users' || session.role === 'admin',
@@ -852,9 +858,11 @@ export function App({
           view={view}
           onAction={setSheetAction}
           targetRoomId={targetRoomId}
+          targetBookingId={targetBookingId}
+          onOpenBookingCheckIn={(bookingId) => { setTargetRoomId(null); setTargetBookingId(bookingId); setView('checkin'); }}
           onOpenPayment={(roomId) => { setTargetRoomId(roomId || null); if (roomId) setView('payments'); }}
           onOpenRoomPage={(pageId, roomId) => { setTargetRoomId(roomId ?? null); setView(pageId); }}
-          onTargetRoomHandled={() => setTargetRoomId(null)}
+          onTargetRoomHandled={() => { setTargetRoomId(null); setTargetBookingId(null); }}
           session={session}
           accountGateway={accountGateway}
           dataImportGateway={dataImportGateway}

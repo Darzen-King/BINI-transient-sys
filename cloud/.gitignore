@@ -1,0 +1,3 @@
+
+# Desktop (v3) backup exports contain guest data; never commit them.
+bini_blooms_backup*.json

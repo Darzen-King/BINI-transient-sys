@@ -34,6 +34,16 @@ describe('v3-compatible reports', () => {
     expect(report.costByCategoryNts).toEqual({ utilities: 500 });
   });
 
+  it('accepts cloud check-out and transfer logs that omit a flag, treating it as false like v3', () => {
+    const withCloudLogs = { ...source, stayLogs: [
+      ...source.stayLogs,
+      { id: 'STL-CHECKOUT', data: { roomId: '201', checkInAt: '2026-09-11T14:00:00+08:00', plan: '24hrs', totalChargedNts: 2_000, freeCancel: false } },
+      { id: 'STL-XFR', data: { roomId: '202', checkInAt: '2026-09-11T16:00:00+08:00', plan: '24hrs', totalChargedNts: 0, transferred: true } },
+    ] };
+    const report = buildReportProjection(withCloudLogs, { dateFrom: '2026-09-10', dateTo: '2026-09-11', includeCosts: false });
+    expect(report.staylogRevenueNts).toBe(3_300);
+  });
+
   it('does not expose cost or P&L values when costs are excluded', () => {
     const report = buildReportProjection(source, { dateFrom: '2026-09-10', dateTo: '2026-09-11', includeCosts: false });
     expect(report.totalCostNts).toBeNull();

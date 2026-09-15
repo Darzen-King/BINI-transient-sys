@@ -36,7 +36,8 @@ const amount = z.number().int().safe().min(0);
 const roomSchema = z.object({ roomId: text, status: text, note: nullableText }).passthrough();
 const bookingSchema = z.object({ bookingId: text, roomId: text, checkInAt: dateTime, plan: text, amountNts: amount, status: text, rateType: nullableText }).passthrough();
 const staySchema = z.object({ roomId: text, totalDueNts: amount.optional() }).passthrough();
-const stayLogSchema = z.object({ roomId: text, plan: nullableText, checkInAt: nullableDateTime, totalChargedNts: amount, freeCancel: z.boolean(), transferred: z.boolean() }).passthrough();
+// Missing flags mean "no", as in v3's stay_logs defaults; older cloud check-outs omitted `transferred`.
+const stayLogSchema = z.object({ roomId: text, plan: nullableText, checkInAt: nullableDateTime, totalChargedNts: amount, freeCancel: z.boolean().default(false), transferred: z.boolean().default(false) }).passthrough();
 const monthlySchema = z.object({ roomId: text, rentNts: amount, createdAt: nullableDateTime }).passthrough();
 const costSchema = z.object({ costDate: day, category: text, amountNts: amount, status: z.enum(['active', 'archived']).optional() }).passthrough();
 

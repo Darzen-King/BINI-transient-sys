@@ -16,15 +16,6 @@ function taipeiLocalInputValue(value: string): string {
   return `${part.year}-${part.month}-${part.day}T${part.hour}:${part.minute}`;
 }
 function bookingDays(booking: BookingListItem): number { return Math.max(1, Math.round((Date.parse(booking.checkOutAt) - Date.parse(booking.checkInAt)) / ((booking.plan === '12hrs' ? 12 : 24) * 3_600_000))); }
-/**
- * The booking a room is holding right now: due within the next hour or already past its arrival but not its check-out.
- * A room-card check-in links it, so a late guest never collides with their own reservation.
- */
-export function heldBookingForRoom(bookings: readonly BookingListItem[], roomId: string, nowMillis: number): BookingListItem | null {
-  return bookings
-    .filter((booking) => booking.roomId === roomId && Date.parse(booking.checkInAt) <= nowMillis + 3_600_000 && Date.parse(booking.checkOutAt) > nowMillis)
-    .sort((left, right) => Date.parse(left.checkInAt) - Date.parse(right.checkInAt))[0] ?? null;
-}
 function errorMessage(error: unknown, text: (zhTw: string, en: string) => string): string { return error instanceof Error && error.message ? error.message : text('入住未完成，請重新確認房間狀態與資料。', 'Check-in did not complete. Confirm the room status and data.'); }
 
 export function StayCheckInPage({ session, gateway, bookingGateway, roomGateway, holidayGateway, initialRoomId, initialBookingId, onInitialRoomHandled, onBack }: {
@@ -74,10 +65,12 @@ export function StayCheckInPage({ session, gateway, bookingGateway, roomGateway,
     if (!booking) return;
     setRoomId(booking.roomId); setGuestName(booking.guestName); setPhone(booking.phone ?? ''); setCheckInAt(taipeiLocalInputValue(booking.checkInAt)); setPlan(booking.plan === '12hrs' ? '12hrs' : '24hrs'); setDays(bookingDays(booking)); setDiscountNts(booking.discountNts); setManualAmountNts(booking.amountNts);
   };
-  // Room card or booking detail: link the booking (even a late arrival's), else preselect the vacant room.
+  // 「辦理入住」 on a booking is that booking's own visit (late or not), so it arrives linked. A check-in started from
+  // a room card or this page is a separate visit: only the room is preselected and the server still reports a
+  // booking that has not arrived as a conflict.
   useEffect(() => {
-    if ((!initialRoomId && !initialBookingId) || rooms === null || bookings === null) return;
-    const linked = initialBookingId ? bookings.find((item) => item.bookingId === initialBookingId) ?? null : heldBookingForRoom(bookings, initialRoomId ?? '', Date.now());
+    if ((!initialRoomId && !initialBookingId) || rooms === null || (initialBookingId && bookings === null)) return;
+    const linked = initialBookingId ? bookings?.find((item) => item.bookingId === initialBookingId) ?? null : null;
     if (linked) chooseBooking(linked.bookingId);
     else if (initialRoomId && rooms.some((room) => room.roomId === initialRoomId && room.status === '可入住')) setRoomId(initialRoomId);
     onInitialRoomHandled?.();

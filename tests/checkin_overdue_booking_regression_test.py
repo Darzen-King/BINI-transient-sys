@@ -58,9 +58,16 @@ def main() -> None:
         html = page.body.decode()
         assert 'value="RSV-LATE"' in html, "overdue booking missing from the related-booking list"
 
-        # 2) A room-card check-in for that room links the booking automatically.
+        # 2) A check-in started from 入住登記 / the room card is a different visit: no booking is linked,
+        #    and the late booking is still reported as a conflict.
         page = asyncio.run(checkin_router.checkin_form(_request("room=T-205"), booking_id="", room="T-205", db=db))
-        assert re.search(r"quickFill\(\s*'RSV-LATE'", page.body.decode()), "room check-in did not prefill the room's current booking"
+        assert not re.search(r"quickFill\(\s*'RSV-LATE'", page.body.decode()), "a walk-in must not be linked to the booking"
+        walk_in = asyncio.run(checkin_router.checkin_submit(
+            _request(), room="T-205", guest="現場旅客", phone="", plan="24hrs", base_rent=1000, discount=0, days=1,
+            amount_auto="0", booking_id="", checkin_time=_ts(0).replace(" ", "T"), checkout_time="",
+            deposit_amount=0, deposit_type="cash", db=db,
+        ))
+        assert walk_in.headers["location"].endswith("error=error.conflict"), walk_in.headers["location"]
 
         # 2b) The live availability badge excludes the linked booking and accepts the late arrival.
         booking = db.get(Booking, "RSV-LATE")

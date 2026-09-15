@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BookingListItem } from '@bini/cloud-shared';
 
 import { App } from '../src/App.js';
-import { heldBookingForRoom, StayCheckInPage } from '../src/stays/StayCheckInPage.js';
+import { StayCheckInPage } from '../src/stays/StayCheckInPage.js';
 import type { StaffSession } from '../src/auth/session.js';
 import type { BookingListGateway } from '../src/bookings/booking-list.js';
 import type { BookingRoomGateway } from '../src/rooms/booking-room-options.js';
@@ -46,32 +46,30 @@ describe('stay check-in UI', () => {
     expect(checkIn.mock.calls[0]?.[0]).not.toHaveProperty('manualAmountNts');
   });
 
-  it("links a late guest's own booking when checking in from the room card, so it cannot conflict with itself", async () => {
-    // Arrival was 13:00; the guest turns up 90 minutes late.
+  it('keeps a room-card check-in as a walk-in, so a booking that has not arrived is still reported as a conflict', async () => {
     vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-09-14T14:30:00+08:00'));
-    const checkIn = vi.fn().mockResolvedValue({ status: 'checked_in', stayId: 'STY-1', bookingId: 'RSV-live-203', paymentId: null, checkInAt: '2026-09-14T05:00:00.000Z', checkOutAt: '2026-09-15T05:00:00.000Z', totalDueNts: 1_200 });
+    const checkIn = vi.fn().mockRejectedValue(new Error('房間在此時段已與 RSV-live-203 衝突。'));
     render(<StayCheckInPage bookingGateway={bookingGateway} gateway={{ checkIn }} initialRoomId="203" onBack={vi.fn()} roomGateway={roomGateway} session={session} />);
-    await waitFor(() => expect(screen.getByLabelText('關聯預約（選填）')).toHaveValue('RSV-live-203'));
-    expect(screen.getByLabelText('住客姓名')).toHaveValue('Live Guest');
+    await waitFor(() => expect(screen.getByLabelText('房間')).toHaveValue('203'));
+    expect(screen.getByLabelText('關聯預約（選填）')).toHaveValue('');
+    fireEvent.change(screen.getByLabelText('住客姓名'), { target: { value: 'Walk In' } });
+    fireEvent.change(screen.getByLabelText('入住時間'), { target: { value: '2026-09-14T14:30' } });
     fireEvent.click(screen.getByRole('button', { name: '確認辦理入住' }));
-    await waitFor(() => expect(checkIn).toHaveBeenCalledWith(expect.objectContaining({ bookingId: 'RSV-live-203', roomId: '203', checkInAt: '2026-09-14T13:00:00+08:00' })));
+    await waitFor(() => expect(checkIn).toHaveBeenCalledWith(expect.objectContaining({ bookingId: null, roomId: '203' })));
+    expect(await screen.findByText('房間在此時段已與 RSV-live-203 衝突。')).toBeInTheDocument();
   });
 
-  it('only treats a booking as held by the room between an hour before arrival and its check-out', () => {
-    const at = (iso: string) => Date.parse(iso);
-    expect(heldBookingForRoom(bookings, '203', at('2026-09-14T12:05:00+08:00'))?.bookingId).toBe('RSV-live-203');
-    expect(heldBookingForRoom(bookings, '203', at('2026-09-14T11:30:00+08:00'))).toBeNull();
-    expect(heldBookingForRoom(bookings, '203', at('2026-09-15T13:00:00+08:00'))).toBeNull();
-    expect(heldBookingForRoom(bookings, '204', at('2026-09-14T14:00:00+08:00'))).toBeNull();
-  });
-
-  it('opens check-in from the booking detail with that booking already linked', async () => {
+  it('checks in a late guest from the booking detail as that same booking, never as a conflict', async () => {
+    // Arrival was 13:00; the guest turns up two hours late.
     vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-09-14T15:00:00+08:00'));
-    render(<App bookingListGateway={bookingGateway} bookingRoomGateway={roomGateway} session={session} stayCheckInGateway={{ checkIn: vi.fn() } satisfies StayCheckInGateway} />);
+    const checkIn = vi.fn().mockResolvedValue({ status: 'checked_in', stayId: 'STY-1', bookingId: 'RSV-live-203', paymentId: null, checkInAt: '2026-09-14T05:00:00.000Z', checkOutAt: '2026-09-15T05:00:00.000Z', totalDueNts: 1_200 });
+    render(<App bookingListGateway={bookingGateway} bookingRoomGateway={roomGateway} session={session} stayCheckInGateway={{ checkIn } satisfies StayCheckInGateway} />);
     fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
     fireEvent.click(await screen.findByText('203 · Live Guest'));
     fireEvent.click(screen.getByRole('button', { name: '辦理入住' }));
     await waitFor(() => expect(screen.getByLabelText('關聯預約（選填）')).toHaveValue('RSV-live-203'));
     expect(screen.getByLabelText('房間')).toHaveValue('203');
+    fireEvent.click(screen.getByRole('button', { name: '確認辦理入住' }));
+    await waitFor(() => expect(checkIn).toHaveBeenCalledWith(expect.objectContaining({ bookingId: 'RSV-live-203', roomId: '203', checkInAt: '2026-09-14T13:00:00+08:00' })));
   });
 });

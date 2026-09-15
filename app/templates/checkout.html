@@ -228,7 +228,7 @@
             {{ trans.get("checkout.extra_fee","Extra Charges") }} (NT$)
           </label>
           <input type="number" name="extra_fee" class="form-control form-control-sm"
-                 value="0" min="0" step="50">
+                 value="0" min="0" step="1">
         </div>
         <!-- Payment collection at checkout -->
         <div class="rounded-2 p-3 mb-3" style="background:#fdf4f9;border:1px solid #f9a8d4">
@@ -238,7 +238,7 @@
           <div class="row g-2">
             <div class="col-7">
               <input type="number" name="payment_amount" class="form-control form-control-sm"
-                     min="0" step="100"
+                     min="0" step="1"
                      placeholder="{{ trans.get('payment.collect_amount','收款金額 NT$') }}">
             </div>
             <div class="col-5">

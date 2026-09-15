@@ -126,7 +126,7 @@
           <div class="col-md-4 mb-3">
             <label class="form-label fw-semibold">{{ trans.get("booking.discount","折扣金額 (NT$)") }}</label>
             <input type="number" name="discount" id="discountInput" class="form-control"
-                   value="{{ prefill.discount if prefill else 0 }}" min="0" step="100"
+                   value="{{ prefill.discount if prefill else 0 }}" min="0" step="1"
                    oninput="applyDiscount()">
           </div>
           <div class="col-md-4 mb-3">
@@ -134,7 +134,7 @@
             <input type="number" name="amount" id="amountInput"
                    class="form-control fw-semibold" style="color:#db2877"
                    value="{{ prefill.amount if prefill else 1000 }}"
-                   min="0" step="100" oninput="updateTotal()">
+                   min="0" step="1" oninput="updateTotal()">
             <input type="hidden" name="amount_auto" id="amountAuto" value="1">
             <div class="form-text" style="font-size:.72rem">{{ trans.get("booking.amount_auto_hint","自動計算，可手動調整") }}</div>
           </div>
@@ -148,7 +148,7 @@
           <div class="row g-2">
             <div class="col-7">
               <input type="number" name="deposit_amount" id="depositAmount"
-                     class="form-control form-control-sm" min="0" step="100"
+                     class="form-control form-control-sm" min="0" step="1"
                      placeholder="{{ trans.get('payment.deposit_amount','押金金額 NT$') }}">
             </div>
             <div class="col-5">
@@ -696,7 +696,7 @@ function addSlot() {
       <div class="col-md-4">
         <label class="form-label fw-semibold">${SLOT_T.amount}</label>
         <input type="number" id="slot_amt_${n}" class="form-control fw-semibold"
-               value="1000" min="0" step="100" style="color:#db2877"
+               value="1000" min="0" step="1" style="color:#db2877"
                oninput="updateTotal()">
       </div>
     </div>

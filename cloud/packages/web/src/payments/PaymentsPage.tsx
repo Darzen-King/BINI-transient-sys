@@ -605,17 +605,19 @@ export function PaymentsPage({
                 value={note}
               />
             </Field>
-            <Field label={text("帳務類型", "Record type")}>
-              <label>
+            {/* A checkbox is not a Field control: Field would wrap the whole label in an input box. */}
+            <div className="bds-field">
+              <span className="bds-field__label">{text("帳務類型", "Record type")}</span>
+              <label className="check-row">
                 <input
                   checked={deposit}
                   disabled={!ready || !target}
                   onChange={(event) => setDeposit(event.target.checked)}
                   type="checkbox"
-                />{" "}
-                {text("記為訂金", "Record as deposit")}
+                />
+                <span>{text("記為訂金", "Record as deposit")}</span>
               </label>
-            </Field>
+            </div>
           </div>
           {target?.kind === "stay" ? (
             <div className="stay-extension-preview">

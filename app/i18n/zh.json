@@ -694,5 +694,6 @@
   "payment.group_stays": "在住房客",
   "payment.group_bookings": "未入住預約（收押金）",
   "payment.no_active_stays": "目前沒有在住房客",
-  "payment.no_upcoming_bookings": "目前沒有未入住的預約"
+  "payment.no_upcoming_bookings": "目前沒有未入住的預約",
+  "checkin.booked_window": "預約時間：__CI__ ~ __CO__（已帶入實際入住時間，退房時間依此重算，可自行修改）"
 }

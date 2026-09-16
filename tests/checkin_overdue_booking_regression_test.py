@@ -78,6 +78,13 @@ def main() -> None:
                                                              exclude="", allow_past="", db=db))
         assert json.loads(own.body)["available"] is False, "booking form behaviour must stay unchanged"
 
+        # 2c) A booking check-in bills from the real arrival: the form fills in the current time and shows
+        #     the booked window only for reference (early or late arrival alike).
+        page = asyncio.run(checkin_router.checkin_form(_request("booking_id=RSV-LATE"), booking_id="RSV-LATE", room="", db=db))
+        html = page.body.decode()
+        assert 'id="bookedWindowHint"' in html, "booked-window reference line is missing"
+        assert "_ciSetCheckinNow();" in html and "autoCheckoutDaysCheckin();" in html, "check-in time is not reset to the real arrival"
+
         # 3) Submitting with the booking succeeds and marks it checked in.
         response = asyncio.run(checkin_router.checkin_submit(
             _request(), room="T-205", guest="晚到旅客", phone="", plan="24hrs", base_rent=1000, discount=0, days=1,

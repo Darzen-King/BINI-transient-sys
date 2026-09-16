@@ -694,5 +694,6 @@
   "payment.group_stays": "Checked-in guests",
   "payment.group_bookings": "Upcoming bookings (deposit)",
   "payment.no_active_stays": "No checked-in guests",
-  "payment.no_upcoming_bookings": "No upcoming bookings"
+  "payment.no_upcoming_bookings": "No upcoming bookings",
+  "checkin.booked_window": "Booked: __CI__ – __CO__ (the real arrival time is filled in and the check-out recalculated; you can change it)"
 }

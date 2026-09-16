@@ -21,12 +21,14 @@ afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe('stay check-in UI', () => {
   it('routes the room overview action to the server-authoritative booking check-in', async () => {
+    // The stay starts when the guest actually arrives, not at the booked time.
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-09-14T14:30:00+08:00'));
     const checkIn = vi.fn().mockResolvedValue({ status: 'checked_in', stayId: 'STY-123', bookingId: 'RSV-live-203', paymentId: 'PAY-CHK-123', checkInAt: '2026-09-14T05:00:00.000Z', checkOutAt: '2026-09-15T05:00:00.000Z', totalDueNts: 1_200 });
     render(<App bookingListGateway={bookingGateway} bookingRoomGateway={roomGateway} session={session} stayCheckInGateway={{ checkIn } satisfies StayCheckInGateway} />);
     fireEvent.click(screen.getByLabelText('辦理入住'));
     fireEvent.change(await screen.findByLabelText('關聯預約（選填）'), { target: { value: 'RSV-live-203' } });
     fireEvent.click(screen.getByRole('button', { name: '確認辦理入住' }));
-    await waitFor(() => expect(checkIn).toHaveBeenCalledWith(expect.objectContaining({ propertyId: 'property-main', bookingId: 'RSV-live-203', roomId: '203', guestName: 'Live Guest', checkInAt: '2026-09-14T13:00:00+08:00', plan: '24hrs', days: 1, pricingMode: 'manual', manualAmountNts: 1_200, operationId: expect.any(String) })));
+    await waitFor(() => expect(checkIn).toHaveBeenCalledWith(expect.objectContaining({ propertyId: 'property-main', bookingId: 'RSV-live-203', roomId: '203', guestName: 'Live Guest', checkInAt: '2026-09-14T14:30:00+08:00', plan: '24hrs', days: 1, pricingMode: 'manual', manualAmountNts: 1_200, operationId: expect.any(String) })));
     expect(await screen.findByText('已完成入住')).toBeInTheDocument();
   });
 
@@ -70,6 +72,23 @@ describe('stay check-in UI', () => {
     await waitFor(() => expect(screen.getByLabelText('關聯預約（選填）')).toHaveValue('RSV-live-203'));
     expect(screen.getByLabelText('房間')).toHaveValue('203');
     fireEvent.click(screen.getByRole('button', { name: '確認辦理入住' }));
-    await waitFor(() => expect(checkIn).toHaveBeenCalledWith(expect.objectContaining({ bookingId: 'RSV-live-203', roomId: '203', checkInAt: '2026-09-14T13:00:00+08:00' })));
+    await waitFor(() => expect(checkIn).toHaveBeenCalledWith(expect.objectContaining({ bookingId: 'RSV-live-203', roomId: '203', checkInAt: '2026-09-14T15:00:00+08:00' })));
+  });
+
+  it('checks in an early guest at the real arrival time, recalculating the check-out from it', async () => {
+    // Booked for 09-14 13:00; the guest turns up two days early.
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-09-12T10:00:00+08:00'));
+    const checkIn = vi.fn().mockResolvedValue({ status: 'checked_in', stayId: 'STY-2', bookingId: 'RSV-live-203', paymentId: null, checkInAt: '2026-09-12T02:00:00.000Z', checkOutAt: '2026-09-13T02:00:00.000Z', totalDueNts: 1_200 });
+    render(<StayCheckInPage bookingGateway={bookingGateway} gateway={{ checkIn }} initialBookingId="RSV-live-203" onBack={vi.fn()} roomGateway={roomGateway} session={session} />);
+    await waitFor(() => expect(screen.getByLabelText('關聯預約（選填）')).toHaveValue('RSV-live-203'));
+    expect(screen.getByLabelText('入住時間')).toHaveValue('2026-09-12T10:00');
+    expect(screen.getByLabelText('退房時間')).toHaveValue('2026-09-13 10:00');
+    expect(screen.getByText('預約時間：2026-09-14 13:00 ~ 2026-09-15 13:00')).toBeInTheDocument();
+    // Staff can still put it back to the booked time.
+    fireEvent.change(screen.getByLabelText('入住時間'), { target: { value: '2026-09-14T13:00' } });
+    expect(screen.getByLabelText('退房時間')).toHaveValue('2026-09-15 13:00');
+    fireEvent.change(screen.getByLabelText('入住時間'), { target: { value: '2026-09-12T10:00' } });
+    fireEvent.click(screen.getByRole('button', { name: '確認辦理入住' }));
+    await waitFor(() => expect(checkIn).toHaveBeenCalledWith(expect.objectContaining({ bookingId: 'RSV-live-203', roomId: '203', checkInAt: '2026-09-12T10:00:00+08:00', days: 1 })));
   });
 });

@@ -63,7 +63,7 @@ export function StayCheckInPage({ session, gateway, bookingGateway, roomGateway,
     if (!nextId) setManualAmountNts(null);
     const booking = bookings?.find((item) => item.bookingId === nextId);
     if (!booking) return;
-    setRoomId(booking.roomId); setGuestName(booking.guestName); setPhone(booking.phone ?? ''); setCheckInAt(taipeiLocalInputValue(booking.checkInAt)); setPlan(booking.plan === '12hrs' ? '12hrs' : '24hrs'); setDays(bookingDays(booking)); setDiscountNts(booking.discountNts); setManualAmountNts(booking.amountNts);
+    setRoomId(booking.roomId); setGuestName(booking.guestName); setPhone(booking.phone ?? ''); setCheckInAt(taipeiLocalInputValue(new Date().toISOString())); setPlan(booking.plan === '12hrs' ? '12hrs' : '24hrs'); setDays(bookingDays(booking)); setDiscountNts(booking.discountNts); setManualAmountNts(booking.amountNts);
   };
   // 「辦理入住」 on a booking is that booking's own visit (late or not), so it arrives linked. A check-in started from
   // a room card or this page is a separate visit: only the room is preselected and the server still reports a
@@ -90,13 +90,16 @@ export function StayCheckInPage({ session, gateway, bookingGateway, roomGateway,
     <p className="booking-create-intro">{text('可由有效預約帶入或建立 walk-in。送出時會同時檢查房態、在住房、預約與維修，並原子建立 stay、更新房態與來源預約。', 'Use an active booking or create a walk-in. The server checks room state, stays, bookings, and maintenance before atomically creating the stay and updating its sources.')}</p>
     {unavailable ? <Notice tone={loadError ? 'danger' : 'warning'} title={text('入住資料尚未就緒', 'Check-in data is not ready')}>{text('讀取失敗或仍在載入時，系統不提供送出，以免入住到錯誤房間。', 'Submission remains unavailable until the live room and booking data is ready.')}</Notice> : null}
     {completed ? <Notice tone="success" title={text('已完成入住', 'Check-in complete')}><p>{text(`房間 ${roomId}，退房 ${completed.checkOutAt}，應收 NT$ ${completed.totalDueNts.toLocaleString()}`, `Room ${roomId}, checkout ${completed.checkOutAt}, due NT$ ${completed.totalDueNts.toLocaleString()}`)}</p><Button onClick={onBack} variant="outline">{text('返回房間總覽', 'Back to room overview')}</Button></Notice> : null}
+    {selectedBooking ? <Notice tone="info" title={text(`預約時間：${taipeiLocalInputValue(selectedBooking.checkInAt).replace('T', ' ')} ~ ${taipeiLocalInputValue(selectedBooking.checkOutAt).replace('T', ' ')}`, `Booked: ${taipeiLocalInputValue(selectedBooking.checkInAt).replace('T', ' ')} – ${taipeiLocalInputValue(selectedBooking.checkOutAt).replace('T', ' ')}`)}>
+      {text('入住時間已帶入實際辦理時間，退房時間依此重算；如需改用預約時間可直接修改。金額仍為預約金額，可手動調整。', 'The check-in time is the real arrival and the check-out is recalculated from it; change it back to the booked time if needed. The amount stays as booked and can be adjusted.')}
+    </Notice> : null}
     <form className="booking-create-form" onSubmit={(event) => void submit(event)}>
       <div className="booking-create-grid">
         <Field label={text('關聯預約（選填）', 'Related booking (optional)')}><select disabled={unavailable} onChange={(event) => chooseBooking(event.target.value)} value={bookingId}><option value="">{text('Walk-in／不帶入預約', 'Walk-in / no booking')}</option>{(bookings ?? []).map((booking) => <option key={booking.bookingId} value={booking.bookingId}>{booking.roomId} · {booking.guestName} · {booking.bookingId}</option>)}</select></Field>
         <Field label={text('房間', 'Room')}><select disabled={unavailable || selectedBooking !== null} onChange={(event) => setRoomId(event.target.value)} required value={roomId}><option value="">{text('選擇可入住的房間', 'Select an available room')}</option>{(rooms ?? []).map((room) => <option disabled={room.status !== '可入住' && room.roomId !== selectedBooking?.roomId} key={room.roomId} value={room.roomId}>{room.roomId} · {room.status}</option>)}</select></Field>
         <Field label={text('住客姓名', 'Guest name')}><input disabled={unavailable || selectedBooking !== null} maxLength={300} onChange={(event) => setGuestName(event.target.value)} required value={guestName} /></Field>
         <Field label={text('電話', 'Phone')}><input disabled={unavailable || selectedBooking !== null} inputMode="tel" maxLength={100} onChange={(event) => setPhone(event.target.value)} value={phone} /></Field>
-        <Field label={text('入住時間', 'Check-in')}><DateTimeInput disabled={unavailable || selectedBooking !== null} onChange={(event) => { setCheckInAt(event.target.value); setManualAmountNts(null); }} required value={checkInAt} /></Field>
+        <Field label={text('入住時間', 'Check-in')}><DateTimeInput disabled={unavailable} onChange={(event) => { setCheckInAt(event.target.value); setManualAmountNts(null); }} required value={checkInAt} /></Field>
         <CheckoutPreviewField quote={quote} />
         <Field label={text('方案', 'Plan')}><select disabled={unavailable || selectedBooking !== null} onChange={(event) => { setPlan(event.target.value === '12hrs' ? '12hrs' : '24hrs'); setManualAmountNts(null); }} value={plan}><option value="12hrs">12hrs</option><option value="24hrs">24hrs</option></select></Field>
         <Field label={text('天數', 'Days')}><NumberStepper decrementLabel={text('減少 1 天', 'One day less')} disabled={unavailable || selectedBooking !== null} incrementLabel={text('增加 1 天', 'One day more')} max={366} min={1} onChange={(value) => { setDays(value); setManualAmountNts(null); }} value={days} /></Field>

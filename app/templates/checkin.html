@@ -111,6 +111,7 @@
                    min="{{ now_dt }}"
                    oninput="recalcCheckin()">
             <div class="form-text">{{ trans.get("checkin.checkin_time_default","預設為現在時間，可調整但不可設為過去時間") }}</div>
+            <div class="form-text d-none" id="bookedWindowHint" style="color:#0369a1"></div>
           </div>
           <div class="col-md-6 mb-3">
             <label class="form-label fw-semibold">{{ trans.get("room.checkout","Check-out Time") }}</label>
@@ -304,6 +305,29 @@ function onRoomChange() {
   checkConflict();
 }
 // Derive days from a booking window + apply its (already-agreed) price as-is.
+const T_CI_BOOKED_WINDOW = "{{ trans.get('checkin.booked_window','預約時間：__CI__ ~ __CO__（已帶入實際入住時間，退房時間依此重算，可自行修改）') }}";
+
+function _ciNowLocal() {
+  const d = new Date(); const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function _ciSetCheckinNow() {
+  const el = _ciEl('ciInput'); if (!el) return;
+  const now = _ciNowLocal();
+  el.value = now;
+  if (el._flatpickr) el._flatpickr.setDate(now, false);
+}
+
+function _ciShowBookedWindow(ciStr, coStr) {
+  const hint = _ciEl('bookedWindowHint'); if (!hint) return;
+  if (!ciStr) { hint.classList.add('d-none'); hint.textContent = ''; return; }
+  hint.textContent = T_CI_BOOKED_WINDOW
+    .replace('__CI__', (ciStr || '').replace('T', ' ').slice(0, 16))
+    .replace('__CO__', (coStr || '').replace('T', ' ').slice(0, 16));
+  hint.classList.remove('d-none');
+}
+
 function _ciApplyBookingWindow(ciStr, coStr, amount) {
   try {
     const ci = new Date((ciStr||'').replace(' ','T'));
@@ -313,6 +337,10 @@ function _ciApplyBookingWindow(ciStr, coStr, amount) {
       if (_ciEl('daysInput')) _ciEl('daysInput').value = d;
     }
   } catch(e) {}
+  // A guest may arrive early or late: bill from the real arrival, not the booked slot.
+  _ciSetCheckinNow();
+  autoCheckoutDaysCheckin();
+  _ciShowBookedWindow(ciStr, coStr);
   updateNightsHintCheckin();
   // Booking already carries the agreed price → use it as-is (manual mode)
   const auto = _ciEl('amountAuto'); if (auto) auto.value = '0';
@@ -325,7 +353,7 @@ function _ciApplyBookingWindow(ciStr, coStr, amount) {
 
 function prefillFromBooking(sel) {
   const o = sel.options[sel.selectedIndex];
-  if (!o.value) return;
+  if (!o.value) { _ciShowBookedWindow('', ''); return; }
   document.getElementById('roomSelect').value    = o.dataset.room   || '';
   document.getElementById('guestInput').value    = o.dataset.guest  || '';
   if (document.getElementById('phoneInput'))

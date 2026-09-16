@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from 'react';
+import { useRef, useState, type ChangeEvent } from 'react';
 
 import { Button } from './components.js';
 
@@ -100,3 +100,51 @@ export function PasswordInput({ id, className, name, value, onChange, required, 
   </div>;
 }
 
+
+/**
+ * Whole-NT$ amount field. A plain `<input type="number" value={0}>` puts the 0 straight back the moment the field is
+ * cleared — typing 1000 then reads "01000" and the leading zero cannot be removed (React skips the DOM update because
+ * "01000" == 1000). This keeps exactly what is typed until focus leaves, then shows the parsed number.
+ */
+export function MoneyInput({ id, className, name, value, onChange, min = 0, max, disabled, required, placeholder, 'aria-describedby': describedBy }: {
+  id?: string;
+  className?: string;
+  name?: string;
+  value: number;
+  onChange: (value: number) => void;
+  min?: number;
+  max?: number;
+  disabled?: boolean;
+  required?: boolean;
+  placeholder?: string;
+  'aria-describedby'?: string;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const emitted = useRef<number | null>(null);
+  // A value changed elsewhere (reset after a submit, a booking filling the form) replaces what was typed.
+  if (draft !== null && emitted.current !== value) { setDraft(null); emitted.current = null; }
+  return <input
+    aria-describedby={describedBy}
+    className={className}
+    disabled={disabled}
+    id={id}
+    inputMode="numeric"
+    max={max}
+    min={min}
+    name={name}
+    onBlur={() => setDraft(null)}
+    onChange={(event) => {
+      const raw = event.target.value;
+      const parsed = Math.trunc(Number(raw));
+      const next = raw.trim() === '' || !Number.isFinite(parsed) ? 0 : Math.max(min, parsed);
+      setDraft(raw);
+      emitted.current = next;
+      onChange(next);
+    }}
+    placeholder={placeholder}
+    required={required}
+    step="1"
+    type="number"
+    value={draft ?? String(value)}
+  />;
+}

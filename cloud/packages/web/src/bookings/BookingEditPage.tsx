@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { type BookingListItem, type BookingPreviewResult, type BookingRoomOption, type BookingUpdateResult } from '@bini/cloud-shared';
 
 import type { StaffSession } from '../auth/session.js';
-import { Button, DateTimeInput, Field, NumberStepper, Notice, SectionCard } from '../design-system/index.js';
+import { Button, DateTimeInput, Field, MoneyInput, Notice, NumberStepper, SectionCard } from '../design-system/index.js';
 import { useLocale } from '../i18n/locale.js';
 import type { BookingRoomGateway } from '../rooms/booking-room-options.js';
 import type { BookingUpdateGateway } from './booking-update.js';
@@ -183,7 +183,7 @@ export function BookingEditPage({
           <CheckoutPreviewField quote={quote} />
           <Field label={text('方案', 'Plan')}><select disabled={!gateway} name="plan" onChange={(event) => setPlan(event.target.value === '12hrs' ? '12hrs' : '24hrs')} value={plan}><option value="12hrs">12hrs</option><option value="24hrs">24hrs</option></select></Field>
           <Field label={text('天數', 'Days')}><NumberStepper decrementLabel={text('減少 1 天', 'One day less')} disabled={!gateway} incrementLabel={text('增加 1 天', 'One day more')} max={366} min={1} onChange={setDays} value={days} name="days" /></Field>
-          <Field label={text('折扣（NT$）', 'Discount (NT$)')}><input disabled={!gateway} min="0" name="discountNts" onChange={(event) => setDiscountNts(Number(event.target.value) || 0)} required type="number" value={discountNts} /></Field>
+          <Field label={text('折扣（NT$）', 'Discount (NT$)')}><MoneyInput disabled={!gateway} name="discountNts" onChange={setDiscountNts} required value={discountNts} /></Field>
           <AmountField disabled={!gateway} manualAmountNts={manualAmountNts} onChange={setManualAmountNts} quote={quote} />
           <RateTypeField disabled={!gateway} rate={rate} />
         </div>

@@ -11,7 +11,7 @@ import {
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 
 import type { StaffSession } from '../auth/session.js';
-import { Button, Field, Notice, NumberStepper, ResponsiveDialog, SectionCard } from '../design-system/index.js';
+import { Button, Field, MoneyInput, Notice, NumberStepper, ResponsiveDialog, SectionCard } from '../design-system/index.js';
 import { useLocale } from '../i18n/locale.js';
 import type { PaymentListGateway } from '../payments/payment-list.js';
 import type { ActiveStaysGateway } from './active-stays.js';
@@ -132,7 +132,7 @@ export function StayCheckoutPage({ session, gateway, staysGateway, paymentListGa
     <form className="booking-create-form" onSubmit={submit}>
       <div className="booking-create-grid">
         <Field label={text('選擇在住房', 'Select active stay')}><select disabled={!ready} onChange={(event) => { setStayId(event.target.value); setResult(null); setError(''); setOperationId(null); }} required value={stayId}><option value="">{text('選擇房間與旅客', 'Select room and guest')}</option>{(stays ?? []).map((item) => <option key={item.stayId} value={item.stayId}>{item.roomId} · {item.guestName}</option>)}</select></Field>
-        <Field label={text('額外費用（NT$）', 'Extra fee (NT$)')}><input disabled={!ready || !stay} min="0" onChange={(event) => setExtraFeeNts(Number(event.target.value) || 0)} type="number" value={extraFeeNts} /></Field>
+        <Field label={text('額外費用（NT$）', 'Extra fee (NT$)')}><MoneyInput disabled={!ready || !stay} onChange={setExtraFeeNts} value={extraFeeNts} /></Field>
       </div>
       {stay ? <div className="stay-extension-preview checkout-summary">
         <strong>{text('退房摘要', 'Checkout summary')}</strong>

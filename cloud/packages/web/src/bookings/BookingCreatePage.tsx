@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { type BookingCreateResult, type BookingMultiCreateResult, type BookingPreviewResult, type BookingRoomOption } from '@bini/cloud-shared';
 
 import type { StaffSession } from '../auth/session.js';
-import { Button, DateTimeInput, Field, NumberStepper, Notice, SectionCard } from '../design-system/index.js';
+import { Button, DateTimeInput, Field, MoneyInput, Notice, NumberStepper, SectionCard } from '../design-system/index.js';
 import { useLocale } from '../i18n/locale.js';
 import type { BookingCreateGateway } from './booking-create.js';
 import type { BookingMultiCreateGateway } from './booking-multi-create.js';
@@ -242,7 +242,7 @@ export function BookingCreatePage({
           <CheckoutPreviewField quote={quote} />
           <Field label={text('方案', 'Plan')}><select disabled={!gateway} name="plan" onChange={(event) => setPlan(event.target.value === '12hrs' ? '12hrs' : '24hrs')} value={plan}><option value="12hrs">12hrs</option><option value="24hrs">24hrs</option></select></Field>
           <Field label={text('天數', 'Days')}><NumberStepper decrementLabel={text('減少 1 天', 'One day less')} disabled={!gateway} incrementLabel={text('增加 1 天', 'One day more')} max={366} min={1} onChange={setDays} value={days} name="days" /></Field>
-          <Field label={text('折扣（NT$）', 'Discount (NT$)')}><input disabled={!gateway} min="0" name="discountNts" onChange={(event) => setDiscountNts(Number(event.target.value) || 0)} required type="number" value={discountNts} /></Field>
+          <Field label={text('折扣（NT$）', 'Discount (NT$)')}><MoneyInput disabled={!gateway} name="discountNts" onChange={setDiscountNts} required value={discountNts} /></Field>
           <AmountField disabled={!gateway} manualAmountNts={manualAmountNts} onChange={setManualAmountNts} quote={quote} />
           <RateTypeField disabled={!gateway} rate={rate} />
         </div>
@@ -261,7 +261,7 @@ export function BookingCreatePage({
               <CheckoutPreviewField quote={quoteForForm(slot.checkInAt, slot.plan, slot.days, slot.discountNts, calendar)} />
               <Field label={text('方案', 'Plan')}><select disabled={!gateway || !multiGateway} value={slot.plan} onChange={(event) => updateMultiSlot(slot.key, { plan: event.target.value === '12hrs' ? '12hrs' : '24hrs' })}><option value="12hrs">12hrs</option><option value="24hrs">24hrs</option></select></Field>
               <Field label={text('天數', 'Days')}><NumberStepper decrementLabel={text('減少 1 天', 'One day less')} disabled={!gateway || !multiGateway} incrementLabel={text('增加 1 天', 'One day more')} max={366} min={1} onChange={(value) => updateMultiSlot(slot.key, { days: value })} value={slot.days} /></Field>
-              <Field label={text('折扣（NT$）', 'Discount (NT$)')}><input disabled={!gateway || !multiGateway} min="0" required type="number" value={slot.discountNts} onChange={(event) => updateMultiSlot(slot.key, { discountNts: Number(event.target.value) })} /></Field>
+              <Field label={text('折扣（NT$）', 'Discount (NT$)')}><MoneyInput disabled={!gateway || !multiGateway} onChange={(discountNts: number) => updateMultiSlot(slot.key, { discountNts })} required value={slot.discountNts} /></Field>
               <AmountField disabled={!gateway || !multiGateway} manualAmountNts={slot.manualAmountNts} onChange={(value) => updateMultiSlot(slot.key, { manualAmountNts: value })} quote={quoteForForm(slot.checkInAt, slot.plan, slot.days, slot.discountNts, calendar)} />
             </div>
           </article>)}

@@ -3,7 +3,7 @@ import type { BookingListItem, BookingRoomOption, StayCheckInResult } from '@bin
 
 import type { StaffSession } from '../auth/session.js';
 import type { BookingListGateway } from '../bookings/booking-list.js';
-import { Button, DateTimeInput, Field, NumberStepper, Notice, SectionCard } from '../design-system/index.js';
+import { Button, DateTimeInput, Field, MoneyInput, Notice, NumberStepper, SectionCard } from '../design-system/index.js';
 import { useLocale } from '../i18n/locale.js';
 import type { BookingRoomGateway } from '../rooms/booking-room-options.js';
 import type { StayCheckInGateway } from './stay-checkin.js';
@@ -103,10 +103,10 @@ export function StayCheckInPage({ session, gateway, bookingGateway, roomGateway,
         <CheckoutPreviewField quote={quote} />
         <Field label={text('方案', 'Plan')}><select disabled={unavailable || selectedBooking !== null} onChange={(event) => { setPlan(event.target.value === '12hrs' ? '12hrs' : '24hrs'); setManualAmountNts(null); }} value={plan}><option value="12hrs">12hrs</option><option value="24hrs">24hrs</option></select></Field>
         <Field label={text('天數', 'Days')}><NumberStepper decrementLabel={text('減少 1 天', 'One day less')} disabled={unavailable || selectedBooking !== null} incrementLabel={text('增加 1 天', 'One day more')} max={366} min={1} onChange={(value) => { setDays(value); setManualAmountNts(null); }} value={days} /></Field>
-        <Field label={text('折扣（NT$）', 'Discount (NT$)')}><input disabled={unavailable || selectedBooking !== null} min="0" onChange={(event) => { setDiscountNts(Number(event.target.value) || 0); setManualAmountNts(null); }} required type="number" value={discountNts} /></Field>
+        <Field label={text('折扣（NT$）', 'Discount (NT$)')}><MoneyInput disabled={unavailable || selectedBooking !== null} onChange={(value) => { setDiscountNts(value); setManualAmountNts(null); }} required value={discountNts} /></Field>
         <AmountField disabled={unavailable} label={text('房租金額（NT$）', 'Room charge (NT$)')} manualAmountNts={manualAmountNts} onChange={setManualAmountNts} quote={quote} />
       </div>
-      <fieldset className="booking-deposit"><legend>{text('押金收取（選填）', 'Deposit payment (optional)')}</legend><div className="booking-create-grid"><Field label={text('押金（NT$）', 'Deposit (NT$)')}><input disabled={unavailable} min="0" onChange={(event) => setDepositAmountNts(Number(event.target.value) || 0)} type="number" value={depositAmountNts} /></Field><Field label={text('付款方式', 'Payment method')}><select disabled={unavailable} onChange={(event) => setDepositPaymentType(event.target.value as typeof depositPaymentType)} value={depositPaymentType}><option value="cash">{text('現金', 'Cash')}</option><option value="transfer">{text('轉帳', 'Transfer')}</option><option value="card">{text('刷卡', 'Card')}</option><option value="other">{text('其他', 'Other')}</option></select></Field></div></fieldset>
+      <fieldset className="booking-deposit"><legend>{text('押金收取（選填）', 'Deposit payment (optional)')}</legend><div className="booking-create-grid"><Field label={text('押金（NT$）', 'Deposit (NT$)')}><MoneyInput disabled={unavailable} onChange={setDepositAmountNts} value={depositAmountNts} /></Field><Field label={text('付款方式', 'Payment method')}><select disabled={unavailable} onChange={(event) => setDepositPaymentType(event.target.value as typeof depositPaymentType)} value={depositPaymentType}><option value="cash">{text('現金', 'Cash')}</option><option value="transfer">{text('轉帳', 'Transfer')}</option><option value="card">{text('刷卡', 'Card')}</option><option value="other">{text('其他', 'Other')}</option></select></Field></div></fieldset>
       {error ? <Notice tone="danger" title={text('無法完成入住', 'Check-in could not be completed')}>{error}</Notice> : null}
       <div className="booking-create-actions"><Button disabled={unavailable} loading={busy} size="lg" type="submit">{text('確認辦理入住', 'Confirm check-in')}</Button><Button onClick={onBack} type="button" variant="outline">{text('取消', 'Cancel')}</Button></div>
     </form>

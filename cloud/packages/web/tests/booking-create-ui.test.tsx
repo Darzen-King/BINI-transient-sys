@@ -215,6 +215,29 @@ describe('new booking UI', () => {
     expect(screen.getByText(/未建立時段：#2（與 RSV-existing 衝突）/)).toBeInTheDocument();
   });
 
+  it('lets an amount field be cleared and retyped instead of keeping a leading zero', async () => {
+    const multiCreate = vi.fn().mockResolvedValue({ status: 'completed', created: [], skipped: [] });
+    render(<App bookingCreateGateway={{ create: vi.fn() }} bookingMultiCreateGateway={{ multiCreate }} bookingRoomGateway={roomGateway()} />);
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
+    fireEvent.click(screen.getByRole('button', { name: '＋ 新增預約' }));
+    fireEvent.click(await screen.findByRole('button', { name: /新增時段/ }));
+    const discounts = screen.getAllByLabelText('折扣（NT$）');
+    const slotDiscount = discounts[1]!;
+    expect(slotDiscount).toHaveValue(0);
+    // Clearing must stay cleared; otherwise the restored 0 turns a typed 1000 into 01000.
+    fireEvent.change(slotDiscount, { target: { value: '' } });
+    expect(slotDiscount).toHaveValue(null);
+    fireEvent.change(slotDiscount, { target: { value: '1000' } });
+    expect((slotDiscount as HTMLInputElement).value).toBe('1000');
+    fireEvent.blur(slotDiscount);
+    expect((slotDiscount as HTMLInputElement).value).toBe('1000');
+    // The single-booking discount behaves the same.
+    fireEvent.change(discounts[0]!, { target: { value: '' } });
+    expect(discounts[0]!).toHaveValue(null);
+    fireEvent.change(discounts[0]!, { target: { value: '250' } });
+    expect((discounts[0]! as HTMLInputElement).value).toBe('250');
+  });
+
   it('detects the v3 rate type from the check-in date and only sends a manual relabel', async () => {
     const create = vi.fn().mockResolvedValue({ status: 'created', bookingId: 'RSV-1', paymentId: null, checkInAt: '2026-09-18T05:00:00.000Z', checkOutAt: '2026-09-19T05:00:00.000Z', amountNts: 1_200, discountNts: 0, rateType: '假日' });
     render(<App bookingCreateGateway={{ create } satisfies BookingCreateGateway} bookingRoomGateway={roomGateway()} session={fullAccessSession} />);

@@ -188,6 +188,9 @@ def main():
         threading.Thread(target=_apply_icon, daemon=True, name="icon").start()
 
         import webview
+        # pywebview cancels every download unless this is on, so CSV exports (付款管理／統計報表／日結)
+        # looked like dead buttons in the desktop window. With it on, WebView2 opens a Save As dialog.
+        webview.settings['ALLOW_DOWNLOADS'] = True
         webview.create_window(
             WINDOW_TITLE, f"http://127.0.0.1:{port}/",
             width=1280, height=820, min_size=(1024, 700),

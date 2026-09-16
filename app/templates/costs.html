@@ -26,10 +26,10 @@
     <div class="kpi-card card rounded-3 border-0 shadow-sm text-center p-3 h-100">
       <div class="kpi-icon">💰</div>
       <div class="kpi-num text-success">NT${{ "{:,.0f}".format(pnl.revenue) }}</div>
-      <div class="kpi-label">{{ trans.get("costs.revenue","本月營收") }}</div>
-      <div class="kpi-sub">{{ cur_month }}</div>
+      <div class="kpi-label">{{ trans.get("costs.range_revenue","區間營收") }}</div>
+      <div class="kpi-sub">{{ range_label }}</div>
       <div class="text-muted mt-1" style="font-size:.68rem;line-height:1.2">
-        {{ trans.get("costs.revenue_note","整月合計（StayLog＋預約）") }}
+        {{ trans.get("costs.range_revenue_note","已退房住宿＋月租，與統計報表相同") }}
       </div>
     </div>
   </div>
@@ -38,7 +38,7 @@
     <div class="kpi-card card rounded-3 border-0 shadow-sm text-center p-3 h-100">
       <div class="kpi-icon">📤</div>
       <div class="kpi-num text-danger">NT${{ "{:,.0f}".format(pnl.total_cost) }}</div>
-      <div class="kpi-label">{{ trans.get("costs.total_cost","Total Cost") }}</div>
+      <div class="kpi-label">{{ trans.get("costs.range_cost","區間成本") }}</div>
       <div class="kpi-sub">{{ pnl.entry_count }} {{ trans.get("costs.entries","entries") }}</div>
     </div>
   </div>
@@ -84,7 +84,7 @@
 {% if pnl.by_category %}
 <div class="card rounded-3 border-0 shadow-sm mb-4 p-3">
   <div class="fw-semibold mb-2" style="font-size:.86rem;color:#db2777">
-    📂 {{ trans.get("costs.by_category","Cost by Category") }} — {{ cur_month }}
+    📂 {{ trans.get("costs.by_category","Cost by Category") }} — {{ range_label }}
   </div>
   <div class="row g-2">
     {% for cat, amt in pnl.by_category | dictsort(by='value', reverse=True) %}
@@ -105,12 +105,20 @@
   <form method="get" action="/costs" class="d-flex flex-wrap gap-3 align-items-end">
 
     <div>
-      <label class="form-label fw-semibold mb-1" style="font-size:.82rem">{{ trans.get("costs.month","Month") }}</label>
-      <select name="year_month" class="form-select form-select-sm" style="width:140px" onchange="this.form.submit()">
-        {% for m in months %}
-        <option value="{{ m }}" {% if m == cur_month %}selected{% endif %}>{{ m }}</option>
-        {% endfor %}
-      </select>
+      <label class="form-label fw-semibold mb-1" style="font-size:.82rem" for="costDateFrom">{{ trans.get("costs.date_from","開始日期") }}</label>
+      <input type="date" name="date_from" id="costDateFrom" class="form-control form-control-sm" style="width:160px"
+             value="{{ date_from }}" max="{{ date_to }}" onchange="this.form.submit()">
+    </div>
+    <div>
+      <label class="form-label fw-semibold mb-1" style="font-size:.82rem" for="costDateTo">{{ trans.get("costs.date_to","結束日期") }}</label>
+      <input type="date" name="date_to" id="costDateTo" class="form-control form-control-sm" style="width:160px"
+             value="{{ date_to }}" min="{{ date_from }}" onchange="this.form.submit()">
+    </div>
+    <div class="d-flex flex-wrap gap-1 align-self-end" role="group" aria-label="{{ trans.get('costs.quick.label','快速區間') }}">
+      {% for key, q_from, q_to in quick_ranges %}
+      <a class="btn btn-sm {% if q_from == date_from and q_to == date_to %}btn-bb{% else %}btn-outline-secondary{% endif %}"
+         href="/costs?date_from={{ q_from }}&date_to={{ q_to }}&category={{ category }}&property_id={{ property_id }}&payment_method={{ payment_method }}">{{ trans.get(key, key) }}</a>
+      {% endfor %}
     </div>
 
     <div>

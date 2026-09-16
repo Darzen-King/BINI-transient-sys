@@ -86,6 +86,31 @@ export function buildCostListItems(
     );
 }
 
+/** Active costs inside `dateFrom`..`dateTo` (inclusive), for the cost page's date search and its totals. */
+export function costsInRange(
+  items: readonly CostListItem[],
+  dateFrom: string,
+  dateTo: string,
+): CostListItem[] {
+  return items.filter((item) => item.status === "active" && item.costDate >= dateFrom && item.costDate <= dateTo);
+}
+
+export function summarizeCostRange(
+  items: readonly CostListItem[],
+  dateFrom: string,
+  dateTo: string,
+): CostMonthlySummary {
+  const byCategory: CostMonthlySummary["byCategory"] = {};
+  let totalNts = 0;
+  let count = 0;
+  for (const item of costsInRange(items, dateFrom, dateTo)) {
+    totalNts += item.amountNts;
+    count += 1;
+    byCategory[item.category] = (byCategory[item.category] ?? 0) + item.amountNts;
+  }
+  return { totalNts, count, byCategory };
+}
+
 export function summarizeCosts(
   items: readonly CostListItem[],
   month: string,

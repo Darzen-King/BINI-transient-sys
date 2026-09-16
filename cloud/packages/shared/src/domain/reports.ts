@@ -25,7 +25,11 @@ export interface ReportProjection {
   daily: ReportDailyItem[]; planCounts: Record<string, number>; planRevenueNts: Record<string, number>; roomRentals: ReportRoomRental[];
   bookingStatusCounts: Record<string, number>; roomStatusCounts: Record<string, number>; rateRevenueNts: Record<'非假日' | '假日', number>;
   totalCostNts: number | null; netProfitNts: number | null; costRatioPct: number | null; costByCategoryNts: Record<string, number> | null;
+  /** Individual cost rows inside the range (admins only); null when costs are excluded. */
+  costEntries: ReportCostEntry[] | null;
 }
+
+export interface ReportCostEntry { costDate: string; category: string; amountNts: number; paymentMethod: string | null; vendor: string | null; description: string | null; note: string | null; }
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u);
 const dateTime = z.string().refine((value) => Number.isFinite(Date.parse(value)), 'invalid datetime');
@@ -39,7 +43,7 @@ const staySchema = z.object({ roomId: text, totalDueNts: amount.optional() }).pa
 // Missing flags mean "no", as in v3's stay_logs defaults; older cloud check-outs omitted `transferred`.
 const stayLogSchema = z.object({ roomId: text, plan: nullableText, checkInAt: nullableDateTime, totalChargedNts: amount, freeCancel: z.boolean().default(false), transferred: z.boolean().default(false) }).passthrough();
 const monthlySchema = z.object({ roomId: text, rentNts: amount, createdAt: nullableDateTime }).passthrough();
-const costSchema = z.object({ costDate: day, category: text, amountNts: amount, status: z.enum(['active', 'archived']).optional() }).passthrough();
+const costSchema = z.object({ costDate: day, category: text, amountNts: amount, status: z.enum(['active', 'archived']).optional(), vendor: nullableText, description: nullableText, note: nullableText, paymentMethod: nullableText }).passthrough();
 
 function localDay(value: string): string {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(value));
@@ -98,6 +102,10 @@ export function buildReportProjection(source: ReportSource, range: ReportRange):
   const activeCosts = costs.filter(({ data }) => data.status !== 'archived' && data.costDate >= range.dateFrom && data.costDate <= range.dateTo);
   const totalCostNts = range.includeCosts ? activeCosts.reduce((total, { data }) => total + data.amountNts, 0) : null;
   const costByCategoryNts = range.includeCosts ? activeCosts.reduce<Record<string, number>>((total, { data }) => ({ ...total, [data.category]: (total[data.category] ?? 0) + data.amountNts }), {}) : null;
+  // Every cost row in range (admins only) so the export and the page can list them, not just the totals.
+  const costEntries = range.includeCosts
+    ? [...activeCosts].sort((left, right) => left.data.costDate.localeCompare(right.data.costDate)).map(({ data }) => ({ costDate: data.costDate, category: data.category, amountNts: data.amountNts, paymentMethod: data.paymentMethod ?? null, vendor: data.vendor ?? null, description: data.description ?? null, note: data.note ?? null }))
+    : null;
   const rangeRevenueNts = staylogRevenueNts + monthlyRevenueNts;
   const bookingStatusCounts: Record<string, number> = {};
   for (const { data } of inRangeBookings) bookingStatusCounts[data.status] = (bookingStatusCounts[data.status] ?? 0) + 1;
@@ -108,7 +116,7 @@ export function buildReportProjection(source: ReportSource, range: ReportRange):
   for (const { data } of activeBookings) rateRevenueNts[data.rateType === '假日' ? '假日' : '非假日'] += data.amountNts;
   for (const { data } of eligibleLogs) if (data.checkInAt) rateRevenueNts[isV3Holiday(localDay(data.checkInAt), calendar) ? '假日' : '非假日'] += data.totalChargedNts;
   const liveRevenueNts = stays.reduce((total, { data }) => total + (data.totalDueNts ?? 0), 0);
-  return { dateFrom: range.dateFrom, dateTo: range.dateTo, days: daily.length, rangeRevenueNts, staylogRevenueNts, monthlyRevenueNts, bookingRevenueNts, liveRevenueNts, totalOrders: activeBookings.length + eligibleLogs.length + recognisedMonthly.length, cancelledOrders, totalRooms, occupiedNow, occupancyNowPct: percentage(occupiedNow, totalRooms), rangeOccupancyPct: percentage(roomsWithActivity.size, totalRooms), repairCount: rooms.filter(({ data }) => data.status === '維修中').length, avgStayHours: hours.length ? Math.round((hours.reduce((total, value) => total + value, 0) / hours.length) * 10) / 10 : 0, activeStaysCount: stays.length, daily, planCounts, planRevenueNts, roomRentals: [...rentalByRoom.values()].sort((left, right) => right.count - left.count || left.roomId.localeCompare(right.roomId)), bookingStatusCounts, roomStatusCounts, rateRevenueNts, totalCostNts, netProfitNts: totalCostNts === null ? null : rangeRevenueNts - totalCostNts, costRatioPct: totalCostNts === null ? null : percentage(totalCostNts, rangeRevenueNts), costByCategoryNts };
+  return { dateFrom: range.dateFrom, dateTo: range.dateTo, days: daily.length, rangeRevenueNts, staylogRevenueNts, monthlyRevenueNts, bookingRevenueNts, liveRevenueNts, totalOrders: activeBookings.length + eligibleLogs.length + recognisedMonthly.length, cancelledOrders, totalRooms, occupiedNow, occupancyNowPct: percentage(occupiedNow, totalRooms), rangeOccupancyPct: percentage(roomsWithActivity.size, totalRooms), repairCount: rooms.filter(({ data }) => data.status === '維修中').length, avgStayHours: hours.length ? Math.round((hours.reduce((total, value) => total + value, 0) / hours.length) * 10) / 10 : 0, activeStaysCount: stays.length, daily, planCounts, planRevenueNts, roomRentals: [...rentalByRoom.values()].sort((left, right) => right.count - left.count || left.roomId.localeCompare(right.roomId)), bookingStatusCounts, roomStatusCounts, rateRevenueNts, totalCostNts, netProfitNts: totalCostNts === null ? null : rangeRevenueNts - totalCostNts, costRatioPct: totalCostNts === null ? null : percentage(totalCostNts, rangeRevenueNts), costByCategoryNts, costEntries };
 }
 
 function csvCell(value: string | number): string { const rendered = String(value); return /[",\r\n]/u.test(rendered) ? `"${rendered.replaceAll('"', '""')}"` : rendered; }
@@ -131,5 +139,21 @@ export function renderReportCsv(report: ReportProjection): string {
     csvRow(['=== Per-Room Statistics ===']), csvRow(['Room', 'Status', 'Rentals', 'Revenue (NT$)', '12hrs', '24hrs', 'Note']),
     ...report.roomRentals.map((item) => csvRow([item.roomId, item.status, item.count, item.revenueNts, item.plans['12hrs'] ?? 0, item.plans['24hrs'] ?? 0, item.note ?? ''])),
   ];
+  // Costs are admin-only: they are present exactly when the caller asked for them.
+  if (report.totalCostNts !== null) {
+    rows.push(
+      '',
+      csvRow(['=== Costs & Profit ===']),
+      csvRow(['Total Cost (NT$)', report.totalCostNts]),
+      csvRow(['Net Profit (NT$)', report.netProfitNts ?? 0]),
+      csvRow(['Cost Ratio (%)', report.costRatioPct ?? 0]),
+      '',
+      csvRow(['=== Cost by Category ===']), csvRow(['Category', 'Amount (NT$)']),
+      ...Object.entries(report.costByCategoryNts ?? {}).map(([category, value]) => csvRow([category, value])),
+      '',
+      csvRow(['=== Cost Entries ===']), csvRow(['Date', 'Category', 'Amount (NT$)', 'Payment', 'Vendor', 'Description', 'Note']),
+      ...(report.costEntries ?? []).map((item) => csvRow([item.costDate, item.category, item.amountNts, item.paymentMethod ?? '', item.vendor ?? '', item.description ?? '', item.note ?? ''])),
+    );
+  }
   return `\uFEFF${rows.join('\r\n')}\r\n`;
 }

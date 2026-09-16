@@ -1,7 +1,8 @@
 import {
   COST_CATEGORIES,
   type CostListItem,
-  summarizeCosts,
+  costsInRange,
+  summarizeCostRange,
 } from "@bini/cloud-shared";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
@@ -212,7 +213,8 @@ export function CostManagementPage({
 }) {
   const { text } = useLocale();
   const [items, setItems] = useState<CostListItem[] | null>(null);
-  const [month, setMonth] = useState(taipeiMonth());
+  const [dateFrom, setDateFrom] = useState(() => `${taipeiMonth()}-01`);
+  const [dateTo, setDateTo] = useState(taipeiDay);
   const [category, setCategory] = useState<CostCategory | "all">("all");
   const [form, setForm] = useState<CostFormValue>(emptyForm);
   const [editing, setEditing] = useState<CostListItem | null>(null);
@@ -244,18 +246,35 @@ export function CostManagementPage({
     [items],
   );
   const summary = useMemo(
-    () => summarizeCosts(activeItems, month),
-    [activeItems, month],
+    () => summarizeCostRange(activeItems, dateFrom, dateTo),
+    [activeItems, dateFrom, dateTo],
   );
   const filtered = useMemo(
     () =>
-      activeItems.filter(
-        (item) =>
-          item.costDate.startsWith(month) &&
-          (category === "all" || item.category === category),
+      costsInRange(activeItems, dateFrom, dateTo).filter(
+        (item) => category === "all" || item.category === category,
       ),
-    [activeItems, category, month],
+    [activeItems, category, dateFrom, dateTo],
   );
+  // v3-style quick ranges so history is one tap away. All arithmetic is on the Taipei date string.
+  const quickRanges: Array<[string, string, string, string]> = (() => {
+    const today = taipeiDay();
+    const month = taipeiMonth();
+    const [year, monthNumber] = month.split("-").map(Number);
+    const previousYear = monthNumber === 1 ? (year ?? 0) - 1 : year ?? 0;
+    const previousMonthNumber = monthNumber === 1 ? 12 : (monthNumber ?? 1) - 1;
+    const previousMonth = `${previousYear}-${String(previousMonthNumber).padStart(2, "0")}`;
+    const previousMonthLastDay = new Date(Date.UTC(previousYear, previousMonthNumber, 0)).getUTCDate();
+    const thirtyDaysAgo = new Date(Date.parse(`${today}T00:00:00.000Z`) - 29 * 86_400_000).toISOString().slice(0, 10);
+    return [
+      [text("本月", "This month"), `${month}-01`, today, "month"],
+      [text("上個月", "Last month"), `${previousMonth}-01`, `${previousMonth}-${String(previousMonthLastDay).padStart(2, "0")}`, "previous"],
+      [text("近 30 天", "Last 30 days"), thirtyDaysAgo, today, "30d"],
+      [text("今年", "This year"), `${today.slice(0, 4)}-01-01`, today, "year"],
+      [text("全部", "All"), "2000-01-01", today, "all"],
+    ];
+  })();
+
   const ready = Boolean(gateway && items && !loadError);
   const input = (value: CostFormValue) => ({
     costDate: value.costDate,
@@ -397,11 +416,11 @@ export function CostManagementPage({
       ) : null}
       <div className="cost-summary">
         <div>
-          <small>{text("本月成本", "Monthly costs")}</small>
+          <small>{text("區間成本", "Costs in range")}</small>
           <strong>NT$ {summary.totalNts.toLocaleString()}</strong>
         </div>
         <div>
-          <small>{text("本月筆數", "Entries")}</small>
+          <small>{text("區間筆數", "Entries in range")}</small>
           <strong>{summary.count}</strong>
         </div>
         {Object.entries(summary.byCategory)
@@ -414,12 +433,32 @@ export function CostManagementPage({
             </div>
           ))}
       </div>
+      <div className="cost-quick-ranges" role="group" aria-label={text("快速區間", "Quick ranges")}>
+        {quickRanges.map(([label, from, to, key]) => (
+          <button
+            aria-pressed={dateFrom === from && dateTo === to}
+            className={dateFrom === from && dateTo === to ? "is-active" : ""}
+            key={key}
+            onClick={() => { setDateFrom(from); setDateTo(to); }}
+            type="button"
+          >{label}</button>
+        ))}
+      </div>
       <div className="cost-filters">
-        <Field label={text("月份", "Month")}>
+        <Field label={text("開始日期", "From")}>
           <input
-            onChange={(event) => setMonth(event.target.value)}
-            type="month"
-            value={month}
+            max={dateTo}
+            onChange={(event) => setDateFrom(event.target.value)}
+            type="date"
+            value={dateFrom}
+          />
+        </Field>
+        <Field label={text("結束日期", "To")}>
+          <input
+            min={dateFrom}
+            onChange={(event) => setDateTo(event.target.value)}
+            type="date"
+            value={dateTo}
           />
         </Field>
         <Field label={text("分類篩選", "Category filter")}>
@@ -489,7 +528,7 @@ export function CostManagementPage({
         {filtered.length === 0 ? (
           <p className="empty-card">
             {text(
-              "此月份沒有符合篩選的成本紀錄。",
+              "此區間沒有符合篩選的成本紀錄。",
               "No cost entries match this month and filter.",
             )}
           </p>

@@ -695,5 +695,18 @@
   "payment.group_bookings": "Upcoming bookings (deposit)",
   "payment.no_active_stays": "No checked-in guests",
   "payment.no_upcoming_bookings": "No upcoming bookings",
-  "checkin.booked_window": "Booked: __CI__ – __CO__ (the real arrival time is filled in and the check-out recalculated; you can change it)"
+  "checkin.booked_window": "Booked: __CI__ – __CO__ (the real arrival time is filled in and the check-out recalculated; you can change it)",
+  "costs.date_from": "From",
+  "costs.date_to": "To",
+  "costs.quick.label": "Quick ranges",
+  "costs.quick.this_month": "This month",
+  "costs.quick.last_month": "Last month",
+  "costs.quick.last_30": "Last 30 days",
+  "costs.quick.this_year": "This year",
+  "costs.quick.all": "All",
+  "costs.range_revenue": "Revenue in range",
+  "costs.range_revenue_note": "Completed stays + monthly rent, same as Reports",
+  "report.cost_details": "Cost entries",
+  "report.no_costs": "No costs in this period",
+  "costs.range_cost": "Costs in range"
 }

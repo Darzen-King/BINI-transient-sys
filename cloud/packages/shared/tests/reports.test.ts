@@ -44,6 +44,33 @@ describe('v3-compatible reports', () => {
     expect(report.staylogRevenueNts).toBe(3_300);
   });
 
+  it('puts the P&L, the category split and every cost row into the exported CSV for admins', async () => {
+    const { renderReportCsv } = await import('@bini/cloud-shared');
+    const withCosts = { ...source, costEntries: [
+      { id: 'C1', data: { costDate: '2026-09-10', category: 'utilities', amountNts: 500, paymentMethod: 'cash', vendor: '台電', description: '電費', note: null } },
+      { id: 'C3', data: { costDate: '2026-09-11', category: 'laundry', amountNts: 120, paymentMethod: 'card', vendor: null, description: null, note: '備品' } },
+      { id: 'C2', data: { costDate: '2026-09-11', category: 'maintenance', amountNts: 300, status: 'archived' } },
+    ] };
+    const report = buildReportProjection(withCosts, { dateFrom: '2026-09-10', dateTo: '2026-09-11', includeCosts: true });
+    expect(report.costEntries?.map((item) => [item.costDate, item.category, item.amountNts])).toEqual([
+      ['2026-09-10', 'utilities', 500],
+      ['2026-09-11', 'laundry', 120],
+    ]);
+    const csv = renderReportCsv(report);
+    expect(csv).toContain('=== Costs & Profit ===');
+    expect(csv).toContain('Total Cost (NT$),620');
+    expect(csv).toContain('=== Cost by Category ===');
+    expect(csv).toContain('utilities,500');
+    expect(csv).toContain('=== Cost Entries ===');
+    expect(csv).toContain('2026-09-10,utilities,500,cash,台電,電費,');
+    // Archived costs stay out of the export, like the totals.
+    expect(csv).not.toContain('maintenance,300');
+
+    const withoutCosts = renderReportCsv(buildReportProjection(withCosts, { dateFrom: '2026-09-10', dateTo: '2026-09-11', includeCosts: false }));
+    expect(withoutCosts).not.toContain('=== Costs & Profit ===');
+    expect(withoutCosts).not.toContain('台電');
+  });
+
   it('does not expose cost or P&L values when costs are excluded', () => {
     const report = buildReportProjection(source, { dateFrom: '2026-09-10', dateTo: '2026-09-11', includeCosts: false });
     expect(report.totalCostNts).toBeNull();

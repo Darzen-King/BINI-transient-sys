@@ -94,7 +94,8 @@ async def export_csv_endpoint(
     date_to   = date_to   or default_to
 
     _audit.log_report_export(db, date_from, date_to)
-    csv_bytes = export_csv(db, date_from, date_to)
+    # Costs are admin-only on the page, so the export includes them for admins only.
+    csv_bytes = export_csv(db, date_from, date_to, include_costs=require_role(_cu, "admin"))
     filename  = f"bini_blooms_report_{date_from}_{date_to}.csv"
 
     return Response(

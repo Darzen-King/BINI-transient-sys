@@ -336,7 +336,7 @@ def compute_report(
 
 # ── CSV export ────────────────────────────────────────────────────────────
 
-def export_csv(db: Session, date_from_str: str, date_to_str: str) -> bytes:
+def export_csv(db: Session, date_from_str: str, date_to_str: str, include_costs: bool = False) -> bytes:
     """
     Generate CSV bytes with three sections:
       1. Summary KPIs
@@ -378,5 +378,28 @@ def export_csv(db: Session, date_from_str: str, date_to_str: str) -> bytes:
             rm["plans"].get("24hrs", 0),
             rm["note"],
         ])
+
+    # Section 4 (admins only, like the reports page): costs, P&L and every cost row.
+    if include_costs:
+        from app.services.costs import cost_in_range
+        cost = cost_in_range(db, date_from_str, date_to_str)
+        revenue = float(report["range_revenue"] or 0)
+        total_cost = float(cost["total_cost"])
+        w.writerow([])
+        w.writerow(["=== Costs & Profit ==="])
+        w.writerow(["Total Cost (NT$)", int(round(total_cost))])
+        w.writerow(["Net Profit (NT$)", int(round(revenue - total_cost))])
+        w.writerow(["Cost Ratio (%)", round(total_cost / revenue * 100, 1) if revenue > 0 else ""])
+        w.writerow([])
+        w.writerow(["=== Cost by Category ==="])
+        w.writerow(["Category", "Amount (NT$)"])
+        for category, amount in sorted(cost["by_category"].items(), key=lambda item: -item[1]):
+            w.writerow([category, int(round(amount))])
+        w.writerow([])
+        w.writerow(["=== Cost Entries ==="])
+        w.writerow(["Date", "Category", "Amount (NT$)", "Payment", "Vendor", "Description", "Note"])
+        for entry in cost["entries"]:
+            w.writerow([entry["cost_date"], entry["category"], entry["amount"], entry["payment_method"],
+                        entry["vendor"], entry["description"], entry["note"]])
 
     return buf.getvalue().encode("utf-8-sig")  # utf-8-sig for Excel compatibility

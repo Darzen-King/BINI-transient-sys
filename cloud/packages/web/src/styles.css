@@ -704,3 +704,13 @@ h1, h2, p { margin-top: 0; }
 .promotion-mode legend { margin-bottom: 6px; color: var(--bds-color-neutral-700); font-size: 13px; font-weight: 800; }
 .promotion-confirmation .promotion-mode label.check-row { display: flex; color: var(--bds-color-text-primary); font-size: 15px; }
 .promotion-confirmation .promotion-mode input[type="radio"] { flex: none; width: 22px; height: 22px; min-height: 0; margin: 0; padding: 0; accent-color: var(--bds-color-berry-600); }
+
+/* Cost page quick ranges and the report's cost breakdown list. */
+.cost-quick-ranges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.cost-quick-ranges button { min-height: 40px; padding: 8px 14px; border: 1px solid var(--bds-color-border); border-radius: 999px; background: var(--bds-color-surface); color: var(--bds-color-text-primary); font: inherit; font-size: 14px; cursor: pointer; }
+.cost-quick-ranges button.is-active { border-color: var(--bds-color-berry-300); background: var(--bds-color-berry-50); color: var(--bds-color-berry-600); font-weight: 700; }
+.report-cost-details { grid-column: 1 / -1; margin-top: 8px; font-size: 13px; }
+.report-cost-details summary { cursor: pointer; font-weight: 700; }
+.report-cost-list { display: grid; margin-top: 8px; gap: 6px; }
+.report-cost-list > div { display: grid; grid-template-columns: auto auto 1fr auto; align-items: baseline; gap: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--bds-color-border); }
+.report-cost-list span { color: var(--bds-color-text-secondary); }

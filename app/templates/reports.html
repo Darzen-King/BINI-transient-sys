@@ -191,6 +191,31 @@
     {% endfor %}
   </div>
   {% endif %}
+  <details class="mt-2" id="reportCostDetails">
+    <summary class="fw-semibold" style="font-size:.82rem;cursor:pointer">{{ trans.get("report.cost_details","成本明細") }}（{{ cost.entry_count }}）</summary>
+    {% if cost.entries %}
+    <div class="table-responsive mt-2">
+      <table class="table table-sm mb-0" style="font-size:.8rem">
+        <thead class="table-light"><tr>
+          <th>{{ trans.get("costs.date","日期") }}</th><th>{{ trans.get("costs.category","分類") }}</th>
+          <th>{{ trans.get("costs.vendor","供應商") }}</th><th>{{ trans.get("costs.note","備註") }}</th>
+          <th class="text-end">{{ trans.get("costs.amount","金額") }}</th>
+        </tr></thead>
+        <tbody>
+          {% for e in cost.entries %}
+          <tr>
+            <td>{{ e.cost_date }}</td><td>{{ trans.get("costs.cat." + e.category, e.category) }}</td>
+            <td>{{ e.vendor }}</td><td>{{ e.description or e.note }}</td>
+            <td class="text-end">NT$ {{ "{:,.0f}".format(e.amount) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-muted mt-1" style="font-size:.8rem">{{ trans.get("report.no_costs","此區間沒有成本紀錄") }}</div>
+    {% endif %}
+  </details>
 </div>
 {% endif %}
 

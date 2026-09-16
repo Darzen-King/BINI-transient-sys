@@ -40,6 +40,8 @@ async def costs_page(
     category:       str = Query(default=""),
     property_id:    str = Query(default=""),
     payment_method: str = Query(default=""),
+    date_from:      str = Query(default=""),
+    date_to:        str = Query(default=""),
     db: Session = Depends(get_db),
 ):
     user = _guard(request, db)
@@ -50,17 +52,21 @@ async def costs_page(
     trans = get_translations(lang)
 
     today      = date.today()
-    cur_month  = year_month or today.strftime("%Y-%m")
+    # History used to be month-by-month only; any date range can now be searched.
+    range_from, range_to = cost_svc.resolve_cost_range(date_from, date_to, year_month, today)
+    cur_month  = today.strftime("%Y-%m")      # default date for the add-cost form
     months     = cost_svc.available_months(db, 24)
 
     costs = cost_svc.get_costs(
         db,
-        year_month     = cur_month,
         category       = category  or None,
         property_id    = property_id or None,
         payment_method = payment_method or None,
+        date_from      = range_from,
+        date_to        = range_to,
+        limit          = 2000,
     )
-    pnl = cost_svc.monthly_pnl(db, cur_month, property_id or None)
+    pnl = cost_svc.range_pnl(db, range_from, range_to, property_id or None)
 
     from app.models import Property
     properties = db.query(Property).order_by(Property.id).all()
@@ -73,6 +79,10 @@ async def costs_page(
         "costs":          costs,
         "pnl":            pnl,
         "cur_month":      cur_month,
+        "date_from":      range_from,
+        "date_to":        range_to,
+        "range_label":    f"{range_from} ~ {range_to}",
+        "quick_ranges":   cost_svc.cost_quick_ranges(today),
         "months":         months,
         "category":       category,
         "property_id":    property_id,

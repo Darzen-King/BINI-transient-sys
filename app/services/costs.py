@@ -3,7 +3,7 @@ services/costs.py — Operating Cost Module
 Handles CRUD for cost_entries and monthly P&L calculation.
 All category values are canonical English keys.
 """
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from sqlalchemy.orm import Session
 from app.models import CostEntry, Payment
 
@@ -107,10 +107,16 @@ def get_costs(
     property_id:    str | None = None,
     payment_method: str | None = None,
     limit:          int        = 500,
+    date_from:      str | None = None,   # "YYYY-MM-DD", inclusive
+    date_to:        str | None = None,   # "YYYY-MM-DD", inclusive
 ) -> list[CostEntry]:
     q = db.query(CostEntry)
     if year_month:
         q = q.filter(CostEntry.cost_date.like(f"{year_month}%"))
+    if date_from:
+        q = q.filter(CostEntry.cost_date >= date_from[:10])
+    if date_to:
+        q = q.filter(CostEntry.cost_date <= date_to[:10])
     if category:
         q = q.filter(CostEntry.category == category)
     if property_id:
@@ -218,7 +224,7 @@ def cost_in_range(
     )
     if property_id:
         q = q.filter(CostEntry.property_id == property_id)
-    rows = q.all()
+    rows = q.order_by(CostEntry.cost_date, CostEntry.id).all()
     total = sum(c.amount for c in rows)
     by_category: dict[str, float] = {}
     for c in rows:
@@ -227,7 +233,83 @@ def cost_in_range(
         "total_cost":  round(total, 0),
         "by_category": by_category,
         "entry_count": len(rows),
+        # Individual rows (oldest first) for the report detail list and the CSV export.
+        "entries": [
+            {
+                "cost_date":      c.cost_date,
+                "category":       c.category,
+                "amount":         int(round(float(c.amount or 0))),
+                "payment_method": c.payment_method or "",
+                "vendor":         c.vendor or "",
+                "description":    c.description or "",
+                "note":           c.note or "",
+            }
+            for c in rows
+        ],
     }
+
+
+def range_pnl(
+    db:          Session,
+    date_from:   str,
+    date_to:     str,
+    property_id: str | None = None,
+) -> dict:
+    """P&L for any date range, shaped like monthly_pnl so the cost page renders either.
+
+    Revenue uses the same recognition as the reports page (completed stays by check-in date plus
+    recognised monthly rent), so the cost page and 統計報表 always show the same numbers."""
+    from app.services.reports import compute_report
+    report = compute_report(db, date_from, date_to, property_id=property_id)
+    revenue = float(report.get("range_revenue") or 0)
+    cost = cost_in_range(db, date_from, date_to, property_id)
+    total_cost = float(cost["total_cost"])
+    gross_profit = revenue - total_cost
+    return {
+        "date_from":    date_from,
+        "date_to":      date_to,
+        "revenue":      round(revenue, 0),
+        "refunds":      0,
+        "total_cost":   round(total_cost, 0),
+        "gross_profit": round(gross_profit, 0),
+        "cost_ratio":   round(total_cost / revenue * 100, 1) if revenue > 0 else None,
+        "by_category":  cost["by_category"],
+        "profitable":   gross_profit >= 0,
+        "entry_count":  cost["entry_count"],
+    }
+
+
+def resolve_cost_range(date_from: str, date_to: str, year_month: str, today: date) -> tuple[str, str]:
+    """Explicit dates win; an old ?year_month= link means that whole month; otherwise this month so far."""
+    def valid(value: str) -> str | None:
+        try:
+            return datetime.strptime((value or "")[:10], "%Y-%m-%d").strftime("%Y-%m-%d")
+        except ValueError:
+            return None
+    start, end = valid(date_from), valid(date_to)
+    if not start and not end and year_month:
+        try:
+            first = datetime.strptime(year_month[:7], "%Y-%m").date()
+            nxt = date(first.year + (first.month == 12), 1 if first.month == 12 else first.month + 1, 1)
+            return first.strftime("%Y-%m-%d"), (nxt - timedelta(days=1)).strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+    start = start or today.replace(day=1).strftime("%Y-%m-%d")
+    end = end or today.strftime("%Y-%m-%d")
+    return (end, start) if start > end else (start, end)
+
+
+def cost_quick_ranges(today: date) -> list[tuple[str, str, str]]:
+    """(i18n key, from, to) for the cost page's one-tap history ranges."""
+    first_this = today.replace(day=1)
+    last_prev = first_this - timedelta(days=1)
+    return [
+        ("costs.quick.this_month", first_this.strftime("%Y-%m-%d"), today.strftime("%Y-%m-%d")),
+        ("costs.quick.last_month", last_prev.replace(day=1).strftime("%Y-%m-%d"), last_prev.strftime("%Y-%m-%d")),
+        ("costs.quick.last_30", (today - timedelta(days=29)).strftime("%Y-%m-%d"), today.strftime("%Y-%m-%d")),
+        ("costs.quick.this_year", today.replace(month=1, day=1).strftime("%Y-%m-%d"), today.strftime("%Y-%m-%d")),
+        ("costs.quick.all", "2000-01-01", today.strftime("%Y-%m-%d")),
+    ]
 
 
 def available_months(db: Session, n: int = 12) -> list[str]:

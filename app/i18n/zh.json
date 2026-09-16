@@ -695,5 +695,18 @@
   "payment.group_bookings": "未入住預約（收押金）",
   "payment.no_active_stays": "目前沒有在住房客",
   "payment.no_upcoming_bookings": "目前沒有未入住的預約",
-  "checkin.booked_window": "預約時間：__CI__ ~ __CO__（已帶入實際入住時間，退房時間依此重算，可自行修改）"
+  "checkin.booked_window": "預約時間：__CI__ ~ __CO__（已帶入實際入住時間，退房時間依此重算，可自行修改）",
+  "costs.date_from": "開始日期",
+  "costs.date_to": "結束日期",
+  "costs.quick.label": "快速區間",
+  "costs.quick.this_month": "本月",
+  "costs.quick.last_month": "上個月",
+  "costs.quick.last_30": "近 30 天",
+  "costs.quick.this_year": "今年",
+  "costs.quick.all": "全部",
+  "costs.range_revenue": "區間營收",
+  "costs.range_revenue_note": "已退房住宿＋月租，與統計報表相同",
+  "report.cost_details": "成本明細",
+  "report.no_costs": "此區間沒有成本紀錄",
+  "costs.range_cost": "區間成本"
 }

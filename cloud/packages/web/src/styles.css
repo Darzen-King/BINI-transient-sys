@@ -213,9 +213,6 @@ h1, h2, p { margin-top: 0; }
 .mobile-nav button.active { background: linear-gradient(180deg, var(--bds-color-berry-50) 0%, var(--bds-color-surface) 100%); color: var(--brand-dark); }
 .mobile-nav button.active::before { position: absolute; top: -7px; width: 24px; height: 3px; border-radius: 999px; background: var(--brand); content: ""; }
 .desktop-topnav { display: none; }
-.foundation-page { padding: 20px; border: 1px dashed var(--bds-color-berry-200); border-radius: 14px; background: var(--bds-color-berry-50); }
-.foundation-page strong { color: var(--brand-dark); }
-.foundation-page p { margin: 8px 0 0; color: var(--muted); line-height: 1.65; }
 .import-entry { margin-top: 14px; }
 .hub-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }.hub-grid button { display: grid; min-height: 88px; padding: 13px; border: 1px solid var(--line); border-radius: var(--bds-radius-md); background: var(--bds-color-surface); color: var(--ink); text-align: left; gap: 7px; }.hub-grid button:hover { border-color: var(--brand); }.hub-grid strong { color: var(--brand-dark); font-size: 13px; }.hub-grid small { color: var(--muted); font-size: 11px; }
 

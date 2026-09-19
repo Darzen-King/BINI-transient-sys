@@ -84,6 +84,16 @@ describe('mobile-first PMS shell', () => {
     expect(screen.queryByText(/2 筆待同步|等待同步/)).not.toBeInTheDocument();
   });
 
+  it('shows the Hub as finished modules, without the migration-in-progress label', () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: '更多' }));
+    fireEvent.click(screen.getByRole('button', { name: /Prototype Hub/ }));
+    expect(screen.getAllByRole('heading', { name: 'Prototype Hub' }).length).toBeGreaterThan(0);
+    expect(screen.queryByText('全功能搬移中')).not.toBeInTheDocument();
+    expect(screen.queryByText(/尚未接入真實 PMS 資料/)).not.toBeInTheDocument();
+  });
+
   it('drops the DEV badge and banner in the production build', () => {
     render(<App environment="prod" />);
 

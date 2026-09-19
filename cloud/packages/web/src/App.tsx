@@ -652,22 +652,17 @@ const HUB_DESCRIPTIONS: Record<CloudPageId, readonly [string, string]> = {
   holidays: ['國定假日與手動設定', 'Public holidays and manual days'],
 };
 
-function FoundationPage({ pageId, isAdmin, allowedPages, onOpenInitialImport, onOpenPage }: {
-  pageId: CloudPageId | 'hub';
+/** Prototype Hub: one card per page this account may open (every page is now a live cloud module). */
+function HubPage({ isAdmin, allowedPages, onOpenInitialImport, onOpenPage }: {
   isAdmin: boolean;
   allowedPages: readonly CloudPageId[];
   onOpenInitialImport: () => void;
   onOpenPage: (pageId: CloudPageId) => void;
 }) {
   const { locale, text } = useLocale();
-  const page = pageId === 'hub' ? null : CLOUD_PAGE_MANIFEST.find((candidate) => candidate.id === pageId);
-  const title = pageId === 'hub' ? 'Prototype Hub' : (locale === 'zh-TW' ? page?.labelZhTw : page?.labelEn) ?? pageId;
   return (
-    <ShellSection title={title} hint={text('全功能搬移中', 'Full migration in progress')}>
-      {pageId === 'hub' ? <div className="hub-grid">{pagesAllowedForNavigation(allowedPages).filter((item) => item.id !== 'users' || isAdmin).map((item) => <button key={item.id} onClick={() => onOpenPage(item.id)} type="button"><span className="hub-icon"><AppIcon name={item.id} /></span><strong>{locale === 'zh-TW' ? item.labelZhTw : item.labelEn}</strong><small>{text(...HUB_DESCRIPTIONS[item.id])}</small></button>)}{isAdmin ? <button onClick={onOpenInitialImport} type="button"><span className="hub-icon"><AppIcon name="initial_import" /></span><strong>{text('初始資料導入', 'Initial data import')}</strong><small>{text('僅管理員 · v3 備份匯入', 'Admin only · v3 backup import')}</small></button> : null}</div> : <div className="foundation-page">
-        <strong>{text('此模組已列入 Firebase v4 完整搬移範圍', 'This module is included in the full Firebase v4 migration')}</strong>
-        <p>{text('目前 foundation 尚未接入真實 PMS 資料與 operation handler，因此不標示為完成功能。', 'The foundation is not yet connected to live PMS data or operation handlers, so this module is not marked complete.')}</p>
-      </div>}
+    <ShellSection title="Prototype Hub">
+      <div className="hub-grid">{pagesAllowedForNavigation(allowedPages).filter((item) => item.id !== 'users' || isAdmin).map((item) => <button key={item.id} onClick={() => onOpenPage(item.id)} type="button"><span className="hub-icon"><AppIcon name={item.id} /></span><strong>{locale === 'zh-TW' ? item.labelZhTw : item.labelEn}</strong><small>{text(...HUB_DESCRIPTIONS[item.id])}</small></button>)}{isAdmin ? <button onClick={onOpenInitialImport} type="button"><span className="hub-icon"><AppIcon name="initial_import" /></span><strong>{text('初始資料導入', 'Initial data import')}</strong><small>{text('僅管理員 · v3 備份匯入', 'Admin only · v3 backup import')}</small></button> : null}</div>
     </ShellSection>
   );
 }
@@ -733,7 +728,7 @@ function ActiveView({ view, targetRoomId, targetBookingId, onOpenPayment, onOpen
   if (view === 'initial_import') return <InitialDataImport session={session} gateway={dataImportGateway} />;
   if (view === 'more') return <MoreView isAdmin={session.role === 'admin'} allowedPages={session.allowedPages} pushGateway={pushGateway} onOpenPage={onOpenPage} onLogout={onLogout} />;
   if (view === 'today' || view === 'rooms') return <TodayView canCheckIn={session.allowedPages.includes('checkin')} canCreate={session.allowedPages.includes('bookings_new')} canCheckout={session.allowedPages.includes('checkout')} canExtend={session.allowedPages.includes('extend')} canImport={session.role === 'admin'} canPayment={session.allowedPages.includes('payments')} canViewBookings={session.allowedPages.includes('bookings')} onOpenBookingCheckIn={onOpenBookingCheckIn} onOpenBookingCreate={onOpenBookingCreate} onOpenBookings={() => onOpenPage('bookings')} onOpenCheckIn={(roomId) => onOpenRoomPage('checkin', roomId)} onOpenCheckout={(roomId) => onOpenRoomPage('checkout', roomId)} onOpenExtend={(roomId) => onOpenRoomPage('extend', roomId)} onOpenInitialImport={() => onOpenPage('initial_import')} onOpenPayment={onOpenPayment} propertyId={session.propertyId} roomOverviewGateway={roomOverviewGateway} />;
-  return <FoundationPage allowedPages={session.allowedPages} isAdmin={session.role === 'admin'} onOpenInitialImport={() => onOpenPage('initial_import')} onOpenPage={onOpenPage} pageId={view} />;
+  return <HubPage allowedPages={session.allowedPages} isAdmin={session.role === 'admin'} onOpenInitialImport={() => onOpenPage('initial_import')} onOpenPage={onOpenPage} />;
 }
 
 export function LoginScreen({ onLogin }: { onLogin: () => void }) {

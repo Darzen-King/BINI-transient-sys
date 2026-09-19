@@ -34,8 +34,9 @@ const sourceTableSchema = z.enum([
   'holiday_cache',
 ] satisfies [V3SourceTable, ...V3SourceTable[]]);
 
-export const V3_PROMOTION_CONFIRMATION_PREFIX = 'PROMOTE DEV';
-export const V3_REPLACE_CONFIRMATION_PREFIX = 'REPLACE DEV';
+// Environment-neutral: the same import runs against DEV and production.
+export const V3_PROMOTION_CONFIRMATION_PREFIX = 'PROMOTE';
+export const V3_REPLACE_CONFIRMATION_PREFIX = 'REPLACE';
 
 /**
  * - create: first import into an empty property; existing documents are never overwritten.

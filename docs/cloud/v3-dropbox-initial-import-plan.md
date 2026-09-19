@@ -53,7 +53,7 @@
 
 ### Phase 4 — Promote（已部署 DEV；尚未對真實資料執行）
 
-- `adminPromotePreparedV3Backup` 只由 MFA + property admin 呼叫，要求輸入 `PROMOTE DEV <batch-prefix>`；Web client 不可直寫權威 collection。
+- `adminPromotePreparedV3Backup` 只由 MFA + property admin 呼叫，要求輸入 `PROMOTE <batch-prefix>`（取代模式為 `REPLACE <batch-prefix>`）；Web client 不可直寫權威 collection。
 - callable 重新檢查 `ready` 批次的 property、checksum、transform version、來源／prepared 實際筆數、reconciliation、逐表計數、target path 與 migration metadata。所有 path 由 mapping 重建，不能信任 staged path 字串。
 - promotion 以 350 筆 transaction chunks 寫入 deterministic documents，僅允許不存在的文件；同 batch 且內容完全相同的文件才可安全續作，任何既有不同文件都會 fail closed。預先建立的 cloud property root 是唯一窄例外：保留其 `name`／`active`／`currency`／`timezone` 設定，僅一次性附加 legacy property 資料到 `legacyV3Import`；批次保留 attempt／lease／failure／complete metadata，並寫 audit。
 - `adminPromotePreparedV3Backup` 已部署至 `bini-transient-dev` 的 `asia-east1`；**尚未執行任何真實 Dropbox 資料 promotion。** promotion 程式不是 rollback；切換前 Firestore export、按批次 restore drill、v3 凍結與操作員驗收仍是必要 gate。

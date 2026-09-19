@@ -71,6 +71,17 @@ function gateway(): DataImportGateway {
 afterEach(() => cleanup());
 
 describe('initial v3 data import', () => {
+  it('names production as the target on the production site', async () => {
+    render(<LocaleProvider><InitialDataImport environment="prod" gateway={gateway()} session={session} /></LocaleProvider>);
+    const file = new File([backup()], 'bini_blooms_backup.json', { type: 'application/json' });
+    Object.defineProperty(file, 'text', { value: vi.fn().mockResolvedValue(backup()) });
+
+    expect(screen.getByText('從單機版 Dropbox 備份搬入 Firebase 正式環境')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('選擇 Dropbox 備份檔'), { target: { files: [file] } });
+    expect(await screen.findByRole('button', { name: '建立正式環境匯入暫存批次' })).toBeInTheDocument();
+    expect(screen.queryByText(/DEV/)).not.toBeInTheDocument();
+  });
+
   it('stages a sanitized backup, requests reconciliation, and keeps promotion disabled until the phrase is typed', async () => {
     const api = gateway();
     render(<LocaleProvider><InitialDataImport session={session} gateway={api} /></LocaleProvider>);
@@ -78,16 +89,16 @@ describe('initial v3 data import', () => {
     Object.defineProperty(file, 'text', { value: vi.fn().mockResolvedValue(backup()) });
 
     fireEvent.change(screen.getByLabelText('選擇 Dropbox 備份檔'), { target: { files: [file] } });
-    await screen.findByRole('button', { name: '建立 DEV 匯入暫存批次' });
+    await screen.findByRole('button', { name: '建立DEV匯入暫存批次' });
     fireEvent.click(screen.getByRole('checkbox'));
-    fireEvent.click(screen.getByRole('button', { name: '建立 DEV 匯入暫存批次' }));
+    fireEvent.click(screen.getByRole('button', { name: '建立DEV匯入暫存批次' }));
 
     await waitFor(() => expect(api.stage).toHaveBeenCalledWith(expect.objectContaining({
       propertyId: 'property-main',
       fileName: 'bini_blooms_backup.json',
       content: expect.not.stringContaining('next_booking'),
     })));
-    fireEvent.click(await screen.findByRole('button', { name: '產生 DEV 轉換與對帳報告' }));
+    fireEvent.click(await screen.findByRole('button', { name: '產生DEV轉換與對帳報告' }));
     await waitFor(() => expect(api.prepare).toHaveBeenCalledWith({ propertyId: 'property-main', batchId }));
     expect(await screen.findByText('對帳通過，資料已準備完成')).toBeInTheDocument();
     expect(screen.getByText(/尚未寫入正式營運 collections/)).toBeInTheDocument();
@@ -103,7 +114,7 @@ describe('initial v3 data import', () => {
       batchId,
       confirmation: v3PromotionConfirmationForBatch(batchId),
     }));
-    expect(await screen.findByText('DEV 正式匯入完成')).toBeInTheDocument();
+    expect(await screen.findByText('DEV匯入完成')).toBeInTheDocument();
   });
 
   it('re-imports a newer backup in replace mode with its own confirmation phrase and explains a refused first import', async () => {
@@ -115,19 +126,19 @@ describe('initial v3 data import', () => {
     const file = new File([backup()], 'bini_blooms_backup.json', { type: 'application/json' });
     Object.defineProperty(file, 'text', { value: vi.fn().mockResolvedValue(backup()) });
     fireEvent.change(screen.getByLabelText('選擇 Dropbox 備份檔'), { target: { files: [file] } });
-    await screen.findByRole('button', { name: '建立 DEV 匯入暫存批次' });
+    await screen.findByRole('button', { name: '建立DEV匯入暫存批次' });
     fireEvent.click(screen.getAllByRole('checkbox')[0]!);
-    fireEvent.click(screen.getByRole('button', { name: '建立 DEV 匯入暫存批次' }));
-    fireEvent.click(await screen.findByRole('button', { name: '產生 DEV 轉換與對帳報告' }));
+    fireEvent.click(screen.getByRole('button', { name: '建立DEV匯入暫存批次' }));
+    fireEvent.click(await screen.findByRole('button', { name: '產生DEV轉換與對帳報告' }));
     await screen.findByText('對帳通過，資料已準備完成');
 
     fireEvent.change(screen.getByLabelText('正式匯入確認字串'), { target: { value: v3PromotionConfirmationForBatch(batchId) } });
     fireEvent.click(screen.getByRole('button', { name: '確認並寫入 Firebase DEV' }));
-    expect(await screen.findByText(/請在下方選擇「以此備份取代 DEV 營運資料」/)).toBeInTheDocument();
+    expect(await screen.findByText(/請在下方選擇「以此備份取代DEV營運資料」/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('radio', { name: '以此備份取代 DEV 營運資料' }));
-    expect(screen.getByText('將以此備份取代 DEV 營運資料')).toBeInTheDocument();
-    const replace = screen.getByRole('button', { name: '確認取代 Firebase DEV 營運資料' });
+    fireEvent.click(screen.getByRole('radio', { name: '以此備份取代DEV營運資料' }));
+    expect(screen.getByText('將以此備份取代DEV營運資料')).toBeInTheDocument();
+    const replace = screen.getByRole('button', { name: '確認取代 Firebase DEV營運資料' });
     // The first-import phrase does not unlock a replacement.
     fireEvent.change(screen.getByLabelText('正式匯入確認字串'), { target: { value: v3PromotionConfirmationForBatch(batchId) } });
     expect(replace).toBeDisabled();

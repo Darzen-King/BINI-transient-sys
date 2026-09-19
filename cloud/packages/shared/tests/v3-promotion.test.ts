@@ -116,7 +116,7 @@ describe('v3 prepared backup promotion contract', () => {
 
   it('uses a separate REPLACE phrase for replace mode, so a first-import phrase can never replace data', () => {
     const candidate = fixture();
-    expect(v3PromotionConfirmationForBatch(batchId, 'replace')).toBe(`REPLACE DEV ${batchId.slice(0, 12)}`);
+    expect(v3PromotionConfirmationForBatch(batchId, 'replace')).toBe(`REPLACE ${batchId.slice(0, 12)}`);
     expect(v3BackupPromoteInputSchema.safeParse({ ...candidate.request, mode: 'replace' }).success).toBe(false);
     expect(v3BackupPromoteInputSchema.safeParse({ ...candidate.request, mode: 'replace', confirmation: v3PromotionConfirmationForBatch(batchId, 'replace') }).success).toBe(true);
     expect(v3BackupPromoteInputSchema.safeParse({ ...candidate.request, mode: 'overwrite' }).success).toBe(false);

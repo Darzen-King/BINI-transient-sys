@@ -256,8 +256,9 @@ h1, h2, p { margin-top: 0; }
 .import-warning { padding: 12px; border-radius: 12px; background: var(--bds-color-feedback-warning-bg); color: var(--bds-color-feedback-warning); }
 .import-warning p { margin: 5px 0 0; font-size: 11px; line-height: 1.55; }
 .import-warning-list { padding-left: 20px; margin: 0; color: var(--warning); font-size: 11px; line-height: 1.6; }
-.import-confirm { display: flex; align-items: start; min-height: 48px; gap: 9px; color: var(--muted); font-size: 12px; line-height: 1.5; }
-.import-confirm input { flex: 0 0 auto; width: 20px; height: 20px; }
+/* Checkbox and its sentence share one row: override the global form-control height/margins that pushed the box below the text. */
+.import-confirm { display: flex; align-items: center; min-height: 48px; gap: 10px; color: var(--bds-color-text-secondary, var(--muted)); font-size: 14px; line-height: 1.5; cursor: pointer; }
+.import-confirm input[type="checkbox"] { flex: none; width: 20px; height: 20px; min-height: 0; margin: 0; padding: 0; accent-color: var(--bds-color-berry-600); cursor: pointer; }
 .import-success { padding: 13px; border: 1px solid var(--bds-color-green-300); border-radius: 12px; background: var(--bds-color-feedback-success-bg); color: var(--bds-color-green-700); }
 .import-success p { margin: 5px 0 0; font-size: 12px; line-height: 1.55; }
 

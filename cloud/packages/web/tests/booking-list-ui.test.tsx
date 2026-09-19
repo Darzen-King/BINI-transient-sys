@@ -61,6 +61,22 @@ function soonGateway(value: BookingSoonItem[]): BookingSoonGateway {
 }
 
 describe('live booking list UI', () => {
+  it('sorts bookings by any v3 column in either direction, like the desktop page', async () => {
+    const make = (bookingId: string, roomId: string, guestName: string, checkInAt: string, amountNts: number): BookingListItem => ({ ...bookings[0]!, bookingId, roomId, guestName, checkInAt, amountNts });
+    const list = [make('RSV-b', '205', 'eve', '2026-09-23T18:01:00+08:00', 1_000), make('RSV-a', '203', 'bev', '2026-09-22T12:00:00+08:00', 3_600), make('RSV-c', '202', 'mj', '2026-10-14T10:00:00+08:00', 2_000)];
+    render(<App bookingListGateway={gateway(list)} />);
+    fireEvent.click(screen.getByRole('link', { name: '預約管理' }));
+    await screen.findByText('203 · bev');
+    const order = () => Array.from(document.querySelectorAll('.booking-list button strong')).map((node) => node.textContent);
+
+    expect(order()).toEqual(['203 · bev', '205 · eve', '202 · mj']);
+    fireEvent.change(screen.getByLabelText('排序欄位'), { target: { value: 'room' } });
+    expect(order()).toEqual(['202 · mj', '203 · bev', '205 · eve']);
+    fireEvent.change(screen.getByLabelText('排序欄位'), { target: { value: 'amount' } });
+    fireEvent.click(screen.getByRole('button', { name: '目前由小到大，按一下改為由大到小' }));
+    expect(order()).toEqual(['203 · bev', '202 · mj', '205 · eve']);
+  });
+
   it('shows the deposit a booking has paid and opens Payments to collect one', async () => {
     const session: StaffSession = { uid: 'front-1', email: 'front@example.com', displayName: 'Front', propertyId: 'property-main', role: 'front_desk', allowedPages: ['bookings', 'payments'] };
     const payment = (paymentId: string, amountNts: number, extra: Record<string, unknown> = {}) => ({ paymentId, bookingId: 'RSV-live-203', roomId: '203', guestName: 'Live Guest', paymentType: 'cash' as const, amountNts, deposit: true, refund: false, status: 'paid' as const, note: null, createdAt: '2026-09-13T09:00:00.000Z', ...extra });

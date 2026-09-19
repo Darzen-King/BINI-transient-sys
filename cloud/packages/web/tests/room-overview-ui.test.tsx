@@ -82,6 +82,10 @@ describe('live room overview UI', () => {
     expect(roomButton.closest('article')).toHaveTextContent('NT$ 2,400');
     expect(screen.getByText('4')).toBeInTheDocument();
     expect(screen.getByText('302 · Next Guest')).toBeInTheDocument();
+    // Up next shows the arrival day and full check-in time without opening the row.
+    const upNextRow = screen.getByRole('button', { name: '查看 302 · Next Guest 預約' });
+    expect(upNextRow).toHaveTextContent('9/12（六）14:30');
+    expect(upNextRow).toHaveTextContent('入住 2026-09-12 14:30');
 
     fireEvent.click(roomButton);
     const dialog = screen.getByRole('dialog', { name: '301 房詳細資料' });

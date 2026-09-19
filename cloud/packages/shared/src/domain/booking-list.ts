@@ -83,3 +83,32 @@ export function buildActiveBookingList(
       ...(booking.version !== undefined ? { version: booking.version } : {}),
     }));
 }
+
+/** The booking-management columns v3 lets staff sort by (its status column is always "已預約" here). */
+export const BOOKING_SORT_FIELDS = ['checkin', 'checkout', 'room', 'guest', 'phone', 'plan', 'amount'] as const;
+export type BookingSortField = (typeof BOOKING_SORT_FIELDS)[number];
+export type SortDirection = 'asc' | 'desc';
+
+const bookingSortKey: Record<BookingSortField, (booking: BookingListItem) => string | number> = {
+  checkin: (booking) => Date.parse(booking.checkInAt),
+  checkout: (booking) => Date.parse(booking.checkOutAt),
+  room: (booking) => booking.roomId,
+  guest: (booking) => booking.guestName,
+  phone: (booking) => booking.phone ?? '',
+  plan: (booking) => booking.plan,
+  amount: (booking) => booking.amountNts,
+};
+
+/** v3 `/bookings?sort_by=&sort_dir=`: stable sort, ties keep check-in order; text compares naturally ("2" before "10"). */
+export function sortBookingList(items: readonly BookingListItem[], field: BookingSortField, direction: SortDirection = 'asc'): BookingListItem[] {
+  const key = bookingSortKey[field];
+  const sign = direction === 'desc' ? -1 : 1;
+  return [...items].sort((left, right) => {
+    const a = key(left);
+    const b = key(right);
+    const compared = typeof a === 'number' && typeof b === 'number'
+      ? a - b
+      : String(a).localeCompare(String(b), 'zh-Hant', { numeric: true, sensitivity: 'base' });
+    return compared * sign || Date.parse(left.checkInAt) - Date.parse(right.checkInAt);
+  });
+}

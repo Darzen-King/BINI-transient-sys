@@ -171,6 +171,13 @@ h1, h2, p { margin-top: 0; }
 .task-list strong, .task-list small, .booking-list strong, .booking-list small { display: block; }
 .task-list small, .booking-list small { margin-top: 3px; color: var(--muted); font-size: 11px; }
 .time { color: var(--brand-dark); font-size: 12px; font-weight: 800; }
+/* Up next: arrival day above the time so rows read without opening them. */
+.time--dated { display: grid; min-width: 64px; text-align: center; line-height: 1.25; }
+.task-list .time--dated small { margin: 0 0 2px; color: var(--brand-dark); font-size: 11px; font-weight: 700; }
+/* Bookings: v3 column sort (field + direction) under the search box. */
+.booking-sort { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin: 0 0 12px; }
+.booking-sort .bds-field { flex: 1 1 180px; margin: 0; }
+.booking-sort .bds-button { flex: none; white-space: nowrap; }
 .booking-list button { grid-template-columns: 1fr auto; }
 
 .wide-primary {

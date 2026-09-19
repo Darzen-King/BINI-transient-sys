@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildActiveBookingList } from '@bini/cloud-shared';
+import { buildActiveBookingList, sortBookingList, type BookingListItem } from '@bini/cloud-shared';
 
 const booking = (bookingId: string, overrides: Record<string, unknown> = {}) => ({
   id: bookingId,
@@ -40,5 +40,30 @@ describe('active booking list', () => {
   it('fails closed on a malformed or identity-mismatched document', () => {
     expect(() => buildActiveBookingList([booking('RSV-001', { bookingId: 'RSV-other' })])).toThrow(/identity/);
     expect(() => buildActiveBookingList([booking('RSV-001', { amountNts: 1.5 })])).toThrow(/schema/);
+  });
+});
+
+describe('sortBookingList (v3 booking-management column sort)', () => {
+  const item = (bookingId: string, roomId: string, guestName: string, checkInAt: string, amountNts: number, plan = '24hrs'): BookingListItem => ({
+    bookingId, roomId, guestName, phone: null, checkInAt, checkOutAt: checkInAt, plan, amountNts, discountNts: 0, rateType: null, status: '已預約',
+  });
+  const list = [
+    item('b1', '205', 'eve', '2026-09-23T10:01:00.000Z', 1000),
+    item('b2', '10', 'Bev', '2026-09-22T04:00:00.000Z', 3600, '12hrs'),
+    item('b3', '203', 'marvin', '2026-09-22T04:00:00.000Z', 1000),
+  ];
+
+  it('sorts by any v3 column in either direction', () => {
+    expect(sortBookingList(list, 'checkin').map((b) => b.bookingId)).toEqual(['b2', 'b3', 'b1']);
+    expect(sortBookingList(list, 'checkin', 'desc')[0]!.bookingId).toBe('b1');
+    expect(sortBookingList(list, 'room').map((b) => b.roomId)).toEqual(['10', '203', '205']);
+    expect(sortBookingList(list, 'guest').map((b) => b.guestName)).toEqual(['Bev', 'eve', 'marvin']);
+    expect(sortBookingList(list, 'amount', 'desc')[0]!.bookingId).toBe('b2');
+    expect(sortBookingList(list, 'plan')[0]!.plan).toBe('12hrs');
+  });
+
+  it('keeps check-in order for ties and never mutates the input', () => {
+    expect(sortBookingList(list, 'amount').map((b) => b.bookingId)).toEqual(['b3', 'b1', 'b2']);
+    expect(list.map((b) => b.bookingId)).toEqual(['b1', 'b2', 'b3']);
   });
 });

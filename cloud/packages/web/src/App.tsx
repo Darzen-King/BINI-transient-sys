@@ -63,7 +63,7 @@ import type { PropertyNameGateway } from './auth/property-session.js';
 import { CheckoutSoonBanner } from './stays/CheckoutSoonBanner.js';
 import { enableChimeOnFirstInteraction } from './alerts/chime.js';
 import { AppIcon, type AppIconName } from './design-system/icons.js';
-import { bookingDepositTotals } from '@bini/cloud-shared';
+import { BOOKING_SORT_FIELDS, bookingDepositTotals, sortBookingList, type BookingSortField, type SortDirection } from '@bini/cloud-shared';
 import { PushNotificationPanel, PushNotificationPrompt } from './notifications/PushNotificationPanel.js';
 import type { PushGateway } from './notifications/push.js';
 
@@ -237,6 +237,13 @@ function formatTaipeiDateTime(value: string | null, locale: AppLocale): string |
 
 function formatTaipeiTime(value: string, locale: AppLocale): string {
   return formatTaipeiDateTime(value, locale)?.slice(11) ?? '';
+}
+
+/** Short arrival day for list rows, e.g. 9/22（二） / Tue 9/22, in Taipei time. */
+function formatTaipeiDay(value: string, locale: AppLocale): string {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'zh-TW', { timeZone: 'Asia/Taipei', month: 'numeric', day: 'numeric', weekday: locale === 'en' ? 'short' : 'narrow' })
+    .formatToParts(new Date(value)).map((part) => [part.type, part.value]));
+  return locale === 'en' ? `${parts.weekday} ${parts.month}/${parts.day}` : `${parts.month}/${parts.day}（${parts.weekday}）`;
 }
 
 function toRoomViewModel(room: RoomOverviewRoom, locale: AppLocale): RoomViewModel {
@@ -423,8 +430,8 @@ function TodayView({ canCreate, canCheckIn, canExtend, canPayment, canCheckout, 
         <div className="task-list">
           {roomOverviewGateway ? projection?.upNext.map((item) => (
             <button aria-label={text(`查看 ${item.roomId} · ${item.guestName} 預約`, `View booking ${item.roomId} · ${item.guestName}`)} key={item.bookingId} onClick={() => setSelectedUpNextId(item.bookingId)}>
-              <span className="time">{formatTaipeiTime(item.checkInAt, locale)}</span>
-              <span><strong>{item.roomId} · {item.guestName}</strong><small>{item.paidNts > 0 ? text('預約入住 · 已有收款', 'Arrival · Payment received') : text('預約入住 · 尚未收款', 'Arrival · Payment due')}</small></span><span>›</span>
+              <span className="time time--dated"><small>{formatTaipeiDay(item.checkInAt, locale)}</small>{formatTaipeiTime(item.checkInAt, locale)}</span>
+              <span><strong>{item.roomId} · {item.guestName}</strong><small>{text(`入住 ${formatTaipeiDateTime(item.checkInAt, locale) ?? ''}`, `Check-in ${formatTaipeiDateTime(item.checkInAt, locale) ?? ''}`)} · {item.paidNts > 0 ? text('已有收款', 'Payment received') : text('尚未收款', 'Payment due')}</small></span><span>›</span>
             </button>
           )) : <>
             <button><span className="time">14:30</span><span><strong>202 · Juvy</strong><small>{text('預約入住 · 已付押金', 'Arrival · Deposit paid')}</small></span><span>›</span></button>
@@ -492,6 +499,8 @@ function BookingsView({ canCreate, canCancel, onOpenBookingCreate, onOpenCheckIn
   const { locale, text } = useLocale();
   const [bookings, setBookings] = useState<BookingListItem[] | null>(null);
   const [query, setQuery] = useState('');
+  const [sortField, setSortField] = useState<BookingSortField>('checkin');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [loadError, setLoadError] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<BookingListItem | null>(null);
   const [pendingOperationId, setPendingOperationId] = useState<string | null>(null);
@@ -503,9 +512,14 @@ function BookingsView({ canCreate, canCancel, onOpenBookingCreate, onOpenCheckIn
   const [deposits, setDeposits] = useState<Map<string, number>>(() => new Map());
   useEffect(() => paymentListGateway?.subscribe(propertyId, (payments) => setDeposits(bookingDepositTotals(payments)), () => setDeposits(new Map())), [paymentListGateway, propertyId]);
   const depositLabel = (bookingId: string) => { const paid = deposits.get(bookingId) ?? 0; return paid > 0 ? text(`押金 NT$ ${paid.toLocaleString()}`, `Deposit NT$ ${paid.toLocaleString()}`) : text('未收押金', 'No deposit'); };
-  const visibleBookings = gateway
+  const sortLabels: Record<BookingSortField, string> = {
+    checkin: text('入住時間', 'Check-in'), checkout: text('退房時間', 'Check-out'), room: text('房號', 'Room'), guest: text('旅客', 'Guest'),
+    phone: text('電話', 'Phone'), plan: text('方案', 'Plan'), amount: text('金額', 'Amount'),
+  };
+  const filteredBookings = gateway
     ? (bookings ?? []).filter((booking) => [booking.bookingId, booking.roomId, booking.guestName, booking.phone ?? ''].some((value) => value.toLocaleLowerCase('zh-TW').includes(query.trim().toLocaleLowerCase('zh-TW'))))
     : previewBookings.filter((booking) => [booking.bookingId, booking.roomId, booking.guestName, booking.phone ?? ''].some((value) => value.toLocaleLowerCase('zh-TW').includes(query.trim().toLocaleLowerCase('zh-TW'))));
+  const visibleBookings = sortBookingList(filteredBookings, sortField, sortDirection);
 
   useEffect(() => {
     if (!gateway) return undefined;
@@ -562,6 +576,16 @@ function BookingsView({ canCreate, canCancel, onOpenBookingCreate, onOpenCheckIn
     <ShellSection title={text('預約', 'Bookings')} hint={text(`${visibleBookings.length} 筆有效預約`, `${visibleBookings.length} active bookings`)}>
       {canCreate ? <Button block onClick={onOpenBookingCreate} size="lg">＋ {text('新增預約', 'New booking')}</Button> : null}
       <Field className="search-field" label={text('搜尋', 'Search')}><input aria-label={text('搜尋預約', 'Search bookings')} onChange={(event) => setQuery(event.target.value)} placeholder={text('房號、姓名、預約編號', 'Room, guest or booking ID')} type="search" value={query} /></Field>
+      <div className="booking-sort">
+        <Field label={text('排序', 'Sort by')}>
+          <select aria-label={text('排序欄位', 'Sort field')} onChange={(event) => setSortField(event.target.value as BookingSortField)} value={sortField}>
+            {BOOKING_SORT_FIELDS.map((field) => <option key={field} value={field}>{sortLabels[field]}</option>)}
+          </select>
+        </Field>
+        <Button aria-label={sortDirection === 'asc' ? text('目前由小到大，按一下改為由大到小', 'Ascending; switch to descending') : text('目前由大到小，按一下改為由小到大', 'Descending; switch to ascending')} onClick={() => setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))} variant="outline">
+          {sortDirection === 'asc' ? text('↑ 由小到大', '↑ Ascending') : text('↓ 由大到小', '↓ Descending')}
+        </Button>
+      </div>
       {loadError ? <Notice tone="danger" title={text('無法載入即時預約', 'Unable to load live bookings')}>{text('資料格式或連線異常，系統不會顯示展示預約。', 'The system will not substitute preview bookings after a data or connection error.')}</Notice> : null}
       {gateway && bookings === null && !loadError ? <div className="empty-card">{text('正在載入即時預約…', 'Loading live bookings…')}</div> : null}
       <div className="booking-list">

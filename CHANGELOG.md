@@ -4,6 +4,7 @@
 
 ## Unreleased — Firebase v4 全介面／全功能雲端搬移（DEV）
 
+- Prototype Hub 拿掉「全功能搬移中」標示：17 個分頁都已接上雲端真實資料與伺服器操作，只剩 Hub 還在用搬移期的占位頁面，一併移除該占位頁與說明文字。
 - 正式環境 `bini-transient` 第一階段（建置與驗收，尚未匯入營運資料、尚未切換）：Identity Platform（Email／密碼＋TOTP 兩步驟驗證、關閉自行註冊與刪除、授權網域 `bini-transient.web.app`／`firebaseapp.com`）、Firestore `(default)` 於 asia-east1（時間點還原 7 天、刪除保護、每日備份保留 7 天＋每週日備份保留 14 週）、Web App 與 reCAPTCHA Enterprise／App Check（僅監測、未強制）、第一位管理員。新增正式環境部署腳本 `deploy:prod:firestore|functions|hosting`、`bootstrap:prod-admin`、`build:prod`（`vite --mode prod` 讀取 git 忽略的 `.env.prod.local`）；正式部署需 `.firebaserc` 的 `prod` 別名指向 `bini-transient` 且設定 `BINI_PROD_DEPLOY_CONFIRM=bini-transient`，Hosting 另檢查正式版 bundle 不含 DEV 專案。Dropbox 每小時備份改為依專案開關（`DROPBOX_BACKUP_PROJECTS`，目前只有 DEV）：未開啟的專案不宣告 Dropbox 金鑰，正式環境在設定金鑰前也能部署，且同一時間只有一個專案寫入 `cloud_export`；切換時改清單即可。正式版不顯示「DEV」標籤與「尚不可作為正式營運系統」橫幅。
 - 單機版 v3.9.21：修正桌面視窗中「⬇ CSV」等匯出按鈕沒有反應。伺服器其實有產生檔案，但桌面視窗元件 pywebview 預設會取消所有下載；已開啟下載，按下後會跳出「另存新檔」視窗（預設在「下載」資料夾）。雲端版在瀏覽器中下載不受影響。
 - 成本歷史查詢與報表成本匯出（**單機版 v3.9.20 與雲端版同步**）：成本紀錄頁由只能選月份改為**日期區間搜尋**（開始／結束日期＋本月、上個月、近 30 天、今年、全部），合計、分類統計與清單都依區間計算；統計報表頁的「成本與損益」加上可展開的**成本明細**；報表匯出的 CSV 新增「Costs & Profit」「Cost by Category」「Cost Entries」三個區塊（僅管理員，與畫面權限一致）。

@@ -84,6 +84,13 @@ describe('mobile-first PMS shell', () => {
     expect(screen.queryByText(/2 筆待同步|等待同步/)).not.toBeInTheDocument();
   });
 
+  it('drops the DEV badge and banner in the production build', () => {
+    render(<App environment="prod" />);
+
+    expect(screen.queryByText('DEV')).not.toBeInTheDocument();
+    expect(screen.queryByText(/DEV 開發中/)).not.toBeInTheDocument();
+  });
+
   it('reaches the housekeeping screen from the More menu', () => {
     render(<App />);
 

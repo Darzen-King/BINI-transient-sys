@@ -66,6 +66,7 @@ cloud/packages/*/dist-types/
 cloud/packages/*/tsconfig.tsbuildinfo
 cloud/.firebase/
 cloud/.env.local
+cloud/.env.*.local
 cloud/.firebaserc
 cloud/firebase-debug.log
 cloud/firestore-debug.log

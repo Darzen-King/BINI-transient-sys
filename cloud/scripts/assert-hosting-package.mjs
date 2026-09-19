@@ -1,16 +1,13 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { DEV_PROJECT_ID, TARGETS, parseTarget, readTargetEnvironment } from './deploy-target.mjs';
+
+const target = parseTarget();
+const { label, projectId } = TARGETS[target];
 const distRoot = resolve(process.cwd(), 'packages/web/dist');
 const assetRoot = resolve(distRoot, 'assets');
-const localEnvironment = Object.fromEntries(readFileSync(resolve(process.cwd(), '.env.local'), 'utf8')
-  .split(/\r?\n/u)
-  .map((line) => line.trim())
-  .filter((line) => line && !line.startsWith('#') && line.includes('='))
-  .map((line) => {
-    const separator = line.indexOf('=');
-    return [line.slice(0, separator), line.slice(separator + 1)];
-  }));
+const localEnvironment = readTargetEnvironment(target, process.cwd());
 const javascript = readdirSync(assetRoot)
   .filter((name) => name.endsWith('.js'))
   .map((name) => readFileSync(resolve(assetRoot, name), 'utf8'))
@@ -25,8 +22,11 @@ const requiredKeys = [
   'VITE_FIREBASE_APP_ID',
 ];
 
-if (localEnvironment.VITE_FIREBASE_PROJECT_ID !== 'bini-transient-dev') {
-  throw new Error('Hosting build environment is not the confirmed DEV Firebase project.');
+if (localEnvironment.VITE_FIREBASE_PROJECT_ID !== projectId) {
+  throw new Error(`Hosting build environment is not the confirmed ${label} Firebase project.`);
+}
+if (localEnvironment.VITE_BINI_ENV !== target) {
+  throw new Error(`Hosting build environment must set VITE_BINI_ENV=${target}.`);
 }
 
 for (const key of requiredKeys) {
@@ -36,10 +36,15 @@ for (const key of requiredKeys) {
   }
 }
 
+// A production bundle must never talk to the DEV project (e.g. a build that skipped --mode prod).
+if (target === 'prod' && javascript.includes(DEV_PROJECT_ID)) {
+  throw new Error('PROD hosting bundle still references the DEV Firebase project.');
+}
+
 // App Check must ship with the build; a missing site key would silently drop tokens from every request.
 const siteKey = localEnvironment.VITE_RECAPTCHA_SITE_KEY;
 if (!siteKey || siteKey === 'REPLACE_ME' || !javascript.includes(siteKey)) {
   throw new Error('Hosting bundle is missing the App Check reCAPTCHA site key.');
 }
 
-console.log('Hosting deployment package contains the confirmed DEV Firebase configuration and App Check site key.');
+console.log(`Hosting deployment package contains the confirmed ${label} Firebase configuration and App Check site key.`);

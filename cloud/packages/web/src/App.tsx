@@ -787,6 +787,7 @@ export function App({
   pushGateway,
   onSwitchProperty,
   onLogout,
+  environment = import.meta.env.VITE_BINI_ENV === 'prod' ? 'prod' : 'dev',
 }: {
   initialAuthenticated?: boolean;
   session?: StaffSession;
@@ -822,6 +823,8 @@ export function App({
   pushGateway?: PushGateway;
   onSwitchProperty?: (propertyId: string) => void;
   onLogout?: () => void | Promise<void>;
+  /** Production builds drop the DEV badge and the not-for-operations banner. */
+  environment?: 'dev' | 'prod';
 }) {
   const { locale, text } = useLocale();
   const [authenticated, setAuthenticated] = useState(initialAuthenticated);
@@ -862,7 +865,7 @@ export function App({
           ))}
         </nav>
         <div className="desktop-account">
-          <span className="environment-state">DEV</span>
+          {environment === 'dev' ? <span className="environment-state">DEV</span> : null}
           <PropertySwitcher className="desktop-property-switch" gateway={propertyNameGateway} onSwitch={onSwitchProperty} session={session} />
           <strong>{session.displayName}</strong>
           <LanguageSwitcher className="desktop-language-switch" />
@@ -876,9 +879,9 @@ export function App({
           <div className="topbar-controls"><PropertySwitcher className="mobile-property-switch" gateway={propertyNameGateway} onSwitch={onSwitchProperty} session={session} /><LanguageSwitcher className="mobile-language-switch" /><button className="avatar" aria-label={text('帳號選單', 'Account menu')}>{session.displayName.slice(0, 1) || text('管', 'A')}</button></div>
         </header>
 
-        <Notice className="foundation-banner" title={text('DEV 開發中 · 尚不可作為正式營運系統', 'DEV in progress · Not for live operations')}>
+        {environment === 'dev' ? <Notice className="foundation-banner" title={text('DEV 開發中 · 尚不可作為正式營運系統', 'DEV in progress · Not for live operations')}>
           <small>{text('登入與帳號管理已接 Firebase；其餘 PMS 模組將依全功能對照矩陣逐項接入。', 'Authentication and account management use Firebase; remaining PMS modules are being connected against the parity matrix.')}</small>
-        </Notice>
+        </Notice> : null}
 
         {pushGateway && view !== 'more' ? <PushNotificationPrompt gateway={pushGateway} onOpenSettings={() => setView('more')} /> : null}
         {session.allowedPages.includes('bookings') ? <BookingSoonBanner cancelGateway={bookingCancelGateway} gateway={bookingSoonGateway} propertyId={session.propertyId} /> : null}

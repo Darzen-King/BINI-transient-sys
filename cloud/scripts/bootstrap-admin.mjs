@@ -2,10 +2,13 @@
 
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 
-const EXPECTED_PROJECT_ID = 'bini-transient-dev';
+import { TARGETS, assertProdProjectConfig, parseTarget, readTargetEnvironment } from './deploy-target.mjs';
+
+// `--target=prod` bootstraps the production project (also needs BINI_PROD_DEPLOY_CONFIRM); DEV is the default.
+const TARGET = parseTarget();
+const EXPECTED_PROJECT_ID = TARGETS[TARGET].projectId;
+const LABEL = TARGETS[TARGET].label;
 const EXPECTED_ADMIN_EMAIL = 'biniblooms250808@gmail.com';
 const PROPERTY_ID = 'property-main';
 const ALL_PAGES = [
@@ -13,17 +16,6 @@ const ALL_PAGES = [
   'extend', 'checkout', 'room_management', 'housekeeping', 'maintenance',
   'reports', 'audit', 'users', 'properties', 'costs', 'holidays',
 ];
-
-function readLocalEnvironment() {
-  const content = readFileSync(resolve(process.cwd(), '.env.local'), 'utf8');
-  return Object.fromEntries(content.split(/\r?\n/u)
-    .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith('#') && line.includes('='))
-    .map((line) => {
-      const separator = line.indexOf('=');
-      return [line.slice(0, separator), line.slice(separator + 1)];
-    }));
-}
 
 function gcloudAccessToken() {
   const executable = process.platform === 'win32' ? (process.env.ComSpec ?? 'cmd.exe') : 'gcloud';
@@ -163,14 +155,15 @@ async function sendPasswordSetupEmail(apiKey, token, email) {
 
 async function main() {
   let step = 'validate';
-  const localEnvironment = readLocalEnvironment();
+  if (TARGET === 'prod') assertProdProjectConfig();
+  const localEnvironment = readTargetEnvironment(TARGET);
   const projectId = process.env.BINI_BOOTSTRAP_PROJECT_ID ?? localEnvironment.VITE_FIREBASE_PROJECT_ID;
   const email = (process.env.BINI_BOOTSTRAP_ADMIN_EMAIL ?? '').trim().toLowerCase();
   const apiKey = localEnvironment.VITE_FIREBASE_API_KEY;
 
-  if (projectId !== EXPECTED_PROJECT_ID) throw new Error('Bootstrap is restricted to the confirmed DEV project.');
+  if (projectId !== EXPECTED_PROJECT_ID) throw new Error(`Bootstrap is restricted to the confirmed ${LABEL} project.`);
   if (email !== EXPECTED_ADMIN_EMAIL) throw new Error('Bootstrap is restricted to the confirmed first admin email.');
-  if (!apiKey || apiKey === 'REPLACE_ME') throw new Error('DEV Firebase Web API key is missing.');
+  if (!apiKey || apiKey === 'REPLACE_ME') throw new Error(`${LABEL} Firebase Web API key is missing.`);
 
   try {
     step = 'authenticate';
@@ -189,7 +182,7 @@ async function main() {
     step = 'send-password-email';
     await sendPasswordSetupEmail(apiKey, token, email);
 
-    console.log(`DEV admin bootstrap complete (${isNewUser ? 'created' : 'reconciled'}); password setup email sent.`);
+    console.log(`${LABEL} admin bootstrap complete (${isNewUser ? 'created' : 'reconciled'}); password setup email sent.`);
   } catch (error) {
     error.bootstrapStep = step;
     throw error;
@@ -198,7 +191,7 @@ async function main() {
 
 main().catch((error) => {
   const step = typeof error?.bootstrapStep === 'string' ? error.bootstrapStep : 'unknown';
-  const message = error instanceof Error ? error.message : 'DEV admin bootstrap failed.';
+  const message = error instanceof Error ? error.message : 'Admin bootstrap failed.';
   const remoteMessage = typeof error?.remoteMessage === 'string' ? ` (${error.remoteMessage})` : '';
   console.error(`Bootstrap failed at ${step}: ${message}${remoteMessage}`);
   process.exitCode = 1;

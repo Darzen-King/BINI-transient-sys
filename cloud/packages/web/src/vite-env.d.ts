@@ -2,4 +2,5 @@
 
 interface ImportMetaEnv {
   readonly VITE_RECAPTCHA_SITE_KEY?: string;
+  readonly VITE_BINI_ENV?: string;
 }

@@ -1,6 +1,6 @@
 /* global self, caches, URL, fetch, clients */
 
-const CACHE_NAME = 'bini-pms-v4-migration-3';
+const CACHE_NAME = 'bini-pms-v4-migration-4';
 const APP_SHELL = [
   '/',
   '/manifest.webmanifest',

@@ -12,7 +12,7 @@ import { buildV3BackupPayload, type SourceDocument } from './v3-export.js';
  * project at a time should write the shared cloud_export folder. Keyed on GCLOUD_PROJECT because the CLI sets
  * it both while analysing the source at deploy time and in the deployed runtime (.env files only reach the latter).
  */
-export const DROPBOX_BACKUP_PROJECTS: readonly string[] = ['bini-transient-dev'];
+export const DROPBOX_BACKUP_PROJECTS: readonly string[] = ['bini-transient'];
 export const dropboxBackupEnabled = (projectId = process.env.GCLOUD_PROJECT): boolean =>
   projectId !== undefined && DROPBOX_BACKUP_PROJECTS.includes(projectId);
 

@@ -7,10 +7,12 @@ afterEach(() => {
 
 describe('Dropbox v3 backup switch', () => {
   it('runs in production only, so one project owns the shared Dropbox folder', async () => {
+    // Pin the ambient project: the no-argument call reads GCLOUD_PROJECT, which other test files share.
+    vi.stubEnv('GCLOUD_PROJECT', '');
     const { dropboxBackupEnabled } = await import('../src/backup/dropbox-backup.js');
     expect(dropboxBackupEnabled('bini-transient')).toBe(true);
     expect(dropboxBackupEnabled('bini-transient-dev')).toBe(false);
-    expect(dropboxBackupEnabled(undefined)).toBe(false);
+    expect(dropboxBackupEnabled()).toBe(false);
   });
 
   it('is not registered (and declares no secrets) for a project that is not enabled', async () => {

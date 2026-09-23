@@ -59,10 +59,20 @@ function AuthCard({ children }: { children: ReactNode }) {
   return <main className="login-page"><section className="login-card"><LanguageSwitcher className="auth-language-switch" /><img className="brand-wordmark" src="/bini-blooms-logo.png" alt="BINI Blooms" />{children}</section></main>;
 }
 
+/** Errors that mean "this account already has an authenticator", so enrolling another one is refused. */
+const ALREADY_ENROLLED_CODES = new Set([
+  'auth/second-factor-already-in-use',
+  'auth/maximum-second-factor-count-exceeded',
+]);
+
 function friendlyError(error: unknown, text: (zhTw: string, en: string) => string): string {
   if (error instanceof FirebaseError) {
     if (error.code === 'auth/invalid-verification-code') return text('驗證碼錯誤，請重新輸入。', 'The verification code is incorrect. Try again.');
     if (error.code === 'auth/too-many-requests') return text('嘗試次數過多，請稍後再試。', 'Too many attempts. Try again later.');
+    if (error.code === 'auth/network-request-failed') return text('網路連線不穩，請確認網路後再試一次。', 'The network request failed. Check your connection and try again.');
+    if (error.code === 'auth/requires-recent-login') return text('登入已逾時，請重新登入後再試一次。', 'Your sign-in expired. Sign in again and retry.');
+    if (error.code === 'auth/unverified-email') return text('請先完成電子郵件驗證。', 'Verify your email address first.');
+    if (ALREADY_ENROLLED_CODES.has(error.code)) return text('此帳號已設定過驗證器，請重新登入並輸入驗證器代碼。', 'This account already has an authenticator. Sign in again and enter its code.');
   }
   return text('登入資料不正確，或帳號目前無法使用。', 'The sign-in details are incorrect, or this account is unavailable.');
 }
@@ -143,6 +153,19 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
     setSession(null);
     setTotpSecret(null);
     setError('');
+    // A stored session keeps the state it was created with: a device that signed in before the
+    // authenticator was enrolled still reports zero factors, and an unverified email stays unverified.
+    // Refresh from the server first; a network hiccup falls through to the cached state.
+    try {
+      await reload(user);
+    } catch (reloadError) {
+      if (reloadError instanceof FirebaseError && reloadError.code !== 'auth/network-request-failed') {
+        await signOut(client.auth);
+        setNotice(textRef.current('登入狀態已失效，請重新登入。', 'Your session is no longer valid. Sign in again.'));
+        setPhase('login');
+        return;
+      }
+    }
     if (!user.emailVerified) {
       setPhase('verify-email');
       return;
@@ -192,10 +215,17 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
         const mfaSession = await multiFactor(currentUser).getSession();
         setTotpSecret(await TotpMultiFactorGenerator.generateSecret(mfaSession));
       } catch (secretError) {
+        const alreadyEnrolled = secretError instanceof FirebaseError && ALREADY_ENROLLED_CODES.has(secretError.code);
+        if (alreadyEnrolled || multiFactor(currentUser).enrolledFactors.length > 0) {
+          await signOut(client.auth);
+          setNotice(text('此帳號已設定過驗證器，請重新登入並輸入驗證器代碼。', 'This account already has an authenticator. Sign in again and enter its code.'));
+          setPhase('login');
+          return;
+        }
         setError(friendlyError(secretError, text));
       }
     })();
-  }, [currentUser, phase, text, totpSecret]);
+  }, [client.auth, currentUser, phase, text, totpSecret]);
 
   const login = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

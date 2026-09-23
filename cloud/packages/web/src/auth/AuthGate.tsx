@@ -153,17 +153,22 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
     setSession(null);
     setTotpSecret(null);
     setError('');
+    // The profile read is the slow leg on mobile, so start it before the auth checks rather than after.
+    const profilePromise = getDoc(doc(client.db, 'users', user.uid));
+    profilePromise.catch(() => undefined);
     // A stored session keeps the state it was created with: a device that signed in before the
     // authenticator was enrolled still reports zero factors, and an unverified email stays unverified.
-    // Refresh from the server first; a network hiccup falls through to the cached state.
-    try {
-      await reload(user);
-    } catch (reloadError) {
-      if (reloadError instanceof FirebaseError && reloadError.code !== 'auth/network-request-failed') {
-        await signOut(client.auth);
-        setNotice(textRef.current('登入狀態已失效，請重新登入。', 'Your session is no longer valid. Sign in again.'));
-        setPhase('login');
-        return;
+    // Only that incomplete-looking state needs a server refresh; a complete one would just add a round trip.
+    if (!user.emailVerified || multiFactor(user).enrolledFactors.length === 0) {
+      try {
+        await reload(user);
+      } catch (reloadError) {
+        if (reloadError instanceof FirebaseError && reloadError.code !== 'auth/network-request-failed') {
+          await signOut(client.auth);
+          setNotice(textRef.current('登入狀態已失效，請重新登入。', 'Your session is no longer valid. Sign in again.'));
+          setPhase('login');
+          return;
+        }
       }
     }
     if (!user.emailVerified) {
@@ -182,7 +187,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
       setPhase('login');
       return;
     }
-    const snapshot = await getDoc(doc(client.db, 'users', user.uid));
+    const snapshot = await profilePromise;
     const profile = snapshot.exists() ? snapshot.data() : null;
     const propertyId = profile ? choosePropertyId(listMemberships(profile.roles), readPreferredProperty(), client.propertyId) : null;
     const nextSession = profile && propertyId ? parseProfile(user, propertyId, profile) : null;
@@ -303,6 +308,13 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
     }, () => undefined);
   }, [client.db, currentUser, readyUid]);
   useEffect(() => { if (phase === 'ready' && !session) setPhase('blocked'); }, [phase, session]);
+  // Tell the user the wait is the network, not a frozen screen.
+  const [slowConnection, setSlowConnection] = useState(false);
+  useEffect(() => {
+    if (phase !== 'loading') { setSlowConnection(false); return undefined; }
+    const timer = window.setTimeout(() => setSlowConnection(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [phase]);
 
   const switchProperty = (propertyId: string) => {
     if (!currentUser || !profileData || propertyId === session?.propertyId) return;
@@ -352,7 +364,15 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
     />;
   }
 
-  if (phase === 'loading') return <AuthCard><p>{text('正在確認登入狀態…', 'Checking your session…')}</p></AuthCard>;
+  if (phase === 'loading') return (
+    <AuthCard>
+      <p>{text('正在確認登入狀態…', 'Checking your session…')}</p>
+      {slowConnection ? <>
+        <Notice tone="warning" title={text('連線較慢', 'This is taking longer than usual')}>{text('網路速度較慢，仍在與伺服器確認。', 'The network is slow; we are still checking with the server.')}</Notice>
+        <Button block onClick={() => window.location.reload()} variant="outline">{text('重新整理', 'Reload')}</Button>
+      </> : null}
+    </AuthCard>
+  );
 
   if (phase === 'mfa') return (
     <AuthCard>

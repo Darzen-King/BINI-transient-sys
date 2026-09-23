@@ -1,7 +1,7 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import { connectAuthEmulator, getAuth, type Auth } from 'firebase/auth';
-import { connectFirestoreEmulator, getFirestore, type Firestore } from 'firebase/firestore';
+import { connectFirestoreEmulator, getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, type Firestore } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions, type Functions } from 'firebase/functions';
 
 import { appCheckSiteKey } from './app-check.js';
@@ -21,7 +21,11 @@ export function createFirebaseClient(env: ImportMetaEnv): FirebaseClient {
   // Attach App Check before Auth/Firestore/Functions so every request carries a token.
   if (firstInit && siteKey) initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(siteKey), isTokenAutoRefreshEnabled: true });
   const auth = getAuth(app);
-  const db = getFirestore(app);
+  // A persistent cache lets a returning device paint from disk instead of waiting for the first
+  // round trip; Firestore still refreshes from the server, and security rules remain authoritative.
+  const db = firstInit
+    ? initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) })
+    : getFirestore(app);
   const functions = getFunctions(app, 'asia-east1');
 
   if (env.VITE_USE_EMULATORS === '1') {

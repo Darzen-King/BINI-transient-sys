@@ -1,6 +1,6 @@
 /* global self, caches, URL, fetch, clients */
 
-const CACHE_NAME = 'bini-pms-v4-migration-4';
+const CACHE_NAME = 'bini-pms-v4-migration-5';
 const APP_SHELL = [
   '/',
   '/manifest.webmanifest',
@@ -25,7 +25,19 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
+  if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
+  // Built assets carry a content hash in their name, so a cached copy can never be stale: serve it without
+  // waiting for the network. A phone on a slow connection then starts the app from its own storage.
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith(caches.match(event.request).then((cached) => cached ?? fetch(event.request).then((response) => {
+      const copy = response.clone();
+      caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+      return response;
+    })));
+    return;
+  }
   event.respondWith(
     fetch(event.request)
       .then((response) => {

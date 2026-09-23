@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { Suspense, lazy, useEffect, useState, type ReactNode } from 'react';
 import {
   CLOUD_PAGE_MANIFEST,
   ROLE_DEFAULT_PAGES,
@@ -10,12 +10,10 @@ import {
   type RoomOverviewRoom,
 } from '@bini/cloud-shared';
 
-import { AccountManagement } from './accounts/AccountManagement.js';
 import type { AccountAdminGateway } from './accounts/account-admin.js';
 import type { StaffSession } from './auth/session.js';
 import { Badge, Button, Field, Notice, ResponsiveDialog, SectionCard } from './design-system/index.js';
 import { LanguageSwitcher, useLocale, type AppLocale } from './i18n/locale.js';
-import { InitialDataImport } from './migration/InitialDataImport.js';
 import type { DataImportGateway } from './migration/data-import.js';
 import type { BookingListGateway } from './bookings/booking-list.js';
 import type { BookingCancelGateway } from './bookings/booking-cancel.js';
@@ -676,6 +674,15 @@ const HUB_DESCRIPTIONS: Record<CloudPageId, readonly [string, string]> = {
   holidays: ['國定假日與手動設定', 'Public holidays and manual days'],
 };
 
+// Admin-only screens most staff never open: keep them out of the first download on mobile.
+const AccountManagement = lazy(() => import('./accounts/AccountManagement.js').then((module) => ({ default: module.AccountManagement })));
+const InitialDataImport = lazy(() => import('./migration/InitialDataImport.js').then((module) => ({ default: module.InitialDataImport })));
+
+function LazyScreen({ children }: { children: ReactNode }) {
+  const { text } = useLocale();
+  return <Suspense fallback={<div className="empty-card">{text('載入中…', 'Loading…')}</div>}>{children}</Suspense>;
+}
+
 /** Prototype Hub: one card per page this account may open (every page is now a live cloud module). */
 function HubPage({ isAdmin, allowedPages, onOpenInitialImport, onOpenPage }: {
   isAdmin: boolean;
@@ -748,8 +755,8 @@ function ActiveView({ view, targetRoomId, targetBookingId, onOpenPayment, onOpen
   if (view === 'audit') return <AuditTrailPage gateway={auditGateway} session={session} />;
   if (view === 'holidays') return <HolidayManagementPage gateway={holidayGateway} session={session} />;
   if (view === 'properties') return <PropertyManagementPage gateway={propertyGateway} session={session} />;
-  if (view === 'accounts' || view === 'users') return <AccountManagement session={session} gateway={accountGateway} />;
-  if (view === 'initial_import') return <InitialDataImport session={session} gateway={dataImportGateway} />;
+  if (view === 'accounts' || view === 'users') return <LazyScreen><AccountManagement session={session} gateway={accountGateway} /></LazyScreen>;
+  if (view === 'initial_import') return <LazyScreen><InitialDataImport session={session} gateway={dataImportGateway} /></LazyScreen>;
   if (view === 'more') return <MoreView isAdmin={session.role === 'admin'} allowedPages={session.allowedPages} pushGateway={pushGateway} onOpenPage={onOpenPage} onLogout={onLogout} />;
   if (view === 'today' || view === 'rooms') return <TodayView canCheckIn={session.allowedPages.includes('checkin')} canCreate={session.allowedPages.includes('bookings_new')} canCheckout={session.allowedPages.includes('checkout')} canExtend={session.allowedPages.includes('extend')} canImport={session.role === 'admin'} canPayment={session.allowedPages.includes('payments')} canViewBookings={session.allowedPages.includes('bookings')} onOpenBookingCheckIn={onOpenBookingCheckIn} onOpenBookingCreate={onOpenBookingCreate} onOpenBookings={() => onOpenPage('bookings')} onOpenCheckIn={(roomId) => onOpenRoomPage('checkin', roomId)} onOpenCheckout={(roomId) => onOpenRoomPage('checkout', roomId)} onOpenExtend={(roomId) => onOpenRoomPage('extend', roomId)} onOpenInitialImport={() => onOpenPage('initial_import')} onOpenPayment={onOpenPayment} propertyId={session.propertyId} roomOverviewGateway={roomOverviewGateway} />;
   return <HubPage allowedPages={session.allowedPages} isAdmin={session.role === 'admin'} onOpenInitialImport={() => onOpenPage('initial_import')} onOpenPage={onOpenPage} />;

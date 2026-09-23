@@ -86,11 +86,13 @@ export const monthlyRentalVoidInputSchema = z.object({
   operationId,
   rentalId: z.string().trim().min(1).max(128),
   reason: z.string().trim().min(1).max(500),
+  /** Undoes a void — a record voided by mistake goes back to the status it had. */
+  restore: z.boolean().optional(),
 }).strict();
 export type MonthlyRentalVoidInput = z.infer<typeof monthlyRentalVoidInputSchema>;
 
 export const monthlyRentalVoidResultSchema = z.object({
-  status: z.enum(['voided', 'already_voided', 'replayed']),
+  status: z.enum(['voided', 'already_voided', 'restored', 'already_restored', 'replayed']),
   rentalId: z.string().trim().min(1).max(128),
   roomId,
   rentNts: z.number().int().safe().min(0),

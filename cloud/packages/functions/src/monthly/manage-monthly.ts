@@ -83,10 +83,20 @@ export const monthlyRentalVoid = onCall(options, async (request): Promise<Monthl
     const roomId = text(rental, 'roomId', label);
     const rentNts = amount(rental, 'rentNts', label);
     const now = new Date().toISOString();
+    if (input.restore) {
+      if (rental.status !== 'voided') return { status: 'already_restored', rentalId: input.rentalId, roomId, rentNts, updatedAt: typeof rental.updatedAt === 'string' ? rental.updatedAt : now };
+      // Records voided before this field existed go back to 'renewed'; only display differs, never revenue.
+      const restoredStatus = typeof rental.statusBeforeVoid === 'string' && rental.statusBeforeVoid !== 'voided' ? rental.statusBeforeVoid : 'renewed';
+      const restored: MonthlyRentalVoidResult = { status: 'restored', rentalId: input.rentalId, roomId, rentNts, updatedAt: now };
+      transaction.update(rentalRef, { status: restoredStatus, voidReason: null, voidedAt: null, voidedByUid: null, statusBeforeVoid: null, version: version(rental, label) + 1, updatedAt: now, updatedByUid: actorUid });
+      transaction.create(operationRef, { operationId: input.operationId, actorUid, operationType: 'monthly.rental.void', requestFingerprint, result: restored, createdAt: now });
+      transaction.create(database.doc(`${root}/auditLogs/monthly-rental-void-undo-${input.operationId}`), { actorUid, action: 'monthly.rental.void_undo', targetId: input.rentalId, targetType: 'monthlyRental', details: { operationId: input.operationId, roomId, rentNts, reason: input.reason, restoredStatus }, createdAt: now });
+      return restored;
+    }
     if (rental.status === 'voided') return { status: 'already_voided', rentalId: input.rentalId, roomId, rentNts, updatedAt: typeof rental.updatedAt === 'string' ? rental.updatedAt : now };
     if (rental.status === 'active') throw new HttpsError('failed-precondition', '目前生效中的月租不可作廢，請改用「月租退房」。');
     const result: MonthlyRentalVoidResult = { status: 'voided', rentalId: input.rentalId, roomId, rentNts, updatedAt: now };
-    transaction.update(rentalRef, { status: 'voided', voidReason: input.reason, voidedAt: now, voidedByUid: actorUid, version: version(rental, label) + 1, updatedAt: now, updatedByUid: actorUid });
+    transaction.update(rentalRef, { status: 'voided', statusBeforeVoid: typeof rental.status === 'string' ? rental.status : 'renewed', voidReason: input.reason, voidedAt: now, voidedByUid: actorUid, version: version(rental, label) + 1, updatedAt: now, updatedByUid: actorUid });
     transaction.create(operationRef, { operationId: input.operationId, actorUid, operationType: 'monthly.rental.void', requestFingerprint, result, createdAt: now });
     transaction.create(database.doc(`${root}/auditLogs/monthly-rental-void-${input.operationId}`), { actorUid, action: 'monthly.rental.void', targetId: input.rentalId, targetType: 'monthlyRental', details: { operationId: input.operationId, roomId, rentNts, reason: input.reason, previousStatus: typeof rental.status === 'string' ? rental.status : null }, createdAt: now });
     return result;

@@ -60,6 +60,22 @@ describe('room management UI', () => {
     await waitFor(() => expect(voidMonthly).toHaveBeenCalledWith(expect.objectContaining({ rentalId: 'MR-dup', reason: '重複續租' })));
   });
 
+  it('restores a record voided by mistake', async () => {
+    const history = [{ rentalId: 'MR-old', roomId: '206', tenantName: 'Carlos', startDate: '2026-06-01', endDate: '2026-07-01', rentNts: 9_000, status: 'voided' as const, createdAt: '2026-06-01T02:00:00.000Z', voidReason: '重複建立的月租紀錄' }];
+    const withHistory = rooms.map((room) => (room.roomId === '206' ? { ...room, monthlyHistory: history } : room));
+    const voidMonthly = vi.fn().mockResolvedValue({ status: 'restored', rentalId: 'MR-old', roomId: '206', rentNts: 9_000, updatedAt: '2026-09-24T02:00:00.000Z' });
+    const gateway: RoomManagementGateway = { subscribe(_propertyId, onValue) { queueMicrotask(() => onValue(withHistory)); return () => undefined; }, update: vi.fn(), createMonthly: vi.fn(), renewMonthly: vi.fn(), checkoutMonthly: vi.fn(), voidMonthly, transferStay: vi.fn() };
+    render(<App roomManagementGateway={gateway} session={{ ...session, role: 'admin' }} />);
+    fireEvent.click(screen.getByRole('link', { name: '房間管理' }));
+    fireEvent.click(await screen.findByRole('button', { name: '206 詳細資料' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /月租紀錄（1）/ }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('重複建立的月租紀錄', { exact: false })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: '還原' }));
+    await waitFor(() => expect(voidMonthly).toHaveBeenCalledWith(expect.objectContaining({ rentalId: 'MR-old', restore: true })));
+  });
+
   it('hides the void action from staff who are not admins', async () => {
     const history = [{ rentalId: 'MR-dup', roomId: '206', tenantName: 'Carlos', startDate: '2026-09-01', endDate: '2026-10-01', rentNts: 9_000, status: 'renewed' as const, createdAt: '2026-09-01T02:01:00.000Z', voidReason: null }];
     const withHistory = rooms.map((room) => (room.roomId === '206' ? { ...room, monthlyHistory: history } : room));

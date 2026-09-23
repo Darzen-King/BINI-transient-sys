@@ -34,6 +34,24 @@ describe('v3-compatible reports', () => {
     expect(report.costByCategoryNts).toEqual({ utilities: 500 });
   });
 
+  it('leaves a voided rental out of revenue, whatever period it was created in', () => {
+    // A renewal tapped twice used to leave a duplicate record; voiding it must undo the revenue it added.
+    const withDuplicate = { ...source, monthlyRentals: [
+      ...source.monthlyRentals,
+      { id: 'M-DUP', data: { roomId: '202', rentNts: 8_000, createdAt: '2026-09-11T10:01:00+08:00' } },
+    ] };
+    expect(buildReportProjection(withDuplicate, { dateFrom: '2026-09-10', dateTo: '2026-09-11' }).monthlyRevenueNts).toBe(16_000);
+
+    const voided = { ...source, monthlyRentals: [
+      ...source.monthlyRentals,
+      { id: 'M-DUP', data: { roomId: '202', rentNts: 8_000, createdAt: '2026-09-11T10:01:00+08:00', status: 'voided' } },
+    ] };
+    const report = buildReportProjection(voided, { dateFrom: '2026-09-10', dateTo: '2026-09-11' });
+    expect(report.monthlyRevenueNts).toBe(8_000);
+    expect(report.totalOrders).toBe(3);
+    expect(report.roomRentals.find((item) => item.roomId === '202')?.plans['月租']).toBe(1);
+  });
+
   it('accepts cloud check-out and transfer logs that omit a flag, treating it as false like v3', () => {
     const withCloudLogs = { ...source, stayLogs: [
       ...source.stayLogs,

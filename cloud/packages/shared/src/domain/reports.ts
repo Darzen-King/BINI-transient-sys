@@ -42,7 +42,7 @@ const bookingSchema = z.object({ bookingId: text, roomId: text, checkInAt: dateT
 const staySchema = z.object({ roomId: text, totalDueNts: amount.optional() }).passthrough();
 // Missing flags mean "no", as in v3's stay_logs defaults; older cloud check-outs omitted `transferred`.
 const stayLogSchema = z.object({ roomId: text, plan: nullableText, checkInAt: nullableDateTime, totalChargedNts: amount, freeCancel: z.boolean().default(false), transferred: z.boolean().default(false) }).passthrough();
-const monthlySchema = z.object({ roomId: text, rentNts: amount, createdAt: nullableDateTime }).passthrough();
+const monthlySchema = z.object({ roomId: text, rentNts: amount, createdAt: nullableDateTime, status: z.string().optional() }).passthrough();
 const costSchema = z.object({ costDate: day, category: text, amountNts: amount, status: z.enum(['active', 'archived']).optional(), vendor: nullableText, description: nullableText, note: nullableText, paymentMethod: nullableText }).passthrough();
 
 function localDay(value: string): string {
@@ -82,7 +82,8 @@ export function buildReportProjection(source: ReportSource, range: ReportRange):
   const activeBookings = inRangeBookings.filter(({ data }) => !['已取消', 'No-show', '已入住'].includes(data.status));
   const cancelledOrders = inRangeBookings.length - activeBookings.length;
   const eligibleLogs = stayLogs.filter(({ data }) => !data.freeCancel && !data.transferred && dateInRange(data.checkInAt, range.dateFrom, range.dateTo));
-  const recognisedMonthly = monthlyRentals.filter(({ data }) => dateInRange(data.createdAt, range.dateFrom, range.dateTo));
+  // A voided record (a duplicate from a double-tapped renewal) never counts, in any period.
+  const recognisedMonthly = monthlyRentals.filter(({ data }) => data.status !== 'voided' && dateInRange(data.createdAt, range.dateFrom, range.dateTo));
   const staylogRevenueNts = eligibleLogs.reduce((total, { data }) => total + data.totalChargedNts, 0);
   const monthlyRevenueNts = recognisedMonthly.reduce((total, { data }) => total + data.rentNts, 0);
   const bookingRevenueNts = activeBookings.reduce((total, { data }) => total + data.amountNts, 0);

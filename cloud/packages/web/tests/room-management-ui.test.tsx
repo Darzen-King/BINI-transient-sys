@@ -11,9 +11,9 @@ import type { RoomManagementGateway } from '../src/room-management/room-manageme
 
 const session: StaffSession = { uid: 'manager-1', email: 'manager@example.com', displayName: 'Manager', propertyId: 'property-main', role: 'manager', allowedPages: ['room_management'] };
 const rooms: RoomManagementItem[] = [
-  { roomId: '201', version: 4, status: '可入住', note: 'Near lift', maintenanceNote: null, maintenanceDueDate: null, activeStay: null, monthly: null },
-  { roomId: '202', version: 9, status: '使用中', note: null, maintenanceNote: null, maintenanceDueDate: null, activeStay: { stayId: 'STY-202', guestName: 'Juvy', checkInAt: '2026-09-12T07:00:00.000Z', checkOutAt: '2026-09-14T03:00:00.000Z' }, monthly: null },
-  { roomId: '206', version: 2, status: '月租套房', note: null, maintenanceNote: null, maintenanceDueDate: null, activeStay: null, monthly: { rentalId: 'MR-live', tenantName: 'Carlos', tenantPhone: null, startDate: '2026-09-01', endDate: '2026-10-01', depositNts: 2_000, rentNts: 9_000, paymentType: 'cash', note: null } },
+  { roomId: '201', version: 4, status: '可入住', note: 'Near lift', maintenanceNote: null, maintenanceDueDate: null, activeStay: null, monthlyHistory: [], monthly: null },
+  { roomId: '202', version: 9, status: '使用中', note: null, maintenanceNote: null, maintenanceDueDate: null, activeStay: { stayId: 'STY-202', guestName: 'Juvy', checkInAt: '2026-09-12T07:00:00.000Z', checkOutAt: '2026-09-14T03:00:00.000Z' }, monthlyHistory: [], monthly: null },
+  { roomId: '206', version: 2, status: '月租套房', note: null, maintenanceNote: null, maintenanceDueDate: null, activeStay: null, monthlyHistory: [{ rentalId: 'MR-live', roomId: '206', tenantName: 'Carlos', startDate: '2026-09-01', endDate: '2026-10-01', rentNts: 9_000, status: 'active', createdAt: '2026-09-01T02:00:00.000Z', voidReason: null }], monthly: { rentalId: 'MR-live', tenantName: 'Carlos', tenantPhone: null, startDate: '2026-09-01', endDate: '2026-10-01', depositNts: 2_000, rentNts: 9_000, paymentType: 'cash', note: null } },
 ];
 afterEach(cleanup);
 
@@ -21,7 +21,7 @@ describe('room management UI', () => {
   it('refuses to overwrite a room changed on another device and lets staff load the latest data', async () => {
     let emit: (value: RoomManagementItem[]) => void = () => undefined;
     const update = vi.fn().mockResolvedValue({ status: 'updated', roomId: '201', roomStatus: '可入住', updatedAt: '2026-09-15T15:00:00.000Z' });
-    const gateway: RoomManagementGateway = { subscribe(_propertyId, onValue) { emit = onValue; queueMicrotask(() => onValue(rooms)); return () => undefined; }, update, createMonthly: vi.fn(), renewMonthly: vi.fn(), checkoutMonthly: vi.fn(), transferStay: vi.fn() };
+    const gateway: RoomManagementGateway = { subscribe(_propertyId, onValue) { emit = onValue; queueMicrotask(() => onValue(rooms)); return () => undefined; }, update, createMonthly: vi.fn(), renewMonthly: vi.fn(), checkoutMonthly: vi.fn(), voidMonthly: vi.fn(), transferStay: vi.fn() };
     render(<App roomManagementGateway={gateway} session={session} />);
     fireEvent.click(screen.getByRole('link', { name: '房間管理' }));
     fireEvent.click(await screen.findByRole('button', { name: '201 詳細資料' }));
@@ -36,9 +36,44 @@ describe('room management UI', () => {
     await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ roomId: '201', expectedVersion: 5, note: 'Changed on phone' })));
   });
 
+  it('lets an admin void a duplicate rental record but never the one in force', async () => {
+    // The old desktop app double-charged when 續租 was tapped twice; the duplicate record must stop
+    // counting as revenue while staying on file.
+    const history = [
+      { rentalId: 'MR-dup', roomId: '206', tenantName: 'Carlos', startDate: '2026-09-01', endDate: '2026-10-01', rentNts: 9_000, status: 'renewed' as const, createdAt: '2026-09-01T02:01:00.000Z', voidReason: null },
+      { rentalId: 'MR-live', roomId: '206', tenantName: 'Carlos', startDate: '2026-09-01', endDate: '2026-10-01', rentNts: 9_000, status: 'active' as const, createdAt: '2026-09-01T02:00:00.000Z', voidReason: null },
+    ];
+    const withHistory = rooms.map((room) => (room.roomId === '206' ? { ...room, monthlyHistory: history } : room));
+    const voidMonthly = vi.fn().mockResolvedValue({ status: 'voided', rentalId: 'MR-dup', roomId: '206', rentNts: 9_000, updatedAt: '2026-09-24T02:00:00.000Z' });
+    const gateway: RoomManagementGateway = { subscribe(_propertyId, onValue) { queueMicrotask(() => onValue(withHistory)); return () => undefined; }, update: vi.fn(), createMonthly: vi.fn(), renewMonthly: vi.fn(), checkoutMonthly: vi.fn(), voidMonthly, transferStay: vi.fn() };
+    render(<App roomManagementGateway={gateway} session={{ ...session, role: 'admin' }} />);
+    fireEvent.click(screen.getByRole('link', { name: '房間管理' }));
+    fireEvent.click(await screen.findByRole('button', { name: '206 詳細資料' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /月租紀錄（2）/ }));
+
+    const dialog = screen.getByRole('dialog');
+    // Only the duplicate offers a void action; the rental in force ends through monthly checkout.
+    expect(within(dialog).getAllByRole('button', { name: '作廢' })).toHaveLength(1);
+    fireEvent.click(within(dialog).getByRole('button', { name: '作廢' }));
+    fireEvent.change(within(dialog).getByLabelText('作廢原因'), { target: { value: '重複續租' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '確認作廢' }));
+    await waitFor(() => expect(voidMonthly).toHaveBeenCalledWith(expect.objectContaining({ rentalId: 'MR-dup', reason: '重複續租' })));
+  });
+
+  it('hides the void action from staff who are not admins', async () => {
+    const history = [{ rentalId: 'MR-dup', roomId: '206', tenantName: 'Carlos', startDate: '2026-09-01', endDate: '2026-10-01', rentNts: 9_000, status: 'renewed' as const, createdAt: '2026-09-01T02:01:00.000Z', voidReason: null }];
+    const withHistory = rooms.map((room) => (room.roomId === '206' ? { ...room, monthlyHistory: history } : room));
+    const gateway: RoomManagementGateway = { subscribe(_propertyId, onValue) { queueMicrotask(() => onValue(withHistory)); return () => undefined; }, update: vi.fn(), createMonthly: vi.fn(), renewMonthly: vi.fn(), checkoutMonthly: vi.fn(), voidMonthly: vi.fn(), transferStay: vi.fn() };
+    render(<App roomManagementGateway={gateway} session={session} />);
+    fireEvent.click(screen.getByRole('link', { name: '房間管理' }));
+    fireEvent.click(await screen.findByRole('button', { name: '206 詳細資料' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /月租紀錄（1）/ }));
+    expect(within(screen.getByRole('dialog')).queryByRole('button', { name: '作廢' })).not.toBeInTheDocument();
+  });
+
   it('opens mobile-compatible room details and uses callable operations for monthly actions', async () => {
     const renewMonthly = vi.fn().mockResolvedValue({ status: 'renewed', roomId: '206', rentalId: 'MR-next', previousRentalId: 'MR-live', startDate: '2026-10-01', endDate: '2026-11-01', paymentId: 'PAY-1', updatedAt: '2026-09-12T08:00:00.000Z' });
-    const gateway: RoomManagementGateway = { subscribe(_propertyId, onValue) { queueMicrotask(() => onValue(rooms)); return () => undefined; }, update: vi.fn(), createMonthly: vi.fn(), renewMonthly, checkoutMonthly: vi.fn(), transferStay: vi.fn() };
+    const gateway: RoomManagementGateway = { subscribe(_propertyId, onValue) { queueMicrotask(() => onValue(rooms)); return () => undefined; }, update: vi.fn(), createMonthly: vi.fn(), renewMonthly, checkoutMonthly: vi.fn(), voidMonthly: vi.fn(), transferStay: vi.fn() };
     render(<App roomManagementGateway={gateway} session={session} />);
     fireEvent.click(screen.getByRole('link', { name: '房間管理' }));
     fireEvent.click(await screen.findByRole('button', { name: '206 詳細資料' }));
@@ -55,7 +90,7 @@ describe('room management UI', () => {
   it('renews only once however many times the confirm button is tapped while the server is slow', async () => {
     let finish: (value: unknown) => void = () => undefined;
     const renewMonthly = vi.fn().mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
-    const gateway: RoomManagementGateway = { subscribe(_propertyId, onValue) { queueMicrotask(() => onValue(rooms)); return () => undefined; }, update: vi.fn(), createMonthly: vi.fn(), renewMonthly, checkoutMonthly: vi.fn(), transferStay: vi.fn() };
+    const gateway: RoomManagementGateway = { subscribe(_propertyId, onValue) { queueMicrotask(() => onValue(rooms)); return () => undefined; }, update: vi.fn(), createMonthly: vi.fn(), renewMonthly, checkoutMonthly: vi.fn(), voidMonthly: vi.fn(), transferStay: vi.fn() };
     render(<App roomManagementGateway={gateway} session={session} />);
     fireEvent.click(screen.getByRole('link', { name: '房間管理' }));
     fireEvent.click(await screen.findByRole('button', { name: '206 詳細資料' }));

@@ -48,7 +48,7 @@ export { maintenanceScheduleCreate } from './maintenance/create-schedule.js';
 export { maintenanceScheduleAction } from './maintenance/schedule-action.js';
 export { maintenanceRoomUpdate } from './maintenance/room-update.js';
 export { roomManagementUpdate } from './rooms/manage-room.js';
-export { monthlyRentalCreate, monthlyRentalRenew, monthlyRentalCheckout } from './monthly/manage-monthly.js';
+export { monthlyRentalCreate, monthlyRentalRenew, monthlyRentalCheckout, monthlyRentalVoid } from './monthly/manage-monthly.js';
 
 if (getApps().length === 0) initializeApp();
 

@@ -174,7 +174,7 @@ export const previewGateways = {
   auditGateway: { subscribe: (_p, query, onValue) => emit(onValue, () => buildAuditList(data.auditLogs, query)) } satisfies AuditGateway,
   housekeepingGateway: { subscribe: (_p, onValue) => emit(onValue, () => buildHousekeepingItems(data.rooms)), update: previewOnly } satisfies HousekeepingGateway,
   maintenanceGateway: { subscribe: (_p, onValue) => emit(onValue, () => buildMaintenanceScheduleItems(data.maintenanceSchedules)), subscribeRooms: (_p, onValue) => emit(onValue, () => buildMaintenanceRoomItems(data.rooms, day(0))), create: previewOnly, action: previewOnly, roomUpdate: previewOnly } satisfies MaintenanceGateway,
-  roomManagementGateway: { subscribe: (_p, onValue) => emit(onValue, () => buildRoomManagementItems(data.rooms, data.monthlyRentals, data.stays)), update: previewOnly, createMonthly: previewOnly, renewMonthly: previewOnly, checkoutMonthly: previewOnly, transferStay: previewOnly } satisfies RoomManagementGateway,
+  roomManagementGateway: { subscribe: (_p, onValue) => emit(onValue, () => buildRoomManagementItems(data.rooms, data.monthlyRentals, data.stays)), update: previewOnly, createMonthly: previewOnly, renewMonthly: previewOnly, checkoutMonthly: previewOnly, voidMonthly: previewOnly, transferStay: previewOnly } satisfies RoomManagementGateway,
   activeStaysGateway: activeStays,
   holidayCalendarGateway: holidayCalendar,
   holidayGateway: { subscribe: (_p, onValue) => emit(onValue, () => buildHolidayList(data.holidays)), upsertManual: previewOnly, delete: previewOnly, resync: previewOnly } satisfies HolidayGateway,

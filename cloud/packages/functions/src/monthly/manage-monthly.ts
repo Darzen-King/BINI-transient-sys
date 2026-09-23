@@ -1,12 +1,12 @@
-import { monthlyRentalCheckoutInputSchema, monthlyRentalCreateInputSchema, monthlyRentalOperationResultSchema, monthlyRentalRenewInputSchema, type MonthlyRentalCheckoutInput, type MonthlyRentalCreateInput, type MonthlyRentalOperationResult, type MonthlyRentalRenewInput } from '@bini/cloud-shared';
+import { monthlyRentalCheckoutInputSchema, monthlyRentalCreateInputSchema, monthlyRentalOperationResultSchema, monthlyRentalRenewInputSchema, monthlyRentalVoidInputSchema, type MonthlyRentalCheckoutInput, type MonthlyRentalCreateInput, type MonthlyRentalOperationResult, type MonthlyRentalRenewInput, type MonthlyRentalVoidInput, type MonthlyRentalVoidResult } from '@bini/cloud-shared';
 import { createHash } from 'node:crypto';
 import { getFirestore, type QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { requirePropertyPage } from '../admin/staff-admin.js';
+import { requirePropertyAdmin, requirePropertyPage } from '../admin/staff-admin.js';
 
 const options = { region: 'asia-east1', maxInstances: 10, timeoutSeconds: 60, memory: '512MiB' } as const;
-type MonthlyInput = MonthlyRentalCreateInput | MonthlyRentalRenewInput | MonthlyRentalCheckoutInput;
+type MonthlyInput = MonthlyRentalCreateInput | MonthlyRentalRenewInput | MonthlyRentalCheckoutInput | MonthlyRentalVoidInput;
 type RecordData = Record<string, unknown>;
 const operation = (kind: string, input: MonthlyInput) => createHash('sha256').update(JSON.stringify({ operationType: kind, ...input })).digest('hex');
 const version = (data: RecordData, label: string): number => { const value = data.version; if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) throw new HttpsError('data-loss', `${label} 缺少有效 version。`); return value; };
@@ -49,5 +49,46 @@ export const monthlyRentalCheckout = onCall(options, async (request): Promise<Mo
   return database.runTransaction(async (transaction) => {
     const previous = await transaction.get(operationRef); if (previous.exists) return replay(previous.data() ?? {}, actorUid, requestFingerprint); const [roomSnapshot, rentalsSnapshot] = await Promise.all([transaction.get(roomRef), transaction.get(database.collection(`${root}/monthlyRentals`).where('roomId', '==', input.roomId))]); if (!roomSnapshot.exists) throw new HttpsError('not-found', '找不到房間。'); const room = roomSnapshot.data() ?? {}; if (room.propertyId !== input.propertyId || room.roomId !== input.roomId || room.status !== '月租套房') throw new HttpsError('failed-precondition', '房間目前不是可退租的月租房。'); const rentalDocument = activeRental(rentalsSnapshot.docs, input.roomId); const rental = rentalDocument.data() ?? {}; const label = `monthlyRentals/${rentalDocument.id}`; const depositNts = amount(rental, 'depositNts', label); if (input.depositRefundedNts > depositNts) throw new HttpsError('failed-precondition', '退還押金不可超過已收押金。'); const now = new Date().toISOString(); const paymentId = input.depositRefundedNts > 0 ? `PAY-RFD-${input.operationId.replaceAll('-', '').slice(-12).toUpperCase()}` : null; const result: MonthlyRentalOperationResult = { status: 'checked_out', roomId: input.roomId, rentalId: rentalDocument.id, previousRentalId: null, startDate: text(rental, 'startDate', label), endDate: text(rental, 'endDate', label), paymentId, updatedAt: now };
     transaction.update(rentalDocument.ref, { status: 'ended', depositRefundedNts: input.depositRefundedNts, endedAt: now, note: input.note ? `${typeof rental.note === 'string' && rental.note ? `${rental.note} | ` : ''}${input.note}` : (typeof rental.note === 'string' ? rental.note : null), version: version(rental, label) + 1, updatedAt: now, updatedByUid: actorUid }); transaction.update(roomRef, { status: '待清潔', guestName: null, checkInAt: null, checkOutAt: null, version: version(room, `rooms/${input.roomId}`) + 1, updatedAt: now, updatedByUid: actorUid }); if (paymentId) transaction.create(database.doc(`${root}/payments/${paymentId}`), paymentDocument(input.propertyId, input.roomId, text(rental, 'tenantName', label), input.paymentType, input.depositRefundedNts, true, true, '月租押金退還', actorUid, now)); transaction.create(operationRef, { operationId: input.operationId, actorUid, operationType: 'monthly.rental.checkout', requestFingerprint, result, createdAt: now }); transaction.create(database.doc(`${root}/auditLogs/monthly-rental-checkout-${input.operationId}`), { actorUid, action: 'monthly.rental.checkout', targetId: rentalDocument.id, targetType: 'monthlyRental', details: { operationId: input.operationId, roomId: input.roomId, depositRefundedNts: input.depositRefundedNts }, createdAt: now }); return result;
+  });
+});
+
+
+/**
+ * Marks one historical rental record as void so it stops counting as revenue. Duplicates from a
+ * double-tapped renewal were money never taken; the record is kept and audited, never deleted.
+ * Admins only, and never the rental in force — that one ends through monthly checkout.
+ */
+export const monthlyRentalVoid = onCall(options, async (request): Promise<MonthlyRentalVoidResult> => {
+  const parsed = monthlyRentalVoidInputSchema.safeParse(request.data);
+  if (!parsed.success) throw new HttpsError('invalid-argument', '作廢月租紀錄的資料格式不正確。');
+  const input = parsed.data;
+  const actorUid = await requirePropertyAdmin(request.auth, input.propertyId);
+  const database = getFirestore();
+  const root = `properties/${input.propertyId}`;
+  const operationRef = database.doc(`${root}/monthlyRentalOperations/${input.operationId}`);
+  const rentalRef = database.doc(`${root}/monthlyRentals/${input.rentalId}`);
+  const requestFingerprint = operation('monthly.rental.void', input);
+  return database.runTransaction(async (transaction) => {
+    const previous = await transaction.get(operationRef);
+    if (previous.exists) {
+      const stored = previous.data() ?? {};
+      if (stored.requestFingerprint !== requestFingerprint) throw new HttpsError('failed-precondition', '同一個操作代碼已用於不同的作廢請求。');
+      return { ...(stored.result as MonthlyRentalVoidResult), status: 'replayed' };
+    }
+    const snapshot = await transaction.get(rentalRef);
+    if (!snapshot.exists) throw new HttpsError('not-found', '找不到這筆月租紀錄。');
+    const rental = snapshot.data() ?? {};
+    const label = `monthlyRentals/${input.rentalId}`;
+    if (rental.propertyId !== input.propertyId) throw new HttpsError('not-found', '找不到這筆月租紀錄。');
+    const roomId = text(rental, 'roomId', label);
+    const rentNts = amount(rental, 'rentNts', label);
+    const now = new Date().toISOString();
+    if (rental.status === 'voided') return { status: 'already_voided', rentalId: input.rentalId, roomId, rentNts, updatedAt: typeof rental.updatedAt === 'string' ? rental.updatedAt : now };
+    if (rental.status === 'active') throw new HttpsError('failed-precondition', '目前生效中的月租不可作廢，請改用「月租退房」。');
+    const result: MonthlyRentalVoidResult = { status: 'voided', rentalId: input.rentalId, roomId, rentNts, updatedAt: now };
+    transaction.update(rentalRef, { status: 'voided', voidReason: input.reason, voidedAt: now, voidedByUid: actorUid, version: version(rental, label) + 1, updatedAt: now, updatedByUid: actorUid });
+    transaction.create(operationRef, { operationId: input.operationId, actorUid, operationType: 'monthly.rental.void', requestFingerprint, result, createdAt: now });
+    transaction.create(database.doc(`${root}/auditLogs/monthly-rental-void-${input.operationId}`), { actorUid, action: 'monthly.rental.void', targetId: input.rentalId, targetType: 'monthlyRental', details: { operationId: input.operationId, roomId, rentNts, reason: input.reason, previousStatus: typeof rental.status === 'string' ? rental.status : null }, createdAt: now });
+    return result;
   });
 });

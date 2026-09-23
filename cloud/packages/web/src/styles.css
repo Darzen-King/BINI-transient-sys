@@ -719,3 +719,13 @@ h1, h2, p { margin-top: 0; }
 .report-cost-list { display: grid; margin-top: 8px; gap: 6px; }
 .report-cost-list > div { display: grid; grid-template-columns: auto auto 1fr auto; align-items: baseline; gap: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--bds-color-border); }
 .report-cost-list span { color: var(--bds-color-text-secondary); }
+
+/* Monthly rental records: the history list behind Room Management, where a duplicate can be voided. */
+.monthly-history { display: grid; gap: 10px; }
+.monthly-history-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bds-color-surface-subtle); }
+.monthly-history-row strong, .monthly-history-row small { display: block; }
+.monthly-history-row small { margin-top: 3px; color: var(--muted); font-size: 12px; }
+.monthly-history-row.is-voided { opacity: .72; }
+.monthly-history-row.is-voided strong { text-decoration: line-through; }
+.monthly-history-confirm { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; width: 100%; }
+.monthly-history-confirm .bds-field { flex: 1 1 200px; margin: 0; }

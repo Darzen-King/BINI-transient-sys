@@ -1,4 +1,4 @@
-import { buildRoomManagementItems, monthlyRentalCheckoutInputSchema, monthlyRentalOperationResultSchema, monthlyRentalCreateInputSchema, monthlyRentalRenewInputSchema, roomManagementUpdateInputSchema, roomManagementUpdateResultSchema, stayTransferInputSchema, stayTransferResultSchema, type MonthlyRentalCheckoutInput, type MonthlyRentalCreateInput, type MonthlyRentalOperationResult, type MonthlyRentalRenewInput, type RoomManagementItem, type RoomManagementUpdateInput, type RoomManagementUpdateResult, type StayTransferInput, type StayTransferResult } from '@bini/cloud-shared';
+import { buildRoomManagementItems, monthlyRentalCheckoutInputSchema, monthlyRentalOperationResultSchema, monthlyRentalCreateInputSchema, monthlyRentalRenewInputSchema, monthlyRentalVoidInputSchema, monthlyRentalVoidResultSchema, roomManagementUpdateInputSchema, roomManagementUpdateResultSchema, stayTransferInputSchema, stayTransferResultSchema, type MonthlyRentalCheckoutInput, type MonthlyRentalCreateInput, type MonthlyRentalOperationResult, type MonthlyRentalRenewInput, type MonthlyRentalVoidInput, type MonthlyRentalVoidResult, type RoomManagementItem, type RoomManagementUpdateInput, type RoomManagementUpdateResult, type StayTransferInput, type StayTransferResult } from '@bini/cloud-shared';
 import { collection, onSnapshot, type Firestore, type Unsubscribe } from 'firebase/firestore';
 import { httpsCallable, type Functions } from 'firebase/functions';
 
@@ -8,6 +8,8 @@ export interface RoomManagementGateway {
   createMonthly(input: MonthlyRentalCreateInput): Promise<MonthlyRentalOperationResult>;
   renewMonthly(input: MonthlyRentalRenewInput): Promise<MonthlyRentalOperationResult>;
   checkoutMonthly(input: MonthlyRentalCheckoutInput): Promise<MonthlyRentalOperationResult>;
+  /** Admin-only: stops a historical record counting as revenue (a duplicate renewal), keeping it on file. */
+  voidMonthly(input: MonthlyRentalVoidInput): Promise<MonthlyRentalVoidResult>;
   transferStay(input: StayTransferInput): Promise<StayTransferResult>;
 }
 
@@ -28,6 +30,7 @@ export function createRoomManagementGateway(database: Firestore, functions: Func
     async createMonthly(input) { const call = httpsCallable<MonthlyRentalCreateInput, unknown>(functions, 'monthlyRentalCreate'); return monthlyRentalOperationResultSchema.parse((await call(monthlyRentalCreateInputSchema.parse(input))).data); },
     async renewMonthly(input) { const call = httpsCallable<MonthlyRentalRenewInput, unknown>(functions, 'monthlyRentalRenew'); return monthlyRentalOperationResultSchema.parse((await call(monthlyRentalRenewInputSchema.parse(input))).data); },
     async checkoutMonthly(input) { const call = httpsCallable<MonthlyRentalCheckoutInput, unknown>(functions, 'monthlyRentalCheckout'); return monthlyRentalOperationResultSchema.parse((await call(monthlyRentalCheckoutInputSchema.parse(input))).data); },
+    async voidMonthly(input) { const call = httpsCallable<MonthlyRentalVoidInput, unknown>(functions, 'monthlyRentalVoid'); return monthlyRentalVoidResultSchema.parse((await call(monthlyRentalVoidInputSchema.parse(input))).data); },
     async transferStay(input) { const call = httpsCallable<StayTransferInput, unknown>(functions, 'stayTransfer'); return stayTransferResultSchema.parse((await call(stayTransferInputSchema.parse(input))).data); },
   };
 }

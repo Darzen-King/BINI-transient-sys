@@ -75,3 +75,25 @@ export const monthlyRentalOperationResultSchema = z.object({
   updatedAt: z.string().datetime(),
 }).strict();
 export type MonthlyRentalOperationResult = z.infer<typeof monthlyRentalOperationResultSchema>;
+
+/**
+ * Voids one historical monthly-rental record. A duplicate created by a double-tapped renewal is
+ * money that was never really taken, so the record must stop counting as revenue — but it is kept,
+ * marked, and audited rather than deleted. The rental in force cannot be voided; use checkout.
+ */
+export const monthlyRentalVoidInputSchema = z.object({
+  propertyId,
+  operationId,
+  rentalId: z.string().trim().min(1).max(128),
+  reason: z.string().trim().min(1).max(500),
+}).strict();
+export type MonthlyRentalVoidInput = z.infer<typeof monthlyRentalVoidInputSchema>;
+
+export const monthlyRentalVoidResultSchema = z.object({
+  status: z.enum(['voided', 'already_voided', 'replayed']),
+  rentalId: z.string().trim().min(1).max(128),
+  roomId,
+  rentNts: z.number().int().safe().min(0),
+  updatedAt: z.string().datetime(),
+}).strict();
+export type MonthlyRentalVoidResult = z.infer<typeof monthlyRentalVoidResultSchema>;

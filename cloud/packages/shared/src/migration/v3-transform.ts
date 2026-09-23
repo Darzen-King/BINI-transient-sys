@@ -23,7 +23,7 @@ const BOOKING_STATUSES = new Set(['已預約', '已取消', 'No-show', '已入�
 const PAYMENT_STATUSES = new Set(['paid', 'pending', 'partial', 'refunded']);
 const CASHIER_STATUSES = new Set(['open', 'closed']);
 const MAINTENANCE_STATUSES = new Set(['scheduled', 'in_progress', 'done']);
-const MONTHLY_STATUSES = new Set(['active', 'ended', 'renewed']);
+const MONTHLY_STATUSES = new Set(['active', 'ended', 'renewed', 'voided']);
 
 // Bumped after adding verified compatibility for real v3 renewal, historical
 // free-cancel logs, and decimal display-rate records. Existing blocked batches

@@ -102,6 +102,17 @@ describe('v3 migration transformation and reconciliation', () => {
     expect(result.documents.find((document) => document.sourceTable === 'active_stays')?.data.hourlyRateNts).toBe(83);
   });
 
+  it('accepts a voided rental, which the cloud writes into its own v3-format backup', () => {
+    const backup = JSON.parse(fullBackup()) as { monthly_rentals: Array<Record<string, unknown>> };
+    backup.monthly_rentals[0].status = 'voided';
+
+    const inspection = inspectV3BackupText(JSON.stringify(backup));
+    const result = prepareV3Migration(buildV3StagingRows(inspection, 'property-main'), { importedAt, checksumSha256 });
+
+    expect(result.report.valid).toBe(true);
+    expect(result.documents.find((document) => document.sourceTable === 'monthly_rentals')?.data.status).toBe('voided');
+  });
+
   it('normalizes v3 free-cancel logs recorded before their planned check-in', () => {
     const backup = JSON.parse(fullBackup()) as { stay_logs: Array<Record<string, unknown>> };
     backup.stay_logs[0] = {

@@ -80,7 +80,7 @@ function MonthlyHistoryList({ room, text, busy, canVoid, onVoid }: { room: RoomM
             <small>NT$ {record.rentNts.toLocaleString()} · {statusLabel(record.status)}{record.createdAt ? ` · ${text('建立', 'Created')} ${record.createdAt.slice(0, 16).replace('T', ' ')}` : ''}</small>
             {record.voidReason ? <small>{text('作廢原因', 'Void reason')}：{record.voidReason}</small> : null}
           </div>
-          {canVoid && record.status === 'voided' ? <Button disabled={busy} onClick={() => onVoid(record.rentalId, text('誤作廢，還原紀錄', 'Voided by mistake; restored'), true)} size="sm" variant="outline">{text('還原', 'Restore')}</Button> : null}
+          {canVoid && record.status === 'voided' ? <Button disabled={busy} onClick={() => onVoid(record.rentalId, text('誤作廢，還原紀錄', 'Voided by mistake; restored'), true)} size="sm" variant="primary">{text('還原', 'Restore')}</Button> : null}
           {canVoid && record.status !== 'voided' && record.status !== 'active' ? (
             confirming === record.rentalId
               ? <form className="monthly-history-confirm" onSubmit={(event) => { event.preventDefault(); onVoid(record.rentalId, String(new FormData(event.currentTarget).get('reason')).trim() || text('重複建立的月租紀錄', 'Duplicate rental record')); setConfirming(null); }}>
@@ -88,7 +88,7 @@ function MonthlyHistoryList({ room, text, busy, canVoid, onVoid }: { room: RoomM
                   <Button loading={busy} size="sm" type="submit" variant="danger">{text('確認作廢', 'Confirm void')}</Button>
                   <Button disabled={busy} onClick={() => setConfirming(null)} size="sm" variant="ghost">{text('取消', 'Cancel')}</Button>
                 </form>
-              : <Button disabled={busy} onClick={() => setConfirming(record.rentalId)} size="sm" variant="outline">{text('作廢', 'Void')}</Button>
+              : <Button disabled={busy} onClick={() => setConfirming(record.rentalId)} size="sm" variant="danger">{text('作廢', 'Void')}</Button>
           ) : null}
         </div>
       ))}

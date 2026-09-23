@@ -10,7 +10,7 @@ const roomSchema = z.object({ roomId: z.string().trim().min(1).max(128) }).passt
 const bookingSchema = z.object({ bookingId: z.string().trim().min(1).max(128), roomId: z.string().trim().min(1).max(128), guestName: z.string().trim().min(1).max(300), checkInAt: dateTime, checkOutAt: dateTime, status: z.enum(['已預約', '已取消', 'No-show', '已入住']) }).passthrough();
 const staySchema = z.object({ roomId: z.string().trim().min(1).max(128), guestName: z.string().trim().min(1).max(300), checkInAt: dateTime, checkOutAt: dateTime }).passthrough();
 const maintenanceSchema = z.object({ roomId: z.string().trim().min(1).max(128), title: z.string().trim().min(1).max(500), startAt: dateTime, endAt: dateTime, status: z.enum(['scheduled', 'in_progress', 'done']) }).passthrough();
-const monthlySchema = z.object({ roomId: z.string().trim().min(1).max(128), tenantName: z.string().trim().min(1).max(300), startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), status: z.enum(['active', 'renewed', 'ended']) }).passthrough();
+const monthlySchema = z.object({ roomId: z.string().trim().min(1).max(128), tenantName: z.string().trim().min(1).max(300), startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), status: z.enum(['active', 'renewed', 'ended', 'voided']) }).passthrough();
 
 function taipeiMidnight(date: Date): Date {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date).map((part) => [part.type, part.value]));

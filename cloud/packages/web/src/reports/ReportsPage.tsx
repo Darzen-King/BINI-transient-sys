@@ -90,7 +90,7 @@ function CountTable({ counts, total, label }: { counts: Record<string, number>; 
   return <div className="report-share-list">{rows.map(([status, count]) => <div key={status}><span>{label(status)}</span><b>{count}</b><i style={{ width: `${share(count, total)}%` }} /></div>)}</div>;
 }
 
-export function ReportsPage({ session, gateway }: { session: StaffSession; gateway: ReportGateway | undefined }) {
+export function ReportsPage({ session, gateway, onOpenPayments }: { session: StaffSession; gateway: ReportGateway | undefined; /** Switches to Payments; omitted when this account may not open that page. */ onOpenPayments?: (() => void) | undefined }) {
   const { text } = useLocale(); const isAdmin = session.role === 'admin';
   const [range, setRange] = useState(initialRange); const [report, setReport] = useState<ReportProjection | null>(null); const [error, setError] = useState('');
   const [ledger, setLedger] = useState<ReportPaymentLedger | null>(null); const [ledgerError, setLedgerError] = useState('');
@@ -143,7 +143,7 @@ export function ReportsPage({ session, gateway }: { session: StaffSession; gatew
         </div>
       </> : null}
       {gateway?.subscribePaymentLedger ? <section className="report-section report-payment-summary">
-        <div className="report-section-heading"><h3>{text(`付款摘要 — ${paymentDay}`, `Payment summary — ${paymentDay}`)}</h3><div className="report-quick-actions">{gateway.exportDailySummaryCsv ? <Button disabled={!paymentSummary} loading={exporting === 'daily'} onClick={exportDaily} size="sm" variant="outline">{text('日結 CSV', 'Daily CSV')}</Button> : null}<a className="report-link" href="#payments">{text('前往付款管理', 'Open payments')}</a></div></div>
+        <div className="report-section-heading"><h3>{text(`付款摘要 — ${paymentDay}`, `Payment summary — ${paymentDay}`)}</h3><div className="report-quick-actions">{gateway.exportDailySummaryCsv ? <Button disabled={!paymentSummary} loading={exporting === 'daily'} onClick={exportDaily} size="sm" variant="outline">{text('日結 CSV', 'Daily CSV')}</Button> : null}{onOpenPayments ? <Button onClick={onOpenPayments} size="sm" variant="ghost">{text('前往付款管理', 'Open payments')}</Button> : null}</div></div>
         {ledgerError ? <Notice tone="danger" title={text('付款摘要載入失敗', 'Payment summary failed to load')}>{ledgerError}</Notice> : null}
         {paymentSummary ? <>
           <div className="payment-summary-grid"><div><small>{text('已收', 'Received')}</small><strong>{money(paymentSummary.receivedNts)}</strong></div><div><small>{text('退款', 'Refunds')}</small><strong>{money(paymentSummary.refundsNts)}</strong></div><div><small>{text('淨收入', 'Net')}</small><strong>{money(paymentSummary.netNts)}</strong></div><div><small>{text('待收款', 'Outstanding')}</small><strong>{money(paymentSummary.outstandingNts)}</strong></div></div>

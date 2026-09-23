@@ -751,7 +751,7 @@ function ActiveView({ view, targetRoomId, targetBookingId, onOpenPayment, onOpen
   if (view === 'gantt') return <RoomTimelinePage gateway={roomTimelineGateway} session={session} />;
   if (view === 'payments') return <PaymentsPage bookingGateway={bookingListGateway} createGateway={paymentCreateGateway} roomGateway={bookingRoomGateway} initialBookingId={targetBookingId} initialRoomId={targetRoomId} listGateway={paymentListGateway} onInitialRoomHandled={onTargetRoomHandled} session={session} staysGateway={activeStaysGateway} />;
   if (view === 'costs') return <CostManagementPage gateway={costGateway} session={session} />;
-  if (view === 'reports') return <ReportsPage gateway={reportGateway} session={session} />;
+  if (view === 'reports') return <ReportsPage gateway={reportGateway} onOpenPayments={session.allowedPages.includes('payments') ? () => onOpenPage('payments') : undefined} session={session} />;
   if (view === 'audit') return <AuditTrailPage gateway={auditGateway} session={session} />;
   if (view === 'holidays') return <HolidayManagementPage gateway={holidayGateway} session={session} />;
   if (view === 'properties') return <PropertyManagementPage gateway={propertyGateway} session={session} />;

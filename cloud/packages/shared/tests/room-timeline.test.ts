@@ -7,3 +7,21 @@ describe('room timeline projection', () => {
     expect(result.rooms).toEqual([expect.objectContaining({ roomId: '201', events: [expect.objectContaining({ type: 'monthly', label: 'Tenant' }), expect.objectContaining({ type: 'maintenance', label: 'Aircon' }), expect.objectContaining({ type: 'booking', label: 'Booking' })] })]);
   });
 });
+
+describe('voided monthly rentals', () => {
+  it('ignores a voided record instead of failing the whole timeline', () => {
+    // A record voided in Room Management used to crash this page with an enum error.
+    const result = buildRoomTimeline({
+      rooms: [{ id: '201', data: { roomId: '201' } }],
+      bookings: [],
+      stays: [],
+      maintenanceSchedules: [],
+      monthlyRentals: [
+        { id: 'MR-void', data: { roomId: '201', tenantName: 'Tenant', startDate: '2026-09-01', endDate: '2026-10-01', status: 'voided' } },
+        { id: 'MR-live', data: { roomId: '201', tenantName: 'Tenant', startDate: '2026-09-10', endDate: '2026-10-10', status: 'active' } },
+      ],
+    }, new Date('2026-09-13T04:00:00.000Z'));
+    const monthly = result.rooms.flatMap((room) => room.events).filter((event) => event.type === 'monthly');
+    expect(monthly.map((event) => event.id)).toEqual(['MR-live']);
+  });
+});

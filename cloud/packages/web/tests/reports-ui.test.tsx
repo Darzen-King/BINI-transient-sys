@@ -57,6 +57,23 @@ describe('reports UI', () => {
     ])));
   });
 
+  it('opens Payments from the summary, and hides that shortcut without the permission', async () => {
+    // The shortcut used to be a bare #payments link, which did nothing.
+    const ledger = { subscribePaymentLedger(_propertyId: string, onValue: (value: { payments: never[]; sessions: Map<string, 'open' | 'closed'> }) => void) { queueMicrotask(() => onValue({ payments: [], sessions: new Map() })); return () => undefined; } };
+    const gateway = { subscribe(_propertyId: string, _range: unknown, onValue: (value: typeof projection) => void) { queueMicrotask(() => onValue(projection)); return () => undefined; }, exportCsv: vi.fn(), ...ledger } as unknown as ReportGateway;
+
+    const { unmount } = render(<App reportGateway={gateway} session={{ ...session, allowedPages: ['reports', 'payments'] }} />);
+    fireEvent.click(screen.getByRole('link', { name: '統計報表' }));
+    fireEvent.click(await screen.findByRole('button', { name: '前往付款管理' }));
+    expect(await screen.findByRole('heading', { name: '付款管理', level: 2 })).toBeInTheDocument();
+    unmount();
+
+    render(<App reportGateway={gateway} session={session} />);
+    fireEvent.click(screen.getByRole('link', { name: '統計報表' }));
+    await screen.findByText(/付款摘要/);
+    expect(screen.queryByRole('button', { name: '前往付款管理' })).not.toBeInTheDocument();
+  });
+
   it('summarises payments for the end date with cashier status and exports the v3 daily summary', async () => {
     vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-09-13T04:00:00.000Z'));
     Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:test') });

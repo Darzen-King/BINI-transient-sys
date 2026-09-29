@@ -38,11 +38,11 @@ const text = z.string().trim().min(1);
 const nullableText = z.string().nullable().optional();
 const amount = z.number().int().safe().min(0);
 const roomSchema = z.object({ roomId: text, status: text, note: nullableText }).passthrough();
-const bookingSchema = z.object({ bookingId: text, roomId: text, checkInAt: dateTime, plan: text, amountNts: amount, status: text, rateType: nullableText }).passthrough();
-const staySchema = z.object({ roomId: text, totalDueNts: amount.optional() }).passthrough();
+const bookingSchema = z.object({ bookingId: text, roomId: text, checkInAt: dateTime, checkOutAt: nullableDateTime, plan: text, amountNts: amount, status: text, rateType: nullableText }).passthrough();
+const staySchema = z.object({ roomId: text, totalDueNts: amount.optional(), checkInAt: nullableDateTime, checkOutAt: nullableDateTime }).passthrough();
 // Missing flags mean "no", as in v3's stay_logs defaults; older cloud check-outs omitted `transferred`.
-const stayLogSchema = z.object({ roomId: text, plan: nullableText, checkInAt: nullableDateTime, totalChargedNts: amount, freeCancel: z.boolean().default(false), transferred: z.boolean().default(false) }).passthrough();
-const monthlySchema = z.object({ roomId: text, rentNts: amount, createdAt: nullableDateTime, status: z.string().optional() }).passthrough();
+const stayLogSchema = z.object({ roomId: text, plan: nullableText, checkInAt: nullableDateTime, checkOutAt: nullableDateTime, totalChargedNts: amount, freeCancel: z.boolean().default(false), transferred: z.boolean().default(false) }).passthrough();
+const monthlySchema = z.object({ roomId: text, rentNts: amount, createdAt: nullableDateTime, status: z.string().optional(), startDate: day.optional(), endDate: day.optional() }).passthrough();
 const costSchema = z.object({ costDate: day, category: text, amountNts: amount, status: z.enum(['active', 'archived']).optional(), vendor: nullableText, description: nullableText, note: nullableText, paymentMethod: nullableText }).passthrough();
 
 function localDay(value: string): string {
@@ -65,6 +65,13 @@ function parse<T>(documents: readonly ReportSourceDocument[], schema: z.ZodType<
     return { id: document.id, data: result.data };
   });
 }
+/** The day before an exclusive end date, so a monthly period does not claim the next period's first day. */
+function previousDay(value: string): string {
+  const date = new Date(`${value}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - 1);
+  return date.toISOString().slice(0, 10);
+}
+
 function percentage(numerator: number, denominator: number): number { return denominator ? Math.round((numerator / denominator) * 1_000) / 10 : 0; }
 function planHours(plan: string | null | undefined): number { return plan === '12hrs' ? 12 : 24; }
 
@@ -99,7 +106,23 @@ export function buildReportProjection(source: ReportSource, range: ReportRange):
   for (const { data } of activeBookings) { const item = rental(data.roomId); item.count += 1; item.revenueNts += data.amountNts; item.plans[data.plan] = (item.plans[data.plan] ?? 0) + 1; }
   for (const { data } of eligibleLogs) { const item = rental(data.roomId); const plan = data.plan ?? '24hrs'; item.count += 1; item.revenueNts += data.totalChargedNts; item.plans[plan] = (item.plans[plan] ?? 0) + 1; }
   for (const { data } of recognisedMonthly) { const item = rental(data.roomId); item.count += 1; item.revenueNts += data.rentNts; item.plans['月租'] = (item.plans['月租'] ?? 0) + 1; }
-  const daily = dateList(range.dateFrom, range.dateTo).map((date) => { const dayBookings = activeBookings.filter(({ data }) => localDay(data.checkInAt) === date); const dayLogs = eligibleLogs.filter(({ data }) => data.checkInAt && localDay(data.checkInAt) === date); return { date, revenueNts: dayBookings.reduce((total, { data }) => total + data.amountNts, 0) + dayLogs.reduce((total, { data }) => total + data.totalChargedNts, 0), occupancyPct: percentage(dayBookings.length, totalRooms) }; });
+  // Occupancy per day = rooms actually occupied that day. v3 counted only bookings whose check-in fell
+  // on the day and dropped them once the guest checked in, so every past day read 0%.
+  const occupancyIntervals: Array<{ roomId: string; from: string; to: string }> = [
+    ...eligibleLogs.flatMap(({ data }) => (data.checkInAt ? [{ roomId: data.roomId, from: localDay(data.checkInAt), to: localDay(data.checkOutAt ?? data.checkInAt) }] : [])),
+    ...stays.flatMap(({ data }) => (data.checkInAt ? [{ roomId: data.roomId, from: localDay(data.checkInAt), to: localDay(data.checkOutAt ?? data.checkInAt) }] : [])),
+    ...activeBookings.map(({ data }) => ({ roomId: data.roomId, from: localDay(data.checkInAt), to: localDay(data.checkOutAt ?? data.checkInAt) })),
+    // A monthly suite is occupied for its whole period; the end date is the next period's start.
+    ...monthlyRentals.flatMap(({ data }) => (data.status !== 'voided' && data.startDate && data.endDate
+      ? [{ roomId: data.roomId, from: data.startDate, to: previousDay(data.endDate) }]
+      : [])),
+  ];
+  const daily = dateList(range.dateFrom, range.dateTo).map((date) => {
+    const dayBookings = activeBookings.filter(({ data }) => localDay(data.checkInAt) === date);
+    const dayLogs = eligibleLogs.filter(({ data }) => data.checkInAt && localDay(data.checkInAt) === date);
+    const occupiedRooms = new Set(occupancyIntervals.filter((item) => item.from <= date && date <= item.to).map((item) => item.roomId));
+    return { date, revenueNts: dayBookings.reduce((total, { data }) => total + data.amountNts, 0) + dayLogs.reduce((total, { data }) => total + data.totalChargedNts, 0), occupancyPct: percentage(occupiedRooms.size, totalRooms) };
+  });
   const activeCosts = costs.filter(({ data }) => data.status !== 'archived' && data.costDate >= range.dateFrom && data.costDate <= range.dateTo);
   const totalCostNts = range.includeCosts ? activeCosts.reduce((total, { data }) => total + data.amountNts, 0) : null;
   const costByCategoryNts = range.includeCosts ? activeCosts.reduce<Record<string, number>>((total, { data }) => ({ ...total, [data.category]: (total[data.category] ?? 0) + data.amountNts }), {}) : null;

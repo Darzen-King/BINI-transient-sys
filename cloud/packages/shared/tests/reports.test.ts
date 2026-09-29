@@ -34,6 +34,26 @@ describe('v3-compatible reports', () => {
     expect(report.costByCategoryNts).toEqual({ utilities: 500 });
   });
 
+  it('reports the rooms actually occupied each day, not just bookings waiting to arrive', () => {
+    // v3 counted a day's bookings and dropped them once the guest checked in, so past days read 0%.
+    const occupancy = {
+      rooms: [{ id: '201', data: { roomId: '201', status: '使用中', note: null } }, { id: '202', data: { roomId: '202', status: '月租套房', note: null } }],
+      bookings: [],
+      stays: [],
+      stayLogs: [{ id: 'S1', data: { roomId: '201', checkInAt: '2026-09-10T15:00:00+08:00', checkOutAt: '2026-09-11T12:00:00+08:00', plan: '24hrs', totalChargedNts: 1_300, freeCancel: false, transferred: false } }],
+      monthlyRentals: [{ id: 'M1', data: { roomId: '202', rentNts: 8_000, createdAt: '2026-09-01T10:00:00+08:00', startDate: '2026-09-01', endDate: '2026-09-11' } }],
+      costEntries: [],
+    } as const;
+    const report = buildReportProjection(occupancy, { dateFrom: '2026-09-09', dateTo: '2026-09-12' });
+
+    expect(report.daily.map((item) => [item.date, item.occupancyPct])).toEqual([
+      ['2026-09-09', 50],  // the monthly suite only
+      ['2026-09-10', 100], // monthly suite + the stay that checked in
+      ['2026-09-11', 50],  // the stay's check-out day; the monthly period ended on the 10th
+      ['2026-09-12', 0],
+    ]);
+  });
+
   it('leaves a voided rental out of revenue, whatever period it was created in', () => {
     // A renewal tapped twice used to leave a duplicate record; voiding it must undo the revenue it added.
     const withDuplicate = { ...source, monthlyRentals: [

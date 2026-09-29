@@ -5,7 +5,8 @@ afterEach(() => {
   vi.resetModules();
 });
 
-describe('Dropbox v3 backup switch', () => {
+// Importing firebase-functions here takes seconds on a busy machine, past vitest's 5s default.
+describe('Dropbox v3 backup switch', { timeout: 30_000 }, () => {
   it('runs in production only, so one project owns the shared Dropbox folder', async () => {
     // Pin the ambient project: the no-argument call reads GCLOUD_PROJECT, which other test files share.
     vi.stubEnv('GCLOUD_PROJECT', '');

@@ -422,7 +422,8 @@ h1, h2, p { margin-top: 0; }
 .report-chart-legend { display: flex; margin-top: 8px; color: var(--bds-color-text-secondary); font-size: 13px; gap: 18px; }
 .report-chart-legend span::before { display: inline-block; width: 12px; height: 12px; margin-right: 6px; border-radius: 3px; background: var(--bds-color-berry-400); content: ""; vertical-align: -1px; }
 .report-chart-legend .line::before { height: 3px; background: var(--bds-color-blue-600); vertical-align: 3px; }
-.report-daily-details summary { cursor: pointer; color: var(--brand-dark); font-size: 12px; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+/* Reads as a section heading, like the others around it. */
+.report-daily-details summary { cursor: pointer; color: var(--brand-dark); font-size: 15px; font-weight: 700; min-height: 44px; display: flex; align-items: center; }
 .report-split { display: grid; gap: 0 16px; }
 .report-share-list { display: grid; overflow: hidden; border: 1px solid var(--line); border-radius: var(--bds-radius-md); }
 .report-share-list > div { display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 9px 12px; gap: 4px 10px; }

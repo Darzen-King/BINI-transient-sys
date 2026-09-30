@@ -12,7 +12,7 @@ import csv
 import io
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from app.models import Booking, ActiveStay, Room, ReportSummary, StayLog
+from app.models import Booking, ActiveStay, MonthlyRental, Room, ReportSummary, StayLog
 
 DT_FMT    = "%Y-%m-%d %H:%M"
 DATE_FMT  = "%Y-%m-%d"
@@ -20,6 +20,8 @@ DATE_FMT  = "%Y-%m-%d"
 # bookings.py CANCELLED_STATUSES already excludes it from the active booking list;
 # here we must also exclude it so its b.amount is not added on top of StayLog revenue.
 CANCELLED = {"已取消", "No-show", "已入住"}
+# Occupancy asks who was in the room, so a checked-in booking still counts; only these do not.
+OCCUPANCY_EXCLUDED = {"已取消", "No-show"}
 PLAN_HOURS = {"24hrs": 24, "12hrs": 12}
 ROOM_STATUS_I18N = {
     "可入住": "status.available", "使用中": "status.occupied",
@@ -29,6 +31,9 @@ ROOM_STATUS_I18N = {
 
 
 # ── helpers ───────────────────────────────────────────────────────────────
+
+from app.services.monthly import is_voided as _monthly_voided
+
 
 def _parse_dt(s: str | None) -> datetime | None:
     if not s:
@@ -66,9 +71,49 @@ def _date_list(date_from: datetime, date_to: datetime) -> list[str]:
 
 # ── daily time series ─────────────────────────────────────────────────────
 
+def _occupancy_spans(
+    bookings: list,
+    stay_logs: list,
+    active_stays: list,
+    monthly_rentals: list,
+) -> list[tuple[str, str, str]]:
+    """
+    (room, first_day, last_day) for everything that puts a guest in a room: completed
+    stays, guests in house, monthly tenants for their whole period, and bookings still
+    to arrive. Used for occupancy, which asks who was in the room on a day — not who
+    happened to check in that day.
+    """
+    spans: list[tuple[str, str, str]] = []
+
+    def add(room, start, end):
+        s = _parse_dt(start)
+        if not room or not s:
+            return
+        e = _parse_dt(end) or s
+        spans.append((room, s.strftime(DATE_FMT), max(e, s).strftime(DATE_FMT)))
+
+    for b in bookings:
+        if (b.status or "") in OCCUPANCY_EXCLUDED:
+            continue
+        add(b.room, b.checkin, b.checkout)
+    for sl in stay_logs:
+        add(sl.room, sl.checkin_time, sl.checkout_time)
+    for s in active_stays:
+        add(s.room, s.checkin_time, s.checkout_time)
+    for mr in monthly_rentals:
+        if _monthly_voided(mr):
+            continue
+        end = _parse_dt(mr.end_date)
+        # end_date is the next period's first day, so the tenant's last day is the one before.
+        last = (end - timedelta(days=1)).strftime(DATE_FMT) if end else mr.start_date
+        add(mr.room_id, mr.start_date, last)
+    return spans
+
+
 def _daily_series(
     active_bookings: list,
     stay_logs: list,
+    occupancy_spans: list,
     total_rooms: int,
     date_from: datetime,
     date_to: datetime,
@@ -82,7 +127,7 @@ def _daily_series(
     """
     days = _date_list(date_from, date_to)
     rev_map: dict[str, float] = {d: 0.0 for d in days}
-    occ_map: dict[str, int]   = {d: 0   for d in days}
+    occ_map: dict[str, set]   = {d: set() for d in days}
 
     # From bookings
     for b in active_bookings:
@@ -91,7 +136,6 @@ def _daily_series(
             day = dt.strftime(DATE_FMT)
             if day in rev_map:
                 rev_map[day] += b.amount
-                occ_map[day] += 1
 
     # From StayLog (completed stays in range)
     for sl in stay_logs:
@@ -101,7 +145,13 @@ def _daily_series(
             if day in rev_map:
                 rev_map[day] += sl.total_charged
 
-    occ_pct = [round(occ_map[d] / total_rooms * 100, 1) for d in days]
+    # Occupancy counts the rooms a guest was in that day, each room once.
+    for room, first_day, last_day in occupancy_spans:
+        for day in days:
+            if first_day <= day <= last_day:
+                occ_map[day].add(room)
+
+    occ_pct = [round(len(occ_map[d]) / total_rooms * 100, 1) for d in days]
 
     return {
         "labels":    days,
@@ -197,7 +247,8 @@ def compute_report(
     from app.models import MonthlyRental as _MR0
     monthly_count_range = sum(
         1 for mr in db.query(_MR0).all()
-        if _rec_date(mr)
+        if not _monthly_voided(mr)
+        and _rec_date(mr)
         and date_from_str <= _rec_date(mr) <= date_to_str
         and (not property_id or getattr(mr, "property_id", None) == property_id)
     )
@@ -261,6 +312,8 @@ def compute_report(
     # Monthly suite rent — add to per-room revenue by COLLECTION date (created_at).
     from app.models import MonthlyRental as _MR
     for mr in db.query(_MR).all():
+        if _monthly_voided(mr):
+            continue
         rd = _rec_date(mr)
         if not (rd and date_from_str <= rd <= date_to_str):
             continue
@@ -275,7 +328,12 @@ def compute_report(
     room_rental_list = sorted(room_rentals.values(), key=lambda x: (-x["count"], x["id"]))
 
     # ── Phase-3: chart data ───────────────────────────────────────────
-    daily   = _daily_series(active_bookings, stay_logs_range, total_rooms, date_from, date_to)
+    monthly_rentals_all = db.query(MonthlyRental).all()
+    if property_id:
+        monthly_rentals_all = [mr for mr in monthly_rentals_all
+                               if getattr(mr, "property_id", None) == property_id]
+    spans   = _occupancy_spans(all_bookings, stay_logs_all, active_stays, monthly_rentals_all)
+    daily   = _daily_series(active_bookings, stay_logs_range, spans, total_rooms, date_from, date_to)
     plans   = _plan_breakdown(active_bookings, stay_logs_range)
     delta_days = (date_to - date_from).days + 1
 

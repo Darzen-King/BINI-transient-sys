@@ -293,6 +293,16 @@ def end_monthly_rental(
 
 # ── Reports integration ──────────────────────────────────────────────────────
 
+def is_voided(r) -> bool:
+    """
+    A rental record marked void in the cloud version. Renewals double-tapped in older
+    builds created several records for one payment; the cloud marks the duplicates
+    'voided' instead of deleting them, and that status travels in the backup file, so
+    this version must leave them out of revenue too.
+    """
+    return (getattr(r, "status", "") or "").strip().lower() == "voided"
+
+
 def recognition_date(r) -> str:
     """
     Revenue-recognition date (YYYY-MM-DD) for a monthly rental = the date the
@@ -319,6 +329,8 @@ def monthly_rent_in_range(db: Session, date_from: str, date_to: str) -> float:
     dt = date_to[:10]
     total = 0.0
     for r in db.query(MonthlyRental).all():
+        if is_voided(r):
+            continue
         rd = recognition_date(r)
         if rd and df <= rd <= dt:
             total += float(r.rent or 0)
@@ -329,6 +341,8 @@ def monthly_rent_for_month(db: Session, year_month: str) -> float:
     """Sum of monthly rent recognized in the given 'YYYY-MM' (by collection date)."""
     total = 0.0
     for r in db.query(MonthlyRental).all():
+        if is_voided(r):
+            continue
         if recognition_date(r)[:7] == year_month:
             total += float(r.rent or 0)
     return total

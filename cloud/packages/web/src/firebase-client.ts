@@ -1,5 +1,4 @@
-import { getApp, getApps, initializeApp } from 'firebase/app';
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
+import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import { connectAuthEmulator, getAuth, type Auth } from 'firebase/auth';
 import { connectFirestoreEmulator, getFirestore, initializeFirestore, persistentLocalCache, type Firestore } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions, type Functions } from 'firebase/functions';
@@ -18,8 +17,11 @@ export function createFirebaseClient(env: ImportMetaEnv): FirebaseClient {
   const firstInit = getApps().length === 0;
   const app = firstInit ? initializeApp(readFirebaseConfig(env)) : getApp();
   const siteKey = appCheckSiteKey(env);
-  // Attach App Check before Auth/Firestore/Functions so every request carries a token.
-  if (firstInit && siteKey) initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(siteKey), isTokenAutoRefreshEnabled: true });
+  // App Check pulls in Google's reCAPTCHA script (~350 KB) and holds every request until it has a
+  // token, which on a phone is seconds of staring at the sign-in check. Start it after the app is
+  // interactive instead: App Check is in monitor mode, so the few early requests simply carry no
+  // token. Turning enforcement on means attaching it before the first request again.
+  if (firstInit && siteKey) startAppCheckWhenIdle(app, siteKey);
   const auth = getAuth(app);
   // A persistent cache lets a returning device paint from disk instead of waiting for the first
   // round trip; Firestore still refreshes from the server, and security rules remain authoritative.
@@ -41,3 +43,16 @@ export function createFirebaseClient(env: ImportMetaEnv): FirebaseClient {
     propertyId: env.VITE_BINI_PROPERTY_ID || 'property-main',
   };
 }
+
+function startAppCheckWhenIdle(app: FirebaseApp, siteKey: string): void {
+  const start = () => void import('firebase/app-check')
+    .then(({ ReCaptchaEnterpriseProvider, initializeAppCheck }) => {
+      initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(siteKey), isTokenAutoRefreshEnabled: true });
+    })
+    .catch(() => undefined);
+  if (typeof window === 'undefined') { start(); return; }
+  const idle = (window as unknown as { requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number }).requestIdleCallback;
+  if (idle) idle(start, { timeout: 4_000 });
+  else window.setTimeout(start, 1_500);
+}
+

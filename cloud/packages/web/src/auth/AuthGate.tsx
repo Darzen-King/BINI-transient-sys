@@ -14,7 +14,7 @@ import {
   type TotpSecret,
   type User,
 } from 'firebase/auth';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, getDocFromCache, onSnapshot } from 'firebase/firestore';
 import { CLOUD_ROLES, type CloudPageId, type CloudRole } from '@bini/cloud-shared';
 
 import { App } from '../App.js';
@@ -53,7 +53,7 @@ import { createRoomTimelineGateway } from '../gantt/room-timeline-gateway.js';
 import { choosePropertyId, createPropertyNameGateway, listMemberships, readPreferredProperty, writePreferredProperty } from './property-session.js';
 import type { StaffSession } from './session.js';
 
-type GatePhase = 'loading' | 'login' | 'mfa' | 'verify-email' | 'enroll-mfa' | 'blocked' | 'ready';
+type GatePhase = 'loading' | 'login' | 'mfa' | 'verify-email' | 'enroll-mfa' | 'offline' | 'blocked' | 'ready';
 
 function AuthCard({ children }: { children: ReactNode }) {
   return <main className="login-page"><section className="login-card"><LanguageSwitcher className="auth-language-switch" /><img className="brand-wordmark" src="/bini-blooms-logo.png" alt="BINI Blooms" />{children}</section></main>;
@@ -64,6 +64,12 @@ const ALREADY_ENROLLED_CODES = new Set([
   'auth/second-factor-already-in-use',
   'auth/maximum-second-factor-count-exceeded',
 ]);
+
+/** A request that never reached Firebase. The device must wait, not draw conclusions from stale state. */
+function isOffline(error: unknown): boolean {
+  return error instanceof FirebaseError
+    && (error.code === 'auth/network-request-failed' || error.code === 'unavailable' || error.code === 'failed-precondition');
+}
 
 function friendlyError(error: unknown, text: (zhTw: string, en: string) => string): string {
   if (error instanceof FirebaseError) {
@@ -156,48 +162,89 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
     // The profile read is the slow leg on mobile, so start it before the auth checks rather than after.
     const profilePromise = getDoc(doc(client.db, 'users', user.uid));
     profilePromise.catch(() => undefined);
-    // A stored session keeps the state it was created with: a device that signed in before the
-    // authenticator was enrolled still reports zero factors, and an unverified email stays unverified.
-    // Only that incomplete-looking state needs a server refresh; a complete one would just add a round trip.
-    if (!user.emailVerified || multiFactor(user).enrolledFactors.length === 0) {
+    // The signed-in token already proves how this session was created, and reading it needs no network
+    // while it is valid. Trust it first: a session that passed the authenticator is enrolled, whatever a
+    // stored user object says. Only an incomplete-looking session needs the server.
+    let token;
+    try {
+      token = await user.getIdTokenResult();
+    } catch (tokenError) {
+      if (isOffline(tokenError)) { setPhase('offline'); return; }
+      throw tokenError;
+    }
+    const firebaseClaim = asRecord(token.claims.firebase);
+    const signedInWithSecondFactor = typeof firebaseClaim?.sign_in_second_factor === 'string';
+    const verifiedEmail = user.emailVerified || token.claims.email_verified === true;
+    if (!signedInWithSecondFactor || !verifiedEmail) {
+      // A stored session keeps the state it was created with: a device that signed in before the
+      // authenticator was enrolled still reports zero factors, and an unverified email stays unverified.
       try {
         await reload(user);
       } catch (reloadError) {
-        if (reloadError instanceof FirebaseError && reloadError.code !== 'auth/network-request-failed') {
-          await signOut(client.auth);
-          setNotice(textRef.current('登入狀態已失效，請重新登入。', 'Your session is no longer valid. Sign in again.'));
-          setPhase('login');
-          return;
-        }
+        // Without a usable answer the device must not conclude anything: sending a staff member to
+        // enrolment here would try to add a second authenticator and fail.
+        if (isOffline(reloadError)) { setPhase('offline'); return; }
+        await signOut(client.auth);
+        setNotice(textRef.current('登入狀態已失效，請重新登入。', 'Your session is no longer valid. Sign in again.'));
+        setPhase('login');
+        return;
+      }
+      if (!user.emailVerified) {
+        setPhase('verify-email');
+        return;
+      }
+      if (multiFactor(user).enrolledFactors.length === 0) {
+        setPhase('enroll-mfa');
+        return;
+      }
+      if (!signedInWithSecondFactor) {
+        await signOut(client.auth);
+        setNotice(textRef.current('請重新登入並輸入驗證器代碼。', 'Sign in again and enter your authenticator code.'));
+        setPhase('login');
+        return;
       }
     }
-    if (!user.emailVerified) {
-      setPhase('verify-email');
-      return;
+    const sessionFor = (profile: Record<string, unknown> | null) => {
+      const propertyId = profile ? choosePropertyId(listMemberships(profile.roles), readPreferredProperty(), client.propertyId) : null;
+      return profile && propertyId ? parseProfile(user, propertyId, profile) : null;
+    };
+    // On a phone the round trip for this one document is what the "checking your session" wait is made of.
+    // A copy kept on the device opens the app straight away; the server read then confirms it, and the
+    // live profile listener below keeps correcting it, so a revoked account is blocked as soon as the
+    // network answers.
+    let openedFromCache = false;
+    try {
+      const cached = await getDocFromCache(doc(client.db, 'users', user.uid));
+      const cachedProfile = cached.exists() ? cached.data() : null;
+      const cachedSession = sessionFor(cachedProfile);
+      if (cachedSession) {
+        setProfileData(cachedProfile);
+        setSession(cachedSession);
+        setPhase('ready');
+        openedFromCache = true;
+      }
+    } catch {
+      // No cached copy (first sign-in on this device, or storage unavailable): wait for the server.
     }
-    if (multiFactor(user).enrolledFactors.length === 0) {
-      setPhase('enroll-mfa');
-      return;
+
+    let snapshot;
+    try {
+      snapshot = await profilePromise;
+    } catch (profileError) {
+      if (openedFromCache) return;
+      if (isOffline(profileError)) { setPhase('offline'); return; }
+      throw profileError;
     }
-    const token = await user.getIdTokenResult();
-    const firebaseClaim = asRecord(token.claims.firebase);
-    if (typeof firebaseClaim?.sign_in_second_factor !== 'string') {
-      await signOut(client.auth);
-      setNotice(textRef.current('請重新登入並輸入驗證器代碼。', 'Sign in again and enter your authenticator code.'));
-      setPhase('login');
-      return;
-    }
-    const snapshot = await profilePromise;
     const profile = snapshot.exists() ? snapshot.data() : null;
-    const propertyId = profile ? choosePropertyId(listMemberships(profile.roles), readPreferredProperty(), client.propertyId) : null;
-    const nextSession = profile && propertyId ? parseProfile(user, propertyId, profile) : null;
+    const nextSession = sessionFor(profile);
     if (!nextSession) {
+      setSession(null);
       setPhase('blocked');
       return;
     }
     setProfileData(profile);
     setSession(nextSession);
-    setPhase('ready');
+    if (!openedFromCache) setPhase('ready');
   }, [client.auth, client.db, client.propertyId]);
 
   useEffect(() => onAuthStateChanged(client.auth, (user) => {
@@ -404,6 +451,15 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
       </> : <p>{text('正在產生驗證金鑰…', 'Generating your setup key…')}</p>}
       {error ? <Notice tone="danger" title={text('設定失敗', 'Setup failed')}>{error}</Notice> : null}
       <form onSubmit={(event) => void enrollMfa(event)}><Field label={text('驗證器代碼', 'Authenticator code')}><input name="code" required inputMode="numeric" pattern="[0-9]{6}" autoComplete="one-time-code" /></Field><Button block disabled={!totpSecret} loading={busy} size="lg" type="submit">{text('完成 MFA 設定', 'Complete MFA setup')}</Button></form>
+    </AuthCard>
+  );
+
+  if (phase === 'offline' && currentUser) return (
+    <AuthCard>
+      <h1>{text('連線不穩', 'Connection problem')}</h1>
+      <p>{text('無法與伺服器確認登入狀態，請確認網路後再試一次。您仍維持登入，不需要重新輸入密碼。', 'We could not reach the server to check your session. Check your connection and try again; you are still signed in.')}</p>
+      <Button block loading={busy} onClick={() => { setBusy(true); void evaluateUser(currentUser).catch(() => setPhase('offline')).finally(() => setBusy(false)); }} size="lg">{text('再試一次', 'Try again')}</Button>
+      <Button block onClick={() => void signOut(client.auth)} variant="ghost">{text('登出', 'Sign out')}</Button>
     </AuthCard>
   );
 

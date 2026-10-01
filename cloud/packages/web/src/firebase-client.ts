@@ -1,7 +1,7 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import { connectAuthEmulator, getAuth, type Auth } from 'firebase/auth';
-import { connectFirestoreEmulator, getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, type Firestore } from 'firebase/firestore';
+import { connectFirestoreEmulator, getFirestore, initializeFirestore, persistentLocalCache, type Firestore } from 'firebase/firestore';
 import { connectFunctionsEmulator, getFunctions, type Functions } from 'firebase/functions';
 
 import { appCheckSiteKey } from './app-check.js';
@@ -23,9 +23,9 @@ export function createFirebaseClient(env: ImportMetaEnv): FirebaseClient {
   const auth = getAuth(app);
   // A persistent cache lets a returning device paint from disk instead of waiting for the first
   // round trip; Firestore still refreshes from the server, and security rules remain authoritative.
-  const db = firstInit
-    ? initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) })
-    : getFirestore(app);
+  // Single-tab cache: an installed app is one window, and multi-tab coordination costs an extra
+  // round of IndexedDB work on every start, which is exactly what mobile start-up cannot spare.
+  const db = firstInit ? initializeFirestore(app, { localCache: persistentLocalCache() }) : getFirestore(app);
   const functions = getFunctions(app, 'asia-east1');
 
   if (env.VITE_USE_EMULATORS === '1') {

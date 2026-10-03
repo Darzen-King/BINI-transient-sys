@@ -13,6 +13,7 @@ const costEntrySchema = z
     subcategory: z.string().trim().max(100).nullable().optional(),
     amountNts: z.number().int().safe().min(0),
     paymentMethod: z.string().trim().min(1).max(64),
+    installmentPeriods: z.number().int().nullable().optional(),
     vendor: z.string().trim().max(300).nullable().optional(),
     description: z.string().trim().max(2_000).nullable().optional(),
     note: z.string().trim().max(2_000).nullable().optional(),
@@ -33,6 +34,8 @@ export interface CostListItem {
   subcategory: string | null;
   amountNts: number;
   paymentMethod: (typeof COST_PAYMENT_METHODS)[number];
+  /** Monthly installments of a `card_installment` cost; null for every other payment method and for older rows. */
+  installmentPeriods?: number | null;
   vendor: string | null;
   description: string | null;
   note: string | null;
@@ -68,6 +71,8 @@ export function buildCostListItems(
         subcategory: value.subcategory ?? null,
         amountNts: value.amountNts,
         paymentMethod,
+        installmentPeriods:
+          paymentMethod === "card_installment" ? (value.installmentPeriods ?? null) : null,
         vendor: value.vendor ?? null,
         description: value.description ?? null,
         note: value.note ?? null,

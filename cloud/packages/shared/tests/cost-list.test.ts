@@ -71,6 +71,45 @@ describe("cost domain and contracts", () => {
     ).toBe(false);
   });
 
+  it("accepts a credit-card installment cost only with a period count, and a period count only for installments", () => {
+    const base = {
+      propertyId: "property-main",
+      operationId: "00000000-0000-4000-8000-000000000004",
+      costDate: "2026-09-13",
+      category: "maintenance",
+      amountNts: 36_000,
+      recurring: false,
+    };
+    const ok = (input: Record<string, unknown>) => costCreateInputSchema.safeParse({ ...base, ...input }).success;
+    expect(ok({ paymentMethod: "card_installment", installmentPeriods: 6 })).toBe(true);
+    expect(ok({ paymentMethod: "card_installment", installmentPeriods: 2 })).toBe(true);
+    expect(ok({ paymentMethod: "card_installment", installmentPeriods: 120 })).toBe(true);
+    expect(ok({ paymentMethod: "card_installment" })).toBe(false);
+    expect(ok({ paymentMethod: "card_installment", installmentPeriods: null })).toBe(false);
+    expect(ok({ paymentMethod: "card_installment", installmentPeriods: 1 })).toBe(false);
+    expect(ok({ paymentMethod: "card_installment", installmentPeriods: 121 })).toBe(false);
+    expect(ok({ paymentMethod: "card_installment", installmentPeriods: 6.5 })).toBe(false);
+    // Every other method stays exactly as before: no period count at all.
+    for (const method of ["cash", "transfer", "card", "other"]) {
+      expect(ok({ paymentMethod: method })).toBe(true);
+      expect(ok({ paymentMethod: method, installmentPeriods: null })).toBe(true);
+      expect(ok({ paymentMethod: method, installmentPeriods: 6 })).toBe(false);
+    }
+  });
+
+  it("reads the installment count back for installment costs only, and old rows keep working", () => {
+    const [installment, card, legacy, stray] = buildCostListItems([
+      { id: "CST-inst", data: { ...active, paymentMethod: "card_installment", installmentPeriods: 12 } },
+      { id: "CST-card", data: { ...active, paymentMethod: "card" } },
+      { id: "CST-legacy", data: active },
+      { id: "CST-stray", data: { ...active, paymentMethod: "cash", installmentPeriods: 6 } },
+    ]);
+    expect(installment).toMatchObject({ paymentMethod: "card_installment", installmentPeriods: 12 });
+    expect(card).toMatchObject({ paymentMethod: "card", installmentPeriods: null });
+    expect(legacy).toMatchObject({ paymentMethod: "cash", installmentPeriods: null });
+    expect(stray).toMatchObject({ paymentMethod: "cash", installmentPeriods: null });
+  });
+
   it("reads imported v3 cost rows without v4 lifecycle fields as active version zero", () => {
     const [item] = buildCostListItems([
       {

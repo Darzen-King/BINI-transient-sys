@@ -13,12 +13,19 @@ export const COST_CATEGORIES = [
   "marketing",
   "misc",
 ] as const;
+/**
+ * `card` = paid by credit card in one go; `card_installment` = paid by credit card in `installmentPeriods`
+ * monthly installments (the accounting app links the card and spreads the periods over the card bills).
+ */
 export const COST_PAYMENT_METHODS = [
   "cash",
   "transfer",
   "card",
+  "card_installment",
   "other",
 ] as const;
+export const COST_INSTALLMENT_MIN = 2;
+export const COST_INSTALLMENT_MAX = 120;
 const propertyId = z
   .string()
   .trim()
@@ -34,6 +41,11 @@ const costId = z
   .regex(/^[^/]+$/);
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const amount = z.number().int().safe().min(0).max(100_000_000);
+const installmentPeriods = z
+  .number()
+  .int()
+  .min(COST_INSTALLMENT_MIN)
+  .max(COST_INSTALLMENT_MAX);
 
 export const costFieldsSchema = z
   .object({
@@ -42,6 +54,7 @@ export const costFieldsSchema = z
     subcategory: z.string().trim().max(100).nullable().optional(),
     amountNts: amount,
     paymentMethod: z.enum(COST_PAYMENT_METHODS),
+    installmentPeriods: installmentPeriods.nullable().optional(),
     vendor: z.string().trim().max(300).nullable().optional(),
     description: z.string().trim().max(2_000).nullable().optional(),
     note: z.string().trim().max(2_000).nullable().optional(),
@@ -49,9 +62,29 @@ export const costFieldsSchema = z
     receiptNo: z.string().trim().max(200).nullable().optional(),
   })
   .strict();
+/** Installment periods are required for `card_installment` and meaningless for every other method. */
+function requireInstallmentsOnlyForInstallmentPayment(
+  value: { paymentMethod: (typeof COST_PAYMENT_METHODS)[number]; installmentPeriods?: number | null | undefined },
+  context: z.RefinementCtx,
+) {
+  const has = typeof value.installmentPeriods === "number";
+  if (value.paymentMethod === "card_installment" && !has)
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["installmentPeriods"],
+      message: "分期付款必須填寫期數。",
+    });
+  if (value.paymentMethod !== "card_installment" && has)
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["installmentPeriods"],
+      message: "只有信用卡分期可以填寫期數。",
+    });
+}
 export const costCreateInputSchema = z
   .object({ propertyId, operationId, ...costFieldsSchema.shape })
-  .strict();
+  .strict()
+  .superRefine(requireInstallmentsOnlyForInstallmentPayment);
 export const costUpdateInputSchema = z
   .object({
     propertyId,
@@ -60,7 +93,8 @@ export const costUpdateInputSchema = z
     baseVersion: z.number().int().min(0),
     ...costFieldsSchema.shape,
   })
-  .strict();
+  .strict()
+  .superRefine(requireInstallmentsOnlyForInstallmentPayment);
 export const costArchiveInputSchema = z
   .object({
     propertyId,

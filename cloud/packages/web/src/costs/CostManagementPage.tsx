@@ -1,5 +1,7 @@
 import {
   COST_CATEGORIES,
+  COST_INSTALLMENT_MAX,
+  COST_INSTALLMENT_MIN,
   type CostListItem,
   costsInRange,
   summarizeCostRange,
@@ -20,7 +22,7 @@ import { useLocale } from "../i18n/locale.js";
 import type { CostGateway } from "./cost-gateway.js";
 
 type CostCategory = (typeof COST_CATEGORIES)[number];
-type PaymentMethod = "cash" | "transfer" | "card" | "other";
+type PaymentMethod = "cash" | "transfer" | "card" | "card_installment" | "other";
 
 interface CostFormValue {
   costDate: string;
@@ -28,6 +30,8 @@ interface CostFormValue {
   subcategory: string;
   amountNts: number;
   paymentMethod: PaymentMethod;
+  /** Only used by `card_installment`; 0 = not filled in yet. */
+  installmentPeriods: number;
   vendor: string;
   description: string;
   note: string;
@@ -39,7 +43,8 @@ const categoryLabels = COST_CATEGORY_LABELS;
 const paymentLabels: Record<PaymentMethod, readonly [string, string]> = {
   cash: ["現金", "Cash"],
   transfer: ["轉帳", "Transfer"],
-  card: ["刷卡", "Card"],
+  card: ["刷卡（一次付清）", "Card (paid in full)"],
+  card_installment: ["刷卡分期", "Card (installments)"],
   other: ["其他", "Other"],
 };
 function taipeiDay(): string {
@@ -63,6 +68,7 @@ function emptyForm(): CostFormValue {
     subcategory: "",
     amountNts: 0,
     paymentMethod: "cash",
+    installmentPeriods: 0,
     vendor: "",
     description: "",
     note: "",
@@ -77,6 +83,7 @@ function itemForm(item: CostListItem): CostFormValue {
     subcategory: item.subcategory ?? "",
     amountNts: item.amountNts,
     paymentMethod: item.paymentMethod,
+    installmentPeriods: item.installmentPeriods ?? 0,
     vendor: item.vendor ?? "",
     description: item.description ?? "",
     note: item.note ?? "",
@@ -139,9 +146,15 @@ function CostFields({
       <Field label={text("付款方式", "Payment method")}>
         <select
           disabled={disabled}
-          onChange={(event) =>
-            set("paymentMethod", event.target.value as PaymentMethod)
-          }
+          onChange={(event) => {
+            const paymentMethod = event.target.value as PaymentMethod;
+            onChange({
+              ...value,
+              paymentMethod,
+              installmentPeriods:
+                paymentMethod === "card_installment" ? value.installmentPeriods : 0,
+            });
+          }}
           value={value.paymentMethod}
         >
           {(Object.keys(paymentLabels) as PaymentMethod[]).map((method) => (
@@ -151,6 +164,28 @@ function CostFields({
           ))}
         </select>
       </Field>
+      {value.paymentMethod === "card_installment" ? (
+        <Field
+          hint={text(
+            "會計 App 會依這個期數，把每一期分別算進各月的信用卡帳單。",
+            "The accounting app spreads this many periods over the monthly card bills.",
+          )}
+          label={text("分期期數", "Installment periods")}
+        >
+          <input
+            disabled={disabled}
+            max={COST_INSTALLMENT_MAX}
+            min={COST_INSTALLMENT_MIN}
+            onChange={(event) =>
+              set("installmentPeriods", Number(event.target.value) || 0)
+            }
+            required
+            step="1"
+            type="number"
+            value={value.installmentPeriods || ""}
+          />
+        </Field>
+      ) : null}
       <Field label={text("供應商（選填）", "Vendor (optional)")}>
         <input
           disabled={disabled}
@@ -282,6 +317,9 @@ export function CostManagementPage({
     subcategory: value.subcategory.trim() || null,
     amountNts: value.amountNts,
     paymentMethod: value.paymentMethod,
+    ...(value.paymentMethod === "card_installment"
+      ? { installmentPeriods: value.installmentPeriods }
+      : {}),
     vendor: value.vendor.trim() || null,
     description: value.description.trim() || null,
     note: value.note.trim() || null,
@@ -544,6 +582,9 @@ export function CostManagementPage({
                   <small>
                     {item.costDate} ·{" "}
                     {text(...paymentLabels[item.paymentMethod])}
+                    {item.paymentMethod === "card_installment" && item.installmentPeriods
+                      ? text(` · ${item.installmentPeriods} 期`, ` · ${item.installmentPeriods} installments`)
+                      : ""}
                     {item.vendor ? ` · ${item.vendor}` : ""}
                   </small>
                   {item.description ? <small>{item.description}</small> : null}

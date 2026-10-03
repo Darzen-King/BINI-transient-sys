@@ -1,5 +1,14 @@
 # CLAUDE CODE 交接 — v3.9.14 + Firebase v4 DEV
 
+## 2026-10-03 與 BINI 記帳 App 連動：成本紀錄加「刷卡分期＋期數」（Claude Code）
+
+- 背景：BINI-BLOOMS 倉庫的記帳 App（`bini-v3-prod/functions/finance-pms.js`，只讀）會自動帶入本系統的收款與成本。成本若是刷卡付款，記帳 App 要知道「一次付清」還是「分幾期」，才能把每一期分別算進各月的信用卡帳單、不重複計算（做法同 POS 進貨單的付款方式）。
+- 本系統的改動（只有成本紀錄）：`COST_PAYMENT_METHODS` 新增 `card_installment`，成本新增選填欄位 `installmentPeriods`（整數 2–120；`card_installment` 必填，其他付款方式不可填，由 `costCreateInputSchema`／`costUpdateInputSchema` 的 `superRefine` 強制）。`card` 的意思不變＝刷卡一次付清；舊資料沒有這個欄位，一律視為 `null`。
+- 檔案：`packages/shared/src/contracts/cost-operations.ts`、`packages/shared/src/domain/cost-list.ts`、`packages/functions/src/costs/cost-fields.ts`（新，欄位組裝抽成純函式，方便測試）、`cost-operations.ts`、`packages/web/src/costs/CostManagementPage.tsx`；測試 `shared/tests/cost-list.test.ts`、`functions/tests/cost-fields.test.ts`、`web/tests/cost-management-ui.test.tsx`。
+- 記帳 App 讀取的欄位契約（請勿改名）：`costEntries.{costDate, category, amountNts, paymentMethod, installmentPeriods, vendor, description, status, version, updatedAt}`、`payments.{createdAt, amountNts, paymentType, refund, status, note}`；記帳 App 的服務帳號只有該專案的 `roles/datastore.viewer`（唯讀）。改這些欄位的語意前，要先同步修改 BINI-BLOOMS 的 `finance-core.js` 的 `normalizePmsCost`／`aggregatePmsPayments`。
+- 已知限制：舊版（快取中的）網頁若編輯一筆「刷卡分期」成本，會把付款方式存成「其他」（舊程式不認得新值）；部署後重新整理即可更新，PWA 會在下次開啟時自動換新。
+- 部署狀態：DEV（`bini-transient-dev`）已部署——只更新 `operations:costCreate`、`operations:costUpdate` 與 Hosting（指令：`firebase deploy --only functions:operations:costCreate,functions:operations:costUpdate --project bini-transient-dev`；`npm run deploy:dev:hosting`）。**正式環境（`bini-transient`）尚未部署**，等專案擁有者確認後，用 `npm run deploy:prod:functions`／`deploy:prod:hosting`（或同樣只指定這兩個函式與 Hosting）。
+
 ## 2026-09-13 Firebase v4／封閉式員工 Auth／手機介面交接（Unreleased）
 
 ### 最新接手紀錄（2026-09-13 晚，Claude Code 接續 Codex）

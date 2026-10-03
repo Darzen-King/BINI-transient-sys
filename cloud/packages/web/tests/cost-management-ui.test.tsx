@@ -59,3 +59,49 @@ describe('cost history search', () => {
     expect(total()).toHaveTextContent('NT$ 6,800');
   });
 });
+
+describe('credit-card installment costs', () => {
+  const open = async (existing: CostListItem[] = items) => {
+    const gw: CostGateway = { subscribe(_propertyId, onValue) { queueMicrotask(() => onValue(existing)); return () => undefined; }, create: vi.fn().mockResolvedValue({ status: 'created', costId: 'CST-new', version: 1, updatedAt: '2026-09-16T02:00:00.000Z' }), update: vi.fn(), archive: vi.fn() };
+    render(<App costGateway={gw} session={session} />);
+    fireEvent.click(screen.getByRole('link', { name: '成本紀錄' }));
+    await screen.findByLabelText('開始日期');
+    return gw;
+  };
+  const form = () => document.querySelector('.booking-create-form') as HTMLElement;
+
+  it('asks for the number of periods only when the cost is paid by card in installments, and sends it', async () => {
+    const gw = await open();
+    expect(within(form()).queryByLabelText('分期期數')).toBeNull();
+    fireEvent.change(within(form()).getByLabelText('金額（NT$）'), { target: { value: '36000' } });
+    fireEvent.change(within(form()).getByLabelText('付款方式'), { target: { value: 'card_installment' } });
+    const periods = within(form()).getByLabelText('分期期數');
+    expect(periods).toBeRequired();
+    expect(periods).toHaveAttribute('min', '2');
+    expect(periods).toHaveAttribute('max', '120');
+    fireEvent.change(periods, { target: { value: '6' } });
+    fireEvent.submit(form());
+    await waitFor(() => expect(gw.create).toHaveBeenCalledTimes(1));
+    expect(gw.create).toHaveBeenCalledWith(expect.objectContaining({ paymentMethod: 'card_installment', installmentPeriods: 6, amountNts: 36_000 }));
+  });
+
+  it('never sends a period count for any other payment method, even after switching back', async () => {
+    const gw = await open();
+    fireEvent.change(within(form()).getByLabelText('金額（NT$）'), { target: { value: '900' } });
+    fireEvent.change(within(form()).getByLabelText('付款方式'), { target: { value: 'card_installment' } });
+    fireEvent.change(within(form()).getByLabelText('分期期數'), { target: { value: '12' } });
+    fireEvent.change(within(form()).getByLabelText('付款方式'), { target: { value: 'card' } });
+    expect(within(form()).queryByLabelText('分期期數')).toBeNull();
+    fireEvent.submit(form());
+    await waitFor(() => expect(gw.create).toHaveBeenCalledTimes(1));
+    const sent = (gw.create as ReturnType<typeof vi.fn>).mock.calls[0]![0] as Record<string, unknown>;
+    expect(sent.paymentMethod).toBe('card');
+    expect('installmentPeriods' in sent).toBe(false);
+  });
+
+  it('shows the plain card label and the installment count in the list', async () => {
+    await open([cost('CST-card', '2026-09-05', 4_200, { paymentMethod: 'card' }), cost('CST-inst', '2026-09-06', 36_000, { paymentMethod: 'card_installment', installmentPeriods: 6 })]);
+    await waitFor(() => expect(within(list()).getByText(/刷卡分期 · 6 期/)).toBeInTheDocument());
+    expect(within(list()).getByText(/刷卡（一次付清）/)).toBeInTheDocument();
+  });
+});

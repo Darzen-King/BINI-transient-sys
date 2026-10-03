@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import { getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { requirePropertyPage } from "../admin/staff-admin.js";
+import { costDocumentFields as fields } from "./cost-fields.js";
 
 const options = {
   region: "asia-east1",
@@ -40,20 +41,6 @@ function result(data: Record<string, unknown>) {
   if (!parsed.success)
     throw new HttpsError("data-loss", "成本操作重送結果無效。");
   return parsed.data;
-}
-function fields(input: Record<string, unknown>) {
-  return {
-    costDate: input.costDate,
-    category: input.category,
-    subcategory: input.subcategory ?? null,
-    amountNts: input.amountNts,
-    paymentMethod: input.paymentMethod,
-    vendor: input.vendor ?? null,
-    description: input.description ?? null,
-    note: input.note ?? null,
-    recurring: input.recurring,
-    receiptNo: input.receiptNo ?? null,
-  };
 }
 export const costCreate = onCall(
   options,

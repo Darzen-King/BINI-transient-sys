@@ -732,3 +732,10 @@ h1, h2, p { margin-top: 0; }
 /* A voided row is muted with a red edge; the restore action stays clearly separate from voiding. */
 .monthly-history-row.is-voided { border-left: 4px solid var(--danger); background: var(--bds-color-feedback-danger-bg, var(--bds-color-surface-subtle)); }
 .monthly-history-row.is-voided small { color: var(--danger); }
+
+/* Audit details read as fields, with Taipei times and NT$ amounts, instead of raw stored JSON. */
+.audit-detail-list { display: grid; margin: 6px 0 0; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bds-color-surface-subtle); gap: 6px; }
+.audit-detail-list > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.audit-detail-list dt { color: var(--muted); font-size: 12px; }
+.audit-detail-list dd { margin: 0; color: var(--ink); font-size: 13px; text-align: right; overflow-wrap: anywhere; }
+

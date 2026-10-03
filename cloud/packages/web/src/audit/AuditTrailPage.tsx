@@ -9,7 +9,58 @@ import type { AuditGateway } from './audit-gateway.js';
 const errorMessage = (failure: unknown, fallback: string) => failure instanceof Error && failure.message ? failure.message : fallback;
 const displayTime = (value: string, locale: 'zh-TW' | 'en') => new Intl.DateTimeFormat(locale === 'zh-TW' ? 'zh-TW' : 'en-US', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(value));
 const actionLabel = (action: string, locale: 'zh-TW' | 'en') => ({ checkin: ['入住登記', 'Check-in'], checkout: ['退房辦理', 'Check-out'], checkout_free: ['免費取消', 'Free cancel'], extend_stay: ['延住處理', 'Extend stay'], overdue_waiver: ['超時費減免', 'Overdue waiver'], booking_create: ['新增預約', 'New booking'], booking_cancel: ['取消預約', 'Cancel booking'], 'booking.create': ['新增預約', 'New booking'], 'booking.cancel': ['取消預約', 'Cancel booking'], 'booking.update': ['修改預約', 'Update booking'], 'stay.checkin': ['入住登記', 'Check-in'], 'stay.checkout': ['退房辦理', 'Check-out'], 'stay.extend': ['延住處理', 'Extend stay'], 'payment.create': ['收款', 'Payment'], 'payment.deposit_create': ['收取訂金', 'Deposit'], 'payment.refund': ['退款', 'Refund'], 'payment.void': ['作廢付款', 'Void payment'], 'maintenance.room.note': ['維修進度備註', 'Maintenance note'], 'maintenance.room.resolve': ['解除維修', 'Maintenance resolved'], 'report.export': ['報表匯出', 'Report export'], 'payment.export': ['付款匯出', 'Payment export'], 'payment.daily_summary_export': ['日結匯出', 'Daily summary export'], 'payment.manual-create': ['例外收款', 'Exception payment'], 'cashier.close': ['日結', 'Cashier close'], 'cost.create': ['新增成本', 'Create cost'], 'cost.update': ['修改成本', 'Update cost'], 'cost.archive': ['封存成本', 'Archive cost'], 'staff.create': ['新增使用者', 'Create staff'], 'staff.update': ['修改使用者', 'Update staff'], 'staff.password_reset': ['重設密碼', 'Reset password'], 'staff.mfa_reset': ['重設兩步驟驗證', 'Reset two-step verification'], 'booking.multi_create': ['多時段預約', 'Multi booking'], 'booking.no_show': ['標記 No-show', 'No-show'], 'stay.free_cancel': ['免費取消', 'Free cancel'], 'stay.transfer': ['換房', 'Transfer room'], 'housekeeping.update': ['清潔狀態更新', 'Housekeeping'], 'maintenance.schedule.create': ['新增維修排程', 'Create maintenance'], 'maintenance.schedule.complete': ['完成維修排程', 'Complete maintenance'], 'maintenance.schedule.delete': ['刪除維修排程', 'Delete maintenance'], 'room.management.update': ['房態更新', 'Room status'], 'monthly.rental.create': ['新增月租', 'Create monthly rental'], 'monthly.rental.renew': ['月租續租', 'Renew monthly rental'], 'monthly.rental.checkout': ['月租退租', 'End monthly rental'], 'holiday.manual.upsert': ['手動設定假日', 'Set holiday'], 'holiday.delete': ['刪除假日', 'Delete holiday'], 'holiday.resync': ['假日重新同步', 'Resync holidays'], 'holiday.auto_sync': ['假日自動同步', 'Automatic holiday sync'], 'property.create': ['新增館別', 'Create property'] } as Record<string, readonly [string, string]>)[action]?.[locale === 'zh-TW' ? 0 : 1] ?? action;
+const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/u;
+/** Field names staff read in these records; anything else falls back to the stored key. */
+const DETAIL_LABELS: Record<string, readonly [string, string]> = {
+  roomId: ['房間', 'Room'], bookingId: ['預約編號', 'Booking'], stayId: ['住宿編號', 'Stay'], paymentId: ['付款編號', 'Payment'],
+  operationId: ['操作代碼', 'Operation'], guestName: ['旅客', 'Guest'], phone: ['電話', 'Phone'], plan: ['方案', 'Plan'],
+  checkInAt: ['入住時間', 'Check-in'], checkOutAt: ['退房時間', 'Check-out'], bookedCheckInAt: ['預約入住時間', 'Booked check-in'],
+  bookedCheckOutAt: ['預約退房時間', 'Booked check-out'], originalCheckOutAt: ['原退房時間', 'Original check-out'],
+  startDate: ['起始日', 'Start date'], endDate: ['結束日', 'End date'], expectedEndDate: ['原租期到', 'Expected end date'],
+  amountNts: ['金額', 'Amount'], rentNts: ['月租金', 'Rent'], depositNts: ['押金', 'Deposit'], discountNts: ['折扣', 'Discount'],
+  baseRentNts: ['基本房租', 'Base rent'], extraFeeNts: ['額外費用', 'Extra fee'], extensionFeeNts: ['延住費', 'Extension fee'],
+  overdueFeeNts: ['超時費', 'Overdue fee'], waivedFeeNts: ['減免金額', 'Waived'], totalChargedNts: ['應付總額', 'Total charged'],
+  depositRefundedNts: ['退還押金', 'Deposit refunded'], paidNts: ['已收款', 'Paid'], balanceNts: ['餘額', 'Balance'],
+  paymentType: ['付款方式', 'Payment type'], reason: ['原因', 'Reason'], note: ['備註', 'Note'], status: ['狀態', 'Status'],
+  previousStatus: ['原狀態', 'Previous status'], restoredStatus: ['還原狀態', 'Restored status'], newRoomId: ['換到房間', 'New room'],
+  previousRentalId: ['前一期編號', 'Previous rental'], freeCancel: ['免費取消', 'Free cancel'], transferred: ['已換房', 'Transferred'],
+  deposit: ['訂金', 'Deposit'], refund: ['退款', 'Refund'], email: ['電子郵件', 'Email'], role: ['角色', 'Role'],
+  displayName: ['顯示名稱', 'Display name'], allowedPages: ['可檢視分頁', 'Allowed pages'], source: ['來源', 'Source'],
+};
+
+function detailLabel(key: string, locale: 'zh-TW' | 'en'): string {
+  return DETAIL_LABELS[key]?.[locale === 'zh-TW' ? 0 : 1] ?? key;
+}
+
+/** Stored values are raw: timestamps are UTC and amounts are plain numbers. Show them as staff read them. */
+function detailValue(key: string, value: unknown, locale: 'zh-TW' | 'en'): string {
+  if (value === null || value === undefined || value === '') return '—';
+  if (typeof value === 'boolean') return value ? (locale === 'zh-TW' ? '是' : 'Yes') : (locale === 'zh-TW' ? '否' : 'No');
+  if (typeof value === 'number') return key.endsWith('Nts') ? `NT$ ${value.toLocaleString()}` : String(value);
+  if (typeof value === 'string') {
+    if (ISO_DATE_TIME.test(value) && Number.isFinite(Date.parse(value))) return displayTime(value, locale);
+    return value;
+  }
+  if (Array.isArray(value)) return value.length ? value.join('、') : '—';
+  return JSON.stringify(value);
+}
+
+const asFields = (value: unknown): Array<[string, unknown]> | null => (
+  typeof value === 'object' && value !== null && !Array.isArray(value) ? Object.entries(value as Record<string, unknown>) : null
+);
 const detail = (value: unknown) => value === null || value === undefined ? null : JSON.stringify(value, null, 2);
+
+function DetailBlock({ title, value, locale }: { title: string; value: unknown; locale: 'zh-TW' | 'en' }) {
+  const fields = asFields(value);
+  return (
+    <section className="audit-detail">
+      <small>{title}</small>
+      {fields
+        ? <dl className="audit-detail-list">{fields.map(([key, item]) => <div key={key}><dt>{detailLabel(key, locale)}</dt><dd>{detailValue(key, item, locale)}</dd></div>)}</dl>
+        : <pre>{detail(value)}</pre>}
+    </section>
+  );
+}
 
 export function AuditTrailPage({ session, gateway }: { session: StaffSession; gateway: AuditGateway | undefined }) {
   const { locale, text } = useLocale(); const [query, setQuery] = useState({ action: '', targetId: '', keyword: '', page: 1 }); const [projection, setProjection] = useState<AuditListProjection | null>(null); const [error, setError] = useState(''); const [selected, setSelected] = useState<AuditListItem | null>(null);
@@ -19,6 +70,6 @@ export function AuditTrailPage({ session, gateway }: { session: StaffSession; ga
     <div className="audit-filters"><Field label={text('操作類型', 'Action')}><select onChange={(event) => update({ action: event.target.value })} value={query.action}><option value="">{text('全部操作', 'All actions')}</option>{(projection?.actions ?? []).map((action) => <option key={action} value={action}>{actionLabel(action, locale)}</option>)}</select></Field><Field label={text('目標 ID', 'Target ID')}><input onChange={(event) => update({ targetId: event.target.value })} placeholder="201 / RSV-…" value={query.targetId} /></Field><Field label={text('關鍵字', 'Keyword')}><input onChange={(event) => update({ keyword: event.target.value })} placeholder={text('房間、旅客、操作…', 'Room, guest, action…')} value={query.keyword} /></Field><Button onClick={() => setQuery({ action: '', targetId: '', keyword: '', page: 1 })} size="sm" variant="ghost">{text('重設', 'Reset')}</Button></div>
     {error ? <Notice tone="danger" title={text('審計資料載入失敗', 'Audit loading failed')}>{error}</Notice> : null}{!gateway ? <Notice tone="warning" title={text('尚未連接 Firebase 審計資料。', 'Firebase audit data is not connected.')} /> : null}{gateway && !projection && !error ? <div className="empty-card">{text('正在載入審計軌跡…', 'Loading audit trail…')}</div> : null}
     {projection ? <><div className="audit-summary"><strong>{projection.total}</strong><span>{text('筆符合篩選的紀錄', 'matching records')}</span></div><div className="audit-list">{projection.items.map((item) => <button key={item.auditId} onClick={() => setSelected(item)} type="button"><div><small>{displayTime(item.createdAt, locale)}</small><strong>{actionLabel(item.action, locale)}</strong><span>{item.description ?? `${item.targetType ?? '—'} · ${item.targetId ?? '—'}`}</span></div><div><code>{item.targetId ?? '—'}</code><small>{item.actor}</small></div></button>)}{projection.items.length === 0 ? <div className="empty-card">{text('找不到符合篩選的稽核紀錄。', 'No audit records match the filters.')}</div> : null}</div>{projection.totalPages > 1 ? <div className="audit-pagination"><Button disabled={projection.page === 1} onClick={() => update({ page: projection.page - 1 })} size="sm" variant="outline">‹</Button><span>{projection.page} / {projection.totalPages}</span><Button disabled={projection.page === projection.totalPages} onClick={() => update({ page: projection.page + 1 })} size="sm" variant="outline">›</Button></div> : null}</> : null}
-    {selected ? <ResponsiveDialog onClose={() => setSelected(null)} title={actionLabel(selected.action, locale)}><dl className="room-detail-list"><div><dt>{text('時間', 'Time')}</dt><dd>{displayTime(selected.createdAt, locale)}</dd></div><div><dt>{text('操作人員', 'Operator')}</dt><dd>{selected.actor}</dd></div><div><dt>{text('目標', 'Target')}</dt><dd>{selected.targetType ?? '—'} · {selected.targetId ?? '—'}</dd></div></dl>{detail(selected.before) ? <section className="audit-detail"><small>{text('異動前', 'Before')}</small><pre>{detail(selected.before)}</pre></section> : null}{detail(selected.after) ? <section className="audit-detail"><small>{text('異動後', 'After')}</small><pre>{detail(selected.after)}</pre></section> : null}{detail(selected.details) ? <section className="audit-detail"><small>{text('詳細資料', 'Details')}</small><pre>{detail(selected.details)}</pre></section> : null}</ResponsiveDialog> : null}
+    {selected ? <ResponsiveDialog onClose={() => setSelected(null)} title={actionLabel(selected.action, locale)}><dl className="room-detail-list"><div><dt>{text('時間', 'Time')}</dt><dd>{displayTime(selected.createdAt, locale)}</dd></div><div><dt>{text('操作人員', 'Operator')}</dt><dd>{selected.actor}</dd></div><div><dt>{text('目標', 'Target')}</dt><dd>{selected.targetType ?? '—'} · {selected.targetId ?? '—'}</dd></div></dl>{detail(selected.before) ? <DetailBlock locale={locale} title={text('異動前', 'Before')} value={selected.before} /> : null}{detail(selected.after) ? <DetailBlock locale={locale} title={text('異動後', 'After')} value={selected.after} /> : null}{detail(selected.details) ? <DetailBlock locale={locale} title={text('詳細資料', 'Details')} value={selected.details} /> : null}</ResponsiveDialog> : null}
   </SectionCard>;
 }

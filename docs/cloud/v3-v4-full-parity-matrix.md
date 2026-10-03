@@ -1,5 +1,7 @@
 # v3 → Firebase v4 全功能對照矩陣
 
+> **狀態請看 [`CLAUDE.md`](../../CLAUDE.md)**：雲端版 v4（`bini-transient`）自 2026-09-20 起為正式營運系統；單機版 v3 為備援。本檔保留歷史脈絡，狀態以 `CLAUDE.md` 為準。
+
 盤點基準：2026-09-10 的實際安裝版 `C:\BiniBloomsData\BINI_Transient_SYS`
 與本儲存庫。已確認 `base.html`、`rooms.html`、`rooms.py` 內容一致；其餘 Python、
 HTML、JSON、CSS、JS 亦已於現況盤點中以正規化換行後比對一致。
@@ -23,11 +25,15 @@ HTML、JSON、CSS、JS 亦已於現況盤點中以正規化換行後比對一致
 
 > 只顯示靜態資料、按鈕只跳提示、或前端直接寫權威 collection，都不算完成功能搬移。
 
-## 目前總結（2026-09-20）
+## 目前總結（2026-10-04）
 
-- 22 列中 21 列已完成，雲端備份頁依範圍承諾以平台備份與初始資料導入替代；17 個營運分頁皆已接 Firebase 真實資料與伺服器 transaction，不再有占位頁。
-- DEV `bini-transient-dev` 為驗收環境；正式環境 `bini-transient`（asia-east1）已於 2026-09-19 完成第一階段建置（登入／MFA、Firestore 備份、Functions、Hosting、App Check 監測），尚未匯入營運資料。
-- 待辦（切換／第二階段，非功能缺口）：停用單機版後以初始資料導入把最新備份寫入正式環境並對帳；正式環境 Dropbox 金鑰設定後把 `DROPBOX_BACKUP_PROJECTS` 改為正式環境，並停止 DEV 推播提醒；員工於正式環境重新開啟推播；App Check 是否強制另行決定。
+- 22 列中 21 列已完成，雲端備份頁依範圍承諾以平台備份與初始資料導入替代；17 個營運分頁皆已接 Firebase
+  真實資料與伺服器 transaction。
+- **正式環境 `bini-transient` 自 2026-09-20 起營運中**：單機版備份已匯入，之後的異動都發生在雲端；
+  每小時 Dropbox 備份由正式環境執行，DEV 僅作驗收。
+- 單機版 v3（目前 v3.9.22）退居備援。兩邊報表的住房率與「已作廢月租」規則已同步；成本自 2026-10-03
+  起只在 BINI 記帳 App 輸入，本系統自動帶入。
+- 待決定：App Check 是否改為強制。
 
 ## 頁面與操作對照
 

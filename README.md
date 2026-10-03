@@ -1,4 +1,4 @@
-# BINI Blooms PMS v3.9.4
+# BINI Blooms PMS 單機版 v3.9.22（備援系統）
 > 房務管理系統 | Property Management System
 > FastAPI + Jinja2 + SQLite | Python 3.12 | 桌面單一視窗
 

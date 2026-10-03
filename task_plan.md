@@ -1,5 +1,7 @@
 # 任務計畫：BINI PMS 單機版完整移轉至 Firebase DEV
 
+> **狀態請看 [`CLAUDE.md`](CLAUDE.md)**：雲端版 v4（`bini-transient`）自 2026-09-20 起為正式營運系統；單機版 v3 為備援。本檔保留歷史脈絡，狀態以 `CLAUDE.md` 為準。
+
 > 最後更新：2026-09-13（Claude Code 接續 Codex，依 git 紀錄 `88dc929` 之後的實際狀態重寫）。
 > 權威狀態以 `docs/cloud/v3-v4-full-parity-matrix.md` 與 `CLAUDE_CODE_交接.md` 為準；本檔只記錄階段與下一步。
 

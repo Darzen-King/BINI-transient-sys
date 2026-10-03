@@ -1,14 +1,16 @@
 # BINI Blooms PMS v4 cloud foundation
 
+> **狀態請看 [`CLAUDE.md`](../CLAUDE.md)**：雲端版 v4（`bini-transient`）自 2026-09-20 起為正式營運系統；單機版 v3 為備援。本檔保留歷史脈絡，狀態以 `CLAUDE.md` 為準。
+
 這個目錄是 Firebase 雲端版的獨立基礎工程，不會改寫或啟動既有 v3 桌面版資料庫。
 
 ## 目前狀態
 
-- 已完成：共享 operation contract、Cloud Functions 處理器骨架、Firestore 預設拒絕規則、Rules Emulator 測試、手機優先 PWA 介面、封閉式 Firebase Auth／TOTP MFA 與管理員帳號介面；DEV Rules、Functions 與 Hosting 均已部署。
-- 已確認 Firebase 專案：DEV `bini-transient-dev`、PROD `bini-transient`（顯示名稱 `BINI-Transient`）。
-- DEV 已建立 Web App `BINI Transient DEV Web`；本機實際 Firebase 設定保存在 Git 忽略的 `.env.local` 與 `.firebaserc`。
-- 尚未完成：PMS 預約／入住／退房／款項 handlers、IndexedDB 離線佇列、資料移轉與正式環境部署。
-- DEV Hosting 預覽只展示目前的手機優先 UI shell，不代表 PMS 業務流程已可在雲端操作。
+- **正式環境 `bini-transient` 自 2026-09-20 起營運中**：17 個分頁、Functions、Hosting、Firestore Rules
+  與備份皆已部署；資料由單機版備份匯入後，所有異動都發生在雲端。
+- `bini-transient-dev` 為驗收環境，資料為測試資料；兩邊程式相同，部署指令不同（見 `CLAUDE.md`）。
+- 本機 Firebase 設定保存在 Git 忽略的 `.env.local`（DEV）、`.env.prod.local`（正式）與 `.firebaserc`。
+- 詳細狀態、環境、備份、App Check 與部署方式一律以根目錄 `CLAUDE.md` 為準。
 
 ## 本機指令
 

@@ -1,4 +1,4 @@
-# CLAUDE CODE 交接 — v3.9.14 + Firebase v4 DEV
+# CLAUDE CODE 交接 — 雲端版 v4 正式營運中（單機版 v3.9.22 備援）
 
 ## 2026-10-03 成本改為「只在記帳 App 輸入、房務自動帶入」（Claude Code，晚）
 

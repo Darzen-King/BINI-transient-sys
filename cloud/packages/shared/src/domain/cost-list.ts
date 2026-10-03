@@ -14,6 +14,7 @@ const costEntrySchema = z
     amountNts: z.number().int().safe().min(0),
     paymentMethod: z.string().trim().min(1).max(64),
     installmentPeriods: z.number().int().nullable().optional(),
+    source: z.string().nullable().optional(),
     vendor: z.string().trim().max(300).nullable().optional(),
     description: z.string().trim().max(2_000).nullable().optional(),
     note: z.string().trim().max(2_000).nullable().optional(),
@@ -36,6 +37,8 @@ export interface CostListItem {
   paymentMethod: (typeof COST_PAYMENT_METHODS)[number];
   /** Monthly installments of a `card_installment` cost; null for every other payment method and for older rows. */
   installmentPeriods?: number | null;
+  /** "accounting" = entered in the BINI accounting app and shown here read-only; null = entered in this system. */
+  source?: "accounting" | null;
   vendor: string | null;
   description: string | null;
   note: string | null;
@@ -73,6 +76,7 @@ export function buildCostListItems(
         paymentMethod,
         installmentPeriods:
           paymentMethod === "card_installment" ? (value.installmentPeriods ?? null) : null,
+        source: value.source === "accounting" ? ("accounting" as const) : null,
         vendor: value.vendor ?? null,
         description: value.description ?? null,
         note: value.note ?? null,

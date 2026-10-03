@@ -1,5 +1,15 @@
 # CLAUDE CODE 交接 — v3.9.14 + Firebase v4 DEV
 
+## 2026-10-03 成本改為「只在記帳 App 輸入、房務自動帶入」（Claude Code，晚）
+
+- 決定（店主）：BINI Transient 的成本只在 BINI 記帳 App（`BINI-BLOOMS` 倉庫 `bini-v3-prod`）輸入，房務自動讀取，不再手動輸入；這取代了上一節「房務表單選卡」的想法（卡片只在記帳 App 選，房務只顯示付款方式與期數）。
+- 資料流向：記帳 App `finPmsCostFeed`（us-central1，Cloud Run IAM 只允許本系統的預設服務帳號 `869133450090-compute`(DEV)／`774020520923-compute`(正式)）→ 本系統 `accountingCostSync`（每 10 分鐘）／`accountingCostRefresh`（成本頁按鈕，admin）→ `properties/property-main/costEntries/ACC-<記帳編號>`（`source: accounting`、`sourceId`）。兩邊各自只寫自己的資料庫。
+- 清單格式與驗證：`packages/shared/src/contracts/accounting-costs.ts`（`accountingCostFeedSchema`，不符就整批不處理）；比對與寫入計畫是純函式 `packages/functions/src/costs/accounting-cost-plan.ts`（只動 `ACC-` 開頭且 `source: accounting` 的文件；清單視窗內消失的封存、回來的還原、沒變的不寫）；排程與按鈕在 `accounting-cost-sync.ts`（身分憑證走 metadata server，不需要金鑰檔，不新增相依套件）。清單網址依專案寫在 `ACCOUNTING_FEED_URLS`。
+- 行為變更：`costCreate` 一律回 `failed-precondition`（`manualCostEntryEnabled()` 恆為 false，要重開手動新增時改這裡與成本頁）；`costUpdate`／`costArchive` 遇到 `source: accounting` 的成本拒絕；成本頁顯示說明與「立即更新」按鈕、`記帳 App` 標籤、不顯示新增表單。`刷卡分期`＋`installmentPeriods` 欄位保留，用來顯示記帳 App 推進來的付款方式。
+- 記帳 App 端對這些文件的假設：它讀本系統 `costEntries` 時會略過 `source === "accounting"` 的文件（避免循環重複），所以不要把 `source: accounting` 用在別的用途。
+- 部署狀態：DEV 已部署並實測（記帳 DEV 兩筆成本 → 房務 DEV 帶入 2 筆、第二次不重複）。**正式環境（`bini-transient`）尚未部署**：部署指令被權限分類器擋下，待店主在自己的終端機執行——先設確認碼（PowerShell：`$env:BINI_PROD_DEPLOY_CONFIRM = "bini-transient"`），再 `npm run guard:prod`；`npx firebase deploy --only functions:operations:costCreate,functions:operations:costUpdate,functions:operations:costArchive,functions:operations:accountingCostSync,functions:operations:accountingCostRefresh --project bini-transient --non-interactive`；`npm run deploy:prod:hosting`。記帳 App 正式端的清單端點已經部署（只允許 `774020520923-compute` 呼叫）。
+- 部署後的檢查：Cloud Scheduler 有 `firebase-schedule-accountingCostSync-asia-east1`；日誌 `accounting cost sync`（created／updated／archived／unchanged）或 `accounting cost sync failed`；房務正式自己記過的成本若與記帳 App 重複要人工挑出（兩邊事業體＝BINI Transient、日期與金額相近）。
+
 ## 2026-10-03 與 BINI 記帳 App 連動：成本紀錄加「刷卡分期＋期數」（Claude Code）
 
 - 背景：BINI-BLOOMS 倉庫的記帳 App（`bini-v3-prod/functions/finance-pms.js`，只讀）會自動帶入本系統的收款與成本。成本若是刷卡付款，記帳 App 要知道「一次付清」還是「分幾期」，才能把每一期分別算進各月的信用卡帳單、不重複計算（做法同 POS 進貨單的付款方式）。

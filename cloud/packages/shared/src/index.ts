@@ -4,6 +4,7 @@ export * from './contracts/booking-operations.js';
 export * from './contracts/stay-operations.js';
 export * from './contracts/payment-operations.js';
 export * from './contracts/cost-operations.js';
+export * from './contracts/accounting-costs.js';
 export * from './contracts/holiday-operations.js';
 export * from './contracts/property-operations.js';
 export * from './contracts/report-operations.js';

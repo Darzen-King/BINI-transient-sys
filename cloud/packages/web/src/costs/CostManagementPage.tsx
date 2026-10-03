@@ -251,7 +251,6 @@ export function CostManagementPage({
   const [dateFrom, setDateFrom] = useState(() => `${taipeiMonth()}-01`);
   const [dateTo, setDateTo] = useState(taipeiDay);
   const [category, setCategory] = useState<CostCategory | "all">("all");
-  const [form, setForm] = useState<CostFormValue>(emptyForm);
   const [editing, setEditing] = useState<CostListItem | null>(null);
   const [editForm, setEditForm] = useState<CostFormValue>(emptyForm);
   const [archiveTarget, setArchiveTarget] = useState<CostListItem | null>(null);
@@ -326,30 +325,29 @@ export function CostManagementPage({
     recurring: value.recurring,
     receiptNo: value.receiptNo.trim() || null,
   });
-  const create = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!gateway || !isAdmin || form.amountNts < 0) return;
+  const refreshFromAccounting = async () => {
+    if (!gateway?.refreshFromAccounting) return;
     setBusy(true);
     setError("");
     setSuccess("");
     try {
-      await gateway.create({
+      const result = await gateway.refreshFromAccounting({
         propertyId: session.propertyId,
-        operationId: crypto.randomUUID(),
-        ...input(form),
       });
-      setForm(emptyForm());
       setSuccess(
         text(
-          "成本紀錄已建立，所有裝置會立即同步。",
-          "Cost entry created and synced to all devices.",
+          `已更新：新增 ${result.created} 筆、更新 ${result.updated} 筆、移除 ${result.archived} 筆。`,
+          `Updated: ${result.created} added, ${result.updated} changed, ${result.archived} removed.`,
         ),
       );
     } catch (failure) {
       setError(
         errorMessage(
           failure,
-          text("無法建立成本紀錄。", "Unable to create the cost entry."),
+          text(
+            "記帳 App 暫時讀不到，請稍後再試。",
+            "The accounting app cannot be read right now. Try again shortly.",
+          ),
         ),
       );
     } finally {
@@ -515,31 +513,28 @@ export function CostManagementPage({
           </select>
         </Field>
       </div>
-      {isAdmin ? (
-        <form
-          className="booking-create-form"
-          onSubmit={(event) => void create(event)}
-        >
-          <fieldset className="booking-deposit">
-            <legend>{text("新增成本", "New cost")}</legend>
-            <CostFields
-              disabled={!ready || busy}
-              onChange={setForm}
-              text={text}
-              value={form}
-            />
-            <div className="booking-create-actions">
-              <Button
-                disabled={!ready || form.amountNts < 0}
-                loading={busy}
-                type="submit"
-              >
-                {text("儲存成本", "Save cost")}
-              </Button>
-            </div>
-          </fieldset>
-        </form>
-      ) : null}
+      <section className="booking-deposit cost-from-accounting">
+        <strong>
+          {text("成本請到記帳 App 輸入", "Enter costs in the accounting app")}
+        </strong>
+        <p>
+          {text(
+            "BINI Transient 的成本只在記帳 App 輸入（事業體選 BINI Transient），這裡約每 10 分鐘自動帶入並唯讀顯示，不用再輸入一次。",
+            "BINI Transient costs are entered only in the accounting app (business: BINI Transient). They appear here automatically about every 10 minutes, read-only, so there is nothing to type twice.",
+          )}
+        </p>
+        {isAdmin && gateway?.refreshFromAccounting ? (
+          <Button
+            disabled={!ready || busy}
+            loading={busy}
+            onClick={() => void refreshFromAccounting()}
+            size="sm"
+            variant="outline"
+          >
+            {text("立即更新", "Refresh now")}
+          </Button>
+        ) : null}
+      </section>
       {success ? (
         <Notice
           tone="success"
@@ -593,7 +588,10 @@ export function CostManagementPage({
                   {item.recurring ? (
                     <Badge tone="info">{text("週期", "Recurring")}</Badge>
                   ) : null}
-                  {isAdmin ? (
+                  {item.source === "accounting" ? (
+                    <Badge tone="neutral">{text("記帳 App", "Accounting app")}</Badge>
+                  ) : null}
+                  {isAdmin && item.source !== "accounting" ? (
                     <>
                       <Button
                         disabled={busy}

@@ -34,6 +34,7 @@ export { paymentExportCsv } from './payments/export-payments.js';
 export { paymentManualCreate } from './payments/create-manual-payment.js';
 export { cashierClose } from './payments/close-cashier.js';
 export { costArchive, costCreate, costUpdate } from './costs/cost-operations.js';
+export { accountingCostRefresh, accountingCostSync } from './costs/accounting-cost-sync.js';
 export { reportExportCsv } from './reports/export-report.js';
 export { paymentDailySummaryExportCsv } from './reports/export-daily-summary.js';
 export { holidayAutoSync } from './holidays/auto-sync.js';

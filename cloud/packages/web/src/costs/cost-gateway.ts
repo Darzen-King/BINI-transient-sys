@@ -1,5 +1,8 @@
 import {
+  accountingCostRefreshResultSchema,
   buildCostListItems,
+  type AccountingCostRefreshInput,
+  type AccountingCostRefreshResult,
   costArchiveInputSchema,
   costOperationResultSchema,
   costCreateInputSchema,
@@ -22,6 +25,10 @@ export interface CostGateway {
   create(input: CostCreateInput): Promise<CostOperationResult>;
   update(input: CostUpdateInput): Promise<CostOperationResult>;
   archive(input: CostArchiveInput): Promise<CostOperationResult>;
+  /** Pulls the costs entered in the accounting app right now (they are also pulled automatically every few minutes). */
+  refreshFromAccounting?(
+    input: AccountingCostRefreshInput,
+  ): Promise<AccountingCostRefreshResult>;
 }
 
 export function createCostGateway(
@@ -79,6 +86,13 @@ export function createCostGateway(
       return costOperationResultSchema.parse(
         (await call(costArchiveInputSchema.parse(input))).data,
       );
+    },
+    async refreshFromAccounting(input) {
+      const call = httpsCallable<AccountingCostRefreshInput, unknown>(
+        functions,
+        "accountingCostRefresh",
+      );
+      return accountingCostRefreshResultSchema.parse((await call(input)).data);
     },
   };
 }

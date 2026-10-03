@@ -17,11 +17,18 @@ const options = {
   timeoutSeconds: 60,
   memory: "512MiB",
 } as const;
+/**
+ * Costs are entered only in the BINI accounting app and pulled into this system (owner decision, 2026-10-03), so
+ * entering them here as well would count them twice. Turning this on again re-opens the manual form's server side.
+ */
+const manualCostEntryEnabled = (): boolean => false;
+export const COST_ENTERED_IN_ACCOUNTING_MESSAGE =
+  "成本請到記帳 App 輸入，房務系統會自動帶入。";
 const hash = (type: string, input: object) =>
   createHash("sha256")
     .update(JSON.stringify({ operationType: type, ...input }))
     .digest("hex");
-async function requireAdmin(
+export async function requireCostAdmin(
   request: Parameters<typeof requirePropertyPage>[0],
   propertyId: string,
 ) {
@@ -45,11 +52,16 @@ function result(data: Record<string, unknown>) {
 export const costCreate = onCall(
   options,
   async (request): Promise<CostOperationResult> => {
+    if (!manualCostEntryEnabled())
+      throw new HttpsError(
+        "failed-precondition",
+        COST_ENTERED_IN_ACCOUNTING_MESSAGE,
+      );
     const parsed = costCreateInputSchema.safeParse(request.data);
     if (!parsed.success)
       throw new HttpsError("invalid-argument", "成本資料格式不正確。");
     const input = parsed.data;
-    const actorUid = await requireAdmin(request.auth, input.propertyId);
+    const actorUid = await requireCostAdmin(request.auth, input.propertyId);
     const db = getFirestore();
     const root = `properties/${input.propertyId}`;
     const op = db.doc(`${root}/costOperations/${input.operationId}`);
@@ -111,7 +123,7 @@ export const costUpdate = onCall(
     if (!parsed.success)
       throw new HttpsError("invalid-argument", "成本資料格式不正確。");
     const input = parsed.data;
-    const actorUid = await requireAdmin(request.auth, input.propertyId);
+    const actorUid = await requireCostAdmin(request.auth, input.propertyId);
     const db = getFirestore();
     const root = `properties/${input.propertyId}`;
     const op = db.doc(`${root}/costOperations/${input.operationId}`);
@@ -135,6 +147,11 @@ export const costUpdate = onCall(
         (current.data()?.status ?? "active") !== "active"
       )
         throw new HttpsError("not-found", "找不到可修改的成本紀錄。");
+      if (current.data()?.source === "accounting")
+        throw new HttpsError(
+          "failed-precondition",
+          "這筆成本來自記帳 App，請到記帳 App 修改或刪除。",
+        );
       if ((current.data()?.version ?? 0) !== input.baseVersion)
         throw new HttpsError(
           "aborted",
@@ -181,7 +198,7 @@ export const costArchive = onCall(
     if (!parsed.success)
       throw new HttpsError("invalid-argument", "成本封存資料格式不正確。");
     const input = parsed.data;
-    const actorUid = await requireAdmin(request.auth, input.propertyId);
+    const actorUid = await requireCostAdmin(request.auth, input.propertyId);
     const db = getFirestore();
     const root = `properties/${input.propertyId}`;
     const op = db.doc(`${root}/costOperations/${input.operationId}`);
@@ -205,6 +222,11 @@ export const costArchive = onCall(
         (current.data()?.status ?? "active") !== "active"
       )
         throw new HttpsError("not-found", "找不到可封存的成本紀錄。");
+      if (current.data()?.source === "accounting")
+        throw new HttpsError(
+          "failed-precondition",
+          "這筆成本來自記帳 App，請到記帳 App 修改或刪除。",
+        );
       if ((current.data()?.version ?? 0) !== input.baseVersion)
         throw new HttpsError(
           "aborted",

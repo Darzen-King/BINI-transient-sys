@@ -34,6 +34,35 @@ describe('v3-compatible reports', () => {
     expect(report.costByCategoryNts).toEqual({ utilities: 500 });
   });
 
+  it('reports what checked out without the money being recorded', () => {
+    const source = {
+      rooms: [{ id: '203', data: { roomId: '203', status: '可入住', note: null } }],
+      bookings: [],
+      stays: [],
+      stayLogs: [
+        { id: 'L1', data: { stayId: 'STY-UNPAID', bookingId: 'RSV-1', roomId: '203', guestName: 'Chris', checkInAt: '2026-10-01T19:24:00+08:00', checkOutAt: '2026-10-02T21:19:00+08:00', plan: '12hrs', totalChargedNts: 800, freeCancel: false, transferred: false } },
+        { id: 'L2', data: { stayId: 'STY-PAID', bookingId: null, roomId: '203', guestName: 'Pat', checkInAt: '2026-10-02T10:00:00+08:00', checkOutAt: '2026-10-02T20:00:00+08:00', plan: '12hrs', totalChargedNts: 1_000, freeCancel: false, transferred: false } },
+      ],
+      monthlyRentals: [],
+      payments: [
+        { id: 'P1', data: { stayId: 'STY-PAID', bookingId: null, amountNts: 1_000, refund: false, status: 'paid' } },
+        // A deposit taken when the booking was made still counts towards its stay.
+        { id: 'P2', data: { stayId: null, bookingId: 'RSV-1', amountNts: 300, refund: false, status: 'paid' } },
+        { id: 'P3', data: { stayId: 'STY-PAID', bookingId: null, amountNts: 999, refund: false, status: 'voided' } },
+      ],
+    } as const;
+    const report = buildReportProjection(source, { dateFrom: '2026-10-01', dateTo: '2026-10-04' });
+
+    expect(report.unpaidNts).toBe(500);
+    expect(report.unpaidStays).toEqual([expect.objectContaining({ stayId: 'STY-UNPAID', roomId: '203', chargedNts: 800, paidNts: 300, unpaidNts: 500 })]);
+  });
+
+  it('says nothing about unpaid stays when payments were not supplied', () => {
+    const report = buildReportProjection(source, { dateFrom: '2026-09-10', dateTo: '2026-09-11' });
+    expect(report.unpaidNts).toBeNull();
+    expect(report.unpaidStays).toBeNull();
+  });
+
   it('reports the rooms actually occupied each day, not just bookings waiting to arrive', () => {
     // v3 counted a day's bookings and dropped them once the guest checked in, so past days read 0%.
     const occupancy = {

@@ -1,6 +1,7 @@
 import {
   CLOUD_ROLES,
   staffCreateInputSchema,
+  staffDirectoryInputSchema,
   staffListInputSchema,
   staffResetMfaInputSchema,
   staffSetPasswordInputSchema,
@@ -248,4 +249,24 @@ export const adminResetStaffMfa = onCall(callableOptions, async (request) => {
   await auth.revokeRefreshTokens(parsed.data.uid);
   await writeAudit(parsed.data.propertyId, actorUid, 'staff.mfa_reset', parsed.data.uid, { reason: parsed.data.reason, clearedFactors });
   return { ok: true };
+});
+
+/** Names only, for the audit trail's operator column. Allowed to anyone who may open that page. */
+export const staffDirectory = onCall(callableOptions, async (request): Promise<{ staff: Array<{ uid: string; displayName: string; email: string }> }> => {
+  const parsed = staffDirectoryInputSchema.safeParse(request.data);
+  if (!parsed.success) return invalidInput();
+  await requirePropertyPage(request.auth, parsed.data.propertyId, 'audit');
+
+  const profiles = await getFirestore().collection('users').get();
+  const staff = profiles.docs
+    .filter((profileDoc) => configuredRoleForProperty(profileDoc.data(), parsed.data.propertyId))
+    .map((profileDoc) => {
+      const profile = profileDoc.data();
+      return {
+        uid: profileDoc.id,
+        displayName: typeof profile.displayName === 'string' ? profile.displayName : '',
+        email: typeof profile.email === 'string' ? profile.email : '',
+      };
+    });
+  return { staff };
 });

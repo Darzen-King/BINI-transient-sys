@@ -147,7 +147,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
   const paymentListGateway = useMemo(() => createPaymentListGateway(client.db), [client.db]);
   const costGateway = useMemo(() => createCostGateway(client.db, client.functions), [client.db, client.functions]);
   const reportGateway = useMemo(() => createReportGateway(client.db, client.functions), [client.db, client.functions]);
-  const auditGateway = useMemo(() => createAuditGateway(client.db), [client.db]);
+  const auditGateway = useMemo(() => createAuditGateway(client.db, client.functions), [client.db, client.functions]);
   const housekeepingGateway = useMemo(() => createHousekeepingGateway(client.db, client.functions), [client.db, client.functions]);
   const maintenanceGateway = useMemo(() => createMaintenanceGateway(client.db, client.functions), [client.db, client.functions]);
   const roomManagementGateway = useMemo(() => createRoomManagementGateway(client.db, client.functions), [client.db, client.functions]);

@@ -43,9 +43,9 @@ function subscribeCollections(database: Firestore, propertyId: string, names: re
 export function createReportGateway(database: Firestore, functions: Functions): ReportGateway {
   return {
     subscribe(propertyId, range, onValue, onError) {
-      const names = ['rooms', 'bookings', 'stays', 'stayLogs', 'monthlyRentals', 'holidays', ...(range.includeCosts ? ['costEntries'] : [])];
+      const names = ['rooms', 'bookings', 'stays', 'stayLogs', 'monthlyRentals', 'holidays', 'payments', ...(range.includeCosts ? ['costEntries'] : [])];
       return subscribeCollections(database, propertyId, names, (source) => onValue(buildReportProjection({
-        rooms: source.rooms!, bookings: source.bookings!, stays: source.stays!, stayLogs: source.stayLogs!, monthlyRentals: source.monthlyRentals!, holidays: source.holidays!,
+        rooms: source.rooms!, bookings: source.bookings!, stays: source.stays!, stayLogs: source.stayLogs!, monthlyRentals: source.monthlyRentals!, holidays: source.holidays!, payments: source.payments!,
         ...(range.includeCosts ? { costEntries: source.costEntries! } : {}),
       }, range)), onError, '報表資料格式不正確。');
     },

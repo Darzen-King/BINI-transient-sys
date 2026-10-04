@@ -18,6 +18,18 @@ const result = { status: 'checked_out', stayId: 'STY-202', roomId: '202', checke
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 describe('v3 check-out flow', () => {
+  it('lets staff check out unpaid on purpose, so the stay can be chased later', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-09-15T12:00:00+08:00'));
+    const checkout = vi.fn().mockResolvedValue(result);
+    render(<StayCheckoutPage gateway={{ checkout }} onBack={vi.fn()} paymentListGateway={paymentsOf([])} session={session} staysGateway={staysGateway} />);
+    fireEvent.change(screen.getByLabelText('選擇在住房'), { target: { value: 'STY-202' } });
+    fireEvent.click(screen.getByRole('button', { name: '確認辦理退房' }));
+
+    expect(await screen.findByText('請收取餘額')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '未收款，仍要退房' }));
+    await waitFor(() => expect(checkout).toHaveBeenCalledWith(expect.objectContaining({ stayId: 'STY-202' })));
+  });
+
   it('shows received and balance, confirms overdue with a staff correction, then reminds to collect the balance', async () => {
     vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-09-15T14:20:00+08:00'));
     const checkout = vi.fn().mockResolvedValue(result);
@@ -41,6 +53,9 @@ describe('v3 check-out flow', () => {
     fireEvent.click(screen.getByRole('button', { name: '套用修正，確認退房' }));
 
     expect(await screen.findByText('請收取餘額')).toBeInTheDocument();
+    // Pressing "paid" records nothing on its own, so it waits for staff to confirm they entered it.
+    expect(screen.getByRole('button', { name: '已收款，確認退房' })).toBeDisabled();
+    fireEvent.click(screen.getByLabelText('我已在付款管理登記這筆收款'));
     fireEvent.click(screen.getByRole('button', { name: '已收款，確認退房' }));
     await waitFor(() => expect(checkout).toHaveBeenCalledWith({ propertyId: 'property-main', operationId: expect.any(String), stayId: 'STY-202', extraFeeNts: 0, overdueFeeOverrideNts: 0 }));
     expect(await screen.findByText('退房已完成')).toBeInTheDocument();

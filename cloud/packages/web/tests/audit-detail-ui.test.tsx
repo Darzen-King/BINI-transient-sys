@@ -32,7 +32,10 @@ const projection: AuditListProjection = {
   actions: ['stay.checkin'],
 };
 
-const gateway: AuditGateway = { subscribe(_propertyId, _query, onValue) { queueMicrotask(() => onValue(projection)); return () => undefined; } };
+const gateway: AuditGateway = {
+  subscribe(_propertyId, _query, onValue) { queueMicrotask(() => onValue(projection)); return () => undefined; },
+  async listStaff() { return { staff: [{ uid: 'es430alO4yZmpD15ngM4HTp6lVB2', displayName: 'BINI Administrator', email: 'admin@example.com' }] }; },
+};
 
 describe('audit record details', () => {
   it('reads as fields in Taipei time, not raw stored values', async () => {
@@ -48,5 +51,17 @@ describe('audit record details', () => {
     expect(within(dialog).getByText('金額').nextSibling).toHaveTextContent('NT$ 1,200');
     expect(within(dialog).getByText('付款編號').nextSibling).toHaveTextContent('—');
     expect(within(dialog).queryByText(/2026-10-03T18:13:00.000Z/)).not.toBeInTheDocument();
+  });
+
+  it('names the operator instead of printing the account id', async () => {
+    render(<App auditGateway={gateway} session={session} />);
+    fireEvent.click(screen.getByRole('link', { name: '審計軌跡' }));
+
+    // The list and the dialog both resolve the stored account id to a name.
+    expect(await screen.findByText('BINI Administrator')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /STY-F13058A866D6/ }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('操作人員').nextSibling).toHaveTextContent('BINI Administrator');
+    expect(within(dialog).queryByText('es430alO4yZmpD15ngM4HTp6lVB2')).not.toBeInTheDocument();
   });
 });

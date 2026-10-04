@@ -90,6 +90,8 @@ function CountTable({ counts, total, label }: { counts: Record<string, number>; 
   return <div className="report-share-list">{rows.map(([status, count]) => <div key={status}><span>{label(status)}</span><b>{count}</b><i style={{ width: `${share(count, total)}%` }} /></div>)}</div>;
 }
 
+const taipeiTime = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(iso)).replace(',', '');
+
 export function ReportsPage({ session, gateway, onOpenPayments }: { session: StaffSession; gateway: ReportGateway | undefined; /** Switches to Payments; omitted when this account may not open that page. */ onOpenPayments?: (() => void) | undefined }) {
   const { text } = useLocale(); const isAdmin = session.role === 'admin';
   const [range, setRange] = useState(initialRange); const [report, setReport] = useState<ReportProjection | null>(null); const [error, setError] = useState('');
@@ -130,6 +132,7 @@ export function ReportsPage({ session, gateway, onOpenPayments }: { session: Sta
           <Metric label={text('取消／流失', 'Cancelled')} value={String(report.cancelledOrders)} />
           <Metric label={text('維修中', 'Under maintenance')} value={String(report.repairCount)} />
           <Metric label={text('平均住宿', 'Average stay')} value={`${report.avgStayHours}h`} />
+          {typeof report.unpaidNts === 'number' ? <Metric label={text('未收款', 'Unpaid')} value={money(report.unpaidNts)} detail={text(`${(report.unpaidStays ?? []).length} 筆已退房未收齊`, `${(report.unpaidStays ?? []).length} checked out unpaid`)} /> : null}
           <Metric label={text('在住中', 'In-house')} value={String(report.activeStaysCount)} />
         </div>
         {isAdmin && report.totalCostNts !== null ? <section className="report-pnl"><div><small>{text('區間成本', 'Period costs')}</small><strong>{money(report.totalCostNts)}</strong></div><div><small>{text('淨損益', 'Net profit')}</small><strong className={report.netProfitNts !== null && report.netProfitNts < 0 ? 'negative' : ''}>{money(report.netProfitNts ?? 0)}</strong></div><div><small>{text('成本率', 'Cost ratio')}</small><strong>{report.costRatioPct ?? 0}%</strong></div>{Object.entries(report.costByCategoryNts ?? {}).map(([category, value]) => <span key={category}>{labelFor(COST_CATEGORY_LABELS, category, text)} · {money(value)}</span>)}<details className="report-cost-details"><summary>{text(`成本明細（${(report.costEntries ?? []).length} 筆）`, `Cost entries (${(report.costEntries ?? []).length})`)}</summary><div className="report-cost-list">{(report.costEntries ?? []).map((item, index) => <div key={`${item.costDate}-${index}`}><strong>{item.costDate}</strong><span>{labelFor(COST_CATEGORY_LABELS, item.category, text)}</span><span>{item.vendor ?? item.description ?? item.note ?? ''}</span><b>{money(item.amountNts)}</b></div>)}{(report.costEntries ?? []).length === 0 ? <div className="empty-card">{text('此區間沒有成本紀錄。', 'No costs in this period.')}</div> : null}</div></details></section> : null}
@@ -141,6 +144,13 @@ export function ReportsPage({ session, gateway, onOpenPayments }: { session: Sta
           <section className="report-section"><div className="report-section-heading"><h3>{text('方案分佈', 'Plan split')}</h3><small>{text('筆數', 'Records')}</small></div><ShareBars format={(value) => String(value)} rows={planRows} /></section>
           <section className="report-section"><div className="report-section-heading"><h3>{text('平日／假日營收', 'Weekday / holiday revenue')}</h3></div><ShareBars format={money} rows={rateRows} /></section>
         </div>
+      {report.unpaidStays && report.unpaidStays.length > 0 ? <section className="report-section">
+        <div className="report-section-heading"><h3>{text('已退房但未收齊', 'Checked out without full payment')}</h3><small>{text('以收款紀錄比對，追收後即消失', 'Compared against recorded payments; disappears once collected')}</small></div>
+        <div className="report-room-list">{report.unpaidStays.map((item) => <article key={item.stayId ?? `${item.roomId}-${item.checkOutAt}`}>
+          <div><strong>{item.roomId} · {item.guestName ?? '—'}</strong><small>{item.checkOutAt ? taipeiTime(item.checkOutAt) : '—'}</small></div>
+          <div><strong className="danger-text">{money(item.unpaidNts)}</strong><small>{text(`應收 ${money(item.chargedNts)} · 已收 ${money(item.paidNts)}`, `${money(item.chargedNts)} charged · ${money(item.paidNts)} paid`)}</small></div>
+        </article>)}</div>
+      </section> : null}
       </> : null}
       {gateway?.subscribePaymentLedger ? <section className="report-section report-payment-summary">
         <div className="report-section-heading"><h3>{text(`付款摘要 — ${paymentDay}`, `Payment summary — ${paymentDay}`)}</h3><div className="report-quick-actions">{gateway.exportDailySummaryCsv ? <Button disabled={!paymentSummary} loading={exporting === 'daily'} onClick={exportDaily} size="sm" variant="outline">{text('日結 CSV', 'Daily CSV')}</Button> : null}{onOpenPayments ? <Button onClick={onOpenPayments} size="sm" variant="ghost">{text('前往付款管理', 'Open payments')}</Button> : null}</div></div>

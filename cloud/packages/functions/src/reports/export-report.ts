@@ -25,9 +25,9 @@ export const reportExportCsv = onCall(options, async (request): Promise<ReportEx
   const db = getFirestore(); const root = `properties/${input.propertyId}`;
   const role = (await db.doc(`users/${actorUid}`).get()).data()?.roles;
   const includeCosts = role && typeof role === 'object' && !Array.isArray(role) && (role as Record<string, unknown>)[input.propertyId] === 'admin';
-  const collections = ['rooms', 'bookings', 'stays', 'stayLogs', 'monthlyRentals'] as const;
+  const collections = ['rooms', 'bookings', 'stays', 'stayLogs', 'monthlyRentals', 'payments'] as const;
   const snapshots = await Promise.all(collections.map((name) => db.collection(`${root}/${name}`).get()));
-  const source = Object.fromEntries(collections.map((name, index) => [name, snapshots[index]!.docs.map((document) => ({ id: document.id, data: document.data() }))])) as { rooms: Array<{ id: string; data: unknown }>; bookings: Array<{ id: string; data: unknown }>; stays: Array<{ id: string; data: unknown }>; stayLogs: Array<{ id: string; data: unknown }>; monthlyRentals: Array<{ id: string; data: unknown }>; };
+  const source = Object.fromEntries(collections.map((name, index) => [name, snapshots[index]!.docs.map((document) => ({ id: document.id, data: document.data() }))])) as { rooms: Array<{ id: string; data: unknown }>; bookings: Array<{ id: string; data: unknown }>; stays: Array<{ id: string; data: unknown }>; stayLogs: Array<{ id: string; data: unknown }>; monthlyRentals: Array<{ id: string; data: unknown }>; payments: Array<{ id: string; data: unknown }> };
   const costEntries = includeCosts ? (await db.collection(`${root}/costEntries`).get()).docs.map((document) => ({ id: document.id, data: document.data() })) : undefined;
   let csv: string;
   try { csv = renderReportCsv(buildReportProjection({ ...source, ...(costEntries ? { costEntries } : {}) }, { dateFrom: input.dateFrom, dateTo: input.dateTo, includeCosts })); }

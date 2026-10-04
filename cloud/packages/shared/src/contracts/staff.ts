@@ -119,3 +119,21 @@ export interface StaffDirectoryEntry {
   lastLoginAt: string | null;
   mfaEnrolled: boolean;
 }
+
+/**
+ * Names for the operator column in the audit trail. Clients may only read their own user document,
+ * so the server resolves the rest; anyone who may open the audit trail may see these names.
+ */
+export const staffDirectoryInputSchema = z.object({
+  propertyId: z.string().trim().min(1).max(128).regex(/^[^/]+$/),
+}).strict();
+export type StaffDirectoryInput = z.infer<typeof staffDirectoryInputSchema>;
+
+export const staffDirectoryResultSchema = z.object({
+  staff: z.array(z.object({
+    uid: z.string().trim().min(1).max(128),
+    displayName: z.string().trim().max(300),
+    email: z.string().trim().max(300),
+  })),
+}).strict();
+export type StaffDirectoryResult = z.infer<typeof staffDirectoryResultSchema>;

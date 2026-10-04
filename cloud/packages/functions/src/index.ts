@@ -8,6 +8,7 @@ import { processOperation } from './processor/core.js';
 import { FirestoreProcessorStore } from './processor/firestore-store.js';
 import { createHandlerRegistry, demoHandlers } from './processor/handlers.js';
 
+export { staffDirectory } from './admin/staff-admin.js';
 export {
   adminCreateStaff,
   adminListStaff,

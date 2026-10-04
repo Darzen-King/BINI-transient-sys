@@ -84,12 +84,22 @@ export const stayCheckoutInputSchema = z.object({
   stayId: z.string().trim().min(1).max(128).regex(/^[^/]+$/),
   extraFeeNts: ntsAmountSchema.optional().default(0),
   overdueFeeOverrideNts: ntsAmountSchema.nullable().optional(),
+  /**
+   * Money handed over at check-out. Recorded as a payment in the same transaction, so "paid" on the
+   * screen and a payment record can never disagree. Omitted when the guest leaves without paying.
+   */
+  collection: z.object({
+    amountNts: ntsAmountSchema.refine((value) => value > 0, '收款金額必須大於 0'),
+    paymentType: z.enum(BOOKING_PAYMENT_TYPES),
+  }).strict().optional(),
 }).strict();
 
 export type StayCheckoutInput = z.infer<typeof stayCheckoutInputSchema>;
 
 export const stayCheckoutResultSchema = z.object({
   status: z.enum(['checked_out', 'replayed']),
+  /** The payment this check-out recorded, when money changed hands. */
+  paymentId: z.string().min(1).max(128).nullable().optional(),
   stayId: z.string().min(1).max(128),
   roomId: roomIdSchema,
   checkedOutAt: dateTimeSchema,

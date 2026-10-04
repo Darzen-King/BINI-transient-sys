@@ -27,7 +27,8 @@ describe('v3 check-out flow', () => {
 
     expect(await screen.findByText('請收取餘額')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '未收款，仍要退房' }));
-    await waitFor(() => expect(checkout).toHaveBeenCalledWith(expect.objectContaining({ stayId: 'STY-202' })));
+    // Nothing is recorded: the stay is the one the report then lists as unpaid.
+    await waitFor(() => expect(checkout).toHaveBeenCalledWith(expect.not.objectContaining({ collection: expect.anything() })));
   });
 
   it('shows received and balance, confirms overdue with a staff correction, then reminds to collect the balance', async () => {
@@ -53,11 +54,10 @@ describe('v3 check-out flow', () => {
     fireEvent.click(screen.getByRole('button', { name: '套用修正，確認退房' }));
 
     expect(await screen.findByText('請收取餘額')).toBeInTheDocument();
-    // Pressing "paid" records nothing on its own, so it waits for staff to confirm they entered it.
-    expect(screen.getByRole('button', { name: '已收款，確認退房' })).toBeDisabled();
-    fireEvent.click(screen.getByLabelText('我已在付款管理登記這筆收款'));
+    // "Paid" records the balance with the check-out, so the screen and the payment record agree.
+    fireEvent.change(screen.getByLabelText('收款方式'), { target: { value: 'transfer' } });
     fireEvent.click(screen.getByRole('button', { name: '已收款，確認退房' }));
-    await waitFor(() => expect(checkout).toHaveBeenCalledWith({ propertyId: 'property-main', operationId: expect.any(String), stayId: 'STY-202', extraFeeNts: 0, overdueFeeOverrideNts: 0 }));
+    await waitFor(() => expect(checkout).toHaveBeenCalledWith({ propertyId: 'property-main', operationId: expect.any(String), stayId: 'STY-202', extraFeeNts: 0, overdueFeeOverrideNts: 0, collection: { amountNts: 400, paymentType: 'transfer' } }));
     expect(await screen.findByText('退房已完成')).toBeInTheDocument();
   });
 

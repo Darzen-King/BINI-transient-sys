@@ -52,8 +52,8 @@ export function StayCheckoutPage({ session, gateway, staysGateway, paymentListGa
   const [stayId, setStayId] = useState('');
   const [extraFeeNts, setExtraFeeNts] = useState(0);
   const [step, setStep] = useState<Step>({ kind: 'idle' });
-  // The balance reminder must be answered, not clicked past: unrecorded money is invisible afterwards.
-  const [balanceRecorded, setBalanceRecorded] = useState(false);
+  // Collecting at the desk records the payment with the check-out, so "paid" always has a record behind it.
+  const [collectionType, setCollectionType] = useState<'cash' | 'transfer' | 'card' | 'other'>('cash');
   const [operationId, setOperationId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -84,7 +84,7 @@ export function StayCheckoutPage({ session, gateway, staysGateway, paymentListGa
   const minutesPastCheckOut = stay ? (now - Date.parse(stay.checkOutAt)) / 60_000 : 0;
   const projectedTotal = stay ? stay.totalDueNts + liveOverdueFee + extraFeeNts : 0;
 
-  const finish = async (overdueFeeOverrideNts: number | null) => {
+  const finish = async (overdueFeeOverrideNts: number | null, collection?: { amountNts: number; paymentType: 'cash' | 'transfer' | 'card' | 'other' }) => {
     if (!gateway || !stay) return;
     const id = operationId ?? crypto.randomUUID();
     if (!operationId) setOperationId(id);
@@ -92,7 +92,7 @@ export function StayCheckoutPage({ session, gateway, staysGateway, paymentListGa
     setBusy(true);
     setError('');
     try {
-      setResult(await gateway.checkout({ propertyId: session.propertyId, operationId: id, stayId: stay.stayId, extraFeeNts, overdueFeeOverrideNts }));
+      setResult(await gateway.checkout({ propertyId: session.propertyId, operationId: id, stayId: stay.stayId, extraFeeNts, overdueFeeOverrideNts, ...(collection ? { collection } : {}) }));
       setOperationId(null);
       setStayId('');
       setExtraFeeNts(0);
@@ -109,7 +109,7 @@ export function StayCheckoutPage({ session, gateway, staysGateway, paymentListGa
     const stillFree = clickedAt - Date.parse(stay.checkInAt) <= FREE_CANCEL_MS;
     const balance = paid ? stay.totalDueNts + overdueFeeNts + extraFeeNts - paid.totalPaidNts : 0;
     if (stillFree || balance <= 0) { void finish(overrideNts); return; }
-    setBalanceRecorded(false);
+    setCollectionType('cash');
     setStep({ kind: 'balance', overrideNts, overdueFeeNts });
   };
   // Step 1: overdue confirmation, like v3 `checkOverdueAndConfirm`.
@@ -181,9 +181,9 @@ export function StayCheckoutPage({ session, gateway, staysGateway, paymentListGa
         <div><span>{text('已收款', 'Received')}</span><b>{money(paid.totalPaidNts)}</b></div>
         <div className="checkout-balance due"><span>{text('餘額應收', 'Balance due')}</span><b>{money(stay.totalDueNts + step.overdueFeeNts + extraFeeNts - paid.totalPaidNts)}</b></div>
       </div>
-      <p className="checkout-dialog-hint">{text('這個畫面不會自動建立收款紀錄。收了錢就要在付款管理登記，否則統計報表與記帳會對不起來。', 'This screen does not record a payment. Money collected must be entered in Payments, or the reports and the books will not agree.')}</p>
-      <label className="check-row"><input checked={balanceRecorded} onChange={(event) => setBalanceRecorded(event.target.checked)} type="checkbox" /><span>{text('我已在付款管理登記這筆收款', 'I have recorded this payment in Payments')}</span></label>
-      <div className="booking-detail-actions"><Button disabled={!balanceRecorded} onClick={() => void finish(step.overrideNts)} variant="primary">{text('已收款，確認退房', 'Paid — check out')}</Button><Button onClick={() => void finish(step.overrideNts)} variant="outline">{text('未收款，仍要退房', 'Check out unpaid')}</Button><Button onClick={() => setStep({ kind: 'idle' })} variant="ghost">{text('取消', 'Cancel')}</Button></div>
+      <Field label={text('收款方式', 'Payment type')}><select onChange={(event) => setCollectionType(event.target.value as typeof collectionType)} value={collectionType}><option value="cash">{text('現金', 'Cash')}</option><option value="transfer">{text('轉帳', 'Transfer')}</option><option value="card">{text('刷卡', 'Card')}</option><option value="other">{text('其他', 'Other')}</option></select></Field>
+      <p className="checkout-dialog-hint">{text('按「已收款，確認退房」會同時建立這筆餘額的收款紀錄，不必再到付款管理登記。', '"Paid — check out" records this balance as a payment at the same time; nothing to enter in Payments afterwards.')}</p>
+      <div className="booking-detail-actions"><Button onClick={() => void finish(step.overrideNts, { amountNts: stay.totalDueNts + step.overdueFeeNts + extraFeeNts - paid.totalPaidNts, paymentType: collectionType })} variant="primary">{text('已收款，確認退房', 'Paid — check out')}</Button><Button onClick={() => void finish(step.overrideNts)} variant="outline">{text('未收款，仍要退房', 'Check out unpaid')}</Button><Button onClick={() => setStep({ kind: 'idle' })} variant="ghost">{text('取消', 'Cancel')}</Button></div>
       <p className="checkout-dialog-hint">{text('選「未收款」仍可完成退房，該筆會列入統計報表的「未收款」，方便事後追收。', 'Checking out unpaid is allowed; the stay then appears under "Unpaid" in the reports so it can be chased.')}</p>
     </ResponsiveDialog> : null}
   </SectionCard>;

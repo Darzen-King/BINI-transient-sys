@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="{{ "zh-TW" if lang == "zh" else "en-US" }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if doc %}BINI-{{ trans.get("booking.certificate","預約證明") }}-{{ doc.booking_id }}{% else %}{{ title }}{% endif %}</title>
+  <style>
+    /* A standalone page: the certificate is what prints, so it carries no navigation. */
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #e9e9ef; color: #16161d;
+           font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, -apple-system, "Segoe UI", sans-serif;
+           font-size: 14px; line-height: 1.6; }
+    .wrap { display: grid; justify-items: center; gap: 14px; padding: 14px 14px 40px; }
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+               width: min(794px, 100%); padding: 12px; border-radius: 14px; background: #fff;
+               box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+    .toolbar .hint { flex: 1 1 14rem; color: #6b7280; font-size: 12px; }
+    .btn { min-height: 38px; padding: 8px 16px; border: 1px solid transparent; border-radius: 10px;
+           background: #db2777; color: #fff; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; }
+    .btn.secondary { border-color: #d1d5db; background: #fff; color: #16161d; }
+    /* 794px is A4 width at 96dpi, so the preview matches the printed page. */
+    .sheet { width: min(794px, 100%); padding: 34px 38px; background: #fff;
+             box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+    .head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+            padding-bottom: 14px; border-bottom: 2px solid #16161d; }
+    .head .store { display: block; font-size: 19px; font-weight: 700; }
+    .head .line { display: block; font-size: 12.5px; }
+    .head img { width: 92px; height: auto; }
+    h1 { margin: 22px 0 16px; font-size: 22px; letter-spacing: .04em; text-align: center; }
+    dl { margin: 0; }
+    .row { display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+           padding: 8px 2px; border-bottom: 1px solid #d9d9e0; }
+    .row dt { flex: 0 0 8.5rem; color: #55555f; font-size: 13px; }
+    .row dd { margin: 0; font-size: 14.5px; font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+    .notes { margin-top: 22px; }
+    .notes h2 { margin: 0 0 6px; font-size: 14px; }
+    .notes ul { margin: 0; padding-left: 1.2em; }
+    .notes li { font-size: 12.5px; }
+    .foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px;
+            margin-top: 26px; padding-top: 10px; border-top: 1px solid #d9d9e0;
+            color: #55555f; font-size: 11.5px; }
+    .refusal { width: min(794px, 100%); padding: 16px; border-left: 4px solid #dc2626;
+               border-radius: 10px; background: #fff; }
+    .refusal strong { display: block; margin-bottom: 6px; color: #b91c1c; }
+    @media (max-width: 480px) {
+      .sheet { padding: 20px 16px; }
+      .row dt { flex: 0 0 5.5rem; font-size: 12px; }
+      .row dd { font-size: 13.5px; }
+    }
+    /* Printing is what produces the PDF: only the sheet reaches the paper. */
+    @media print {
+      body { background: #fff; }
+      .wrap { display: block; padding: 0; }
+      .toolbar { display: none !important; }
+      .sheet { width: auto; padding: 0; box-shadow: none; }
+      .notes, .foot { break-inside: avoid; }
+    }
+    @page { size: A4; margin: 14mm; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="toolbar">
+    {% if doc %}<button class="btn" onclick="window.print()">{{ trans.get("booking.certificate_print","列印／儲存 PDF") }}</button>{% endif %}
+    <a class="btn secondary" href="/bookings">{{ trans.get("action.back","返回") }}</a>
+    <span class="hint">{{ trans.get("booking.certificate_hint","在列印對話框把印表機選為「儲存為 PDF」，就能存成檔案或傳給客人。") }}</span>
+  </div>
+
+  {% if not doc %}
+  <div class="refusal">
+    <strong>{{ trans.get("booking.certificate_unavailable","無法開立預約證明") }}</strong>
+    <div>{{ trans.get("booking.certificate_unavailable_body","這筆預約已不是有效預約，或館別資料缺少店名。請先到「館別管理」補上店名、地址與電話。") }}</div>
+    <div style="margin-top:6px;color:#6b7280;font-size:12px">{{ reason }}</div>
+  </div>
+  {% else %}
+  <article class="sheet">
+    <header class="head">
+      <div>
+        <strong class="store">{{ doc.store_name }}</strong>
+        {% if doc.store_address %}<span class="line">{{ doc.store_address }}</span>{% endif %}
+        {% if doc.store_phone %}<span class="line">{{ trans.get("booking.phone","電話") }} {{ doc.store_phone }}</span>{% endif %}
+      </div>
+      <img src="/static/bini_blooms_logo.jpg" alt="">
+    </header>
+
+    <h1>{{ trans.get("booking.certificate","預約證明") }}</h1>
+
+    <dl>
+      <div class="row"><dt>{{ trans.get("label.booking_id","預約編號") }}</dt><dd>{{ doc.booking_id }}</dd></div>
+      <div class="row"><dt>{{ trans.get("booking.certificate_guest","預約人") }}</dt><dd>{{ doc.guest }}</dd></div>
+      <div class="row"><dt>{{ trans.get("booking.certificate_contact","聯絡電話") }}</dt><dd>{{ doc.guest_phone or trans.get("booking.certificate_no_phone","未提供") }}</dd></div>
+      <div class="row"><dt>{{ trans.get("label.room","房號") }}</dt><dd>{{ doc.room }}</dd></div>
+      <div class="row"><dt>{{ trans.get("booking.certificate_plan","住宿方案") }}</dt><dd>{{ doc.plan }}{% if doc.rate_type %}（{{ doc.rate_type }}）{% endif %}</dd></div>
+      <div class="row"><dt>{{ trans.get("label.checkin","入住時間") }}</dt><dd>{{ doc.checkin }}</dd></div>
+      <div class="row"><dt>{{ trans.get("label.checkout","退房時間") }}</dt><dd>{{ doc.checkout }}</dd></div>
+      <div class="row"><dt>{{ trans.get("booking.certificate_hours","預約時數") }}</dt><dd>{{ doc.stay_hours }} {{ trans.get("booking.certificate_hours_unit","小時") }}</dd></div>
+      {% if doc.discount > 0 %}
+      <div class="row"><dt>{{ trans.get("booking.certificate_gross","原價") }}</dt><dd>NT$ {{ "{:,.0f}".format(doc.gross_amount) }}</dd></div>
+      <div class="row"><dt>{{ trans.get("label.discount","折扣") }}</dt><dd>- NT$ {{ "{:,.0f}".format(doc.discount) }}</dd></div>
+      {% endif %}
+      <div class="row"><dt>{{ trans.get("booking.certificate_payable","應付金額") }}</dt><dd>NT$ {{ "{:,.0f}".format(doc.payable) }}</dd></div>
+      <div class="row"><dt>{{ trans.get("booking.certificate_deposit","已收押金") }}</dt><dd>NT$ {{ "{:,.0f}".format(doc.deposit_paid) }}</dd></div>
+      <div class="row"><dt>{{ trans.get("booking.certificate_balance","未付餘額") }}</dt><dd>NT$ {{ "{:,.0f}".format(doc.balance_due) }}</dd></div>
+    </dl>
+
+    {% if doc.notes %}
+    <section class="notes">
+      <h2>{{ trans.get("booking.certificate_notes","入住注意事項") }}</h2>
+      <ul>{% for note in doc.notes %}<li>{{ note }}</li>{% endfor %}</ul>
+    </section>
+    {% endif %}
+
+    <footer class="foot">
+      <span>{{ trans.get("booking.certificate_issued","開立時間") }} {{ doc.issued_at }}</span>
+      <span>{{ doc.store_name }}</span>
+    </footer>
+  </article>
+  {% endif %}
+</div>
+</body>
+</html>

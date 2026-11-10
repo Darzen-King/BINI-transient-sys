@@ -56,6 +56,18 @@ describe('responsive layout contract', () => {
     expect(components).not.toMatch(/#[0-9a-fA-F]{3,8}/);
   });
 
+  /**
+   * A dialog's action row is right-aligned, so without wrapping an extra button pushes the
+   * first one off the LEFT edge of the dialog instead of overflowing visibly to the right.
+   */
+  it('wraps right-aligned dialog actions instead of pushing the first button out of view', () => {
+    for (const rule of css.match(/\.booking-(detail|create)-actions \{[^}]*justify-content:\s*flex-end[^}]*\}/g) ?? []) {
+      expect(rule).toMatch(/flex-wrap:\s*wrap/);
+    }
+    expect(css).toMatch(/\.booking-detail-actions \{[^}]*flex-wrap:\s*wrap/);
+    expect(css).toMatch(/\.booking-create-actions \{[^}]*flex-wrap:\s*wrap/);
+  });
+
   it('provides one persisted locale state for mobile, desktop and authentication', () => {
     expect(localeSource).toContain("APP_LOCALES = ['zh-TW', 'en']");
     expect(localeSource).toContain("'bini-pms-locale'");

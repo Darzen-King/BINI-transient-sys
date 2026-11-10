@@ -49,7 +49,7 @@ npm run deploy:dev:hosting       # DEV 不需確認碼
 
 ## 驗證基準（2026-11-10）
 
-- 雲端：73 個測試檔、394 項測試通過；typecheck、lint、build 通過。
+- 雲端：73 個測試檔、395 項測試通過；typecheck、lint、build 通過。
 - 單機：9 項回歸測試通過（`cost_profit_smoke_test.py`、`phase4_smoke_test.py` 需先灌測試資料才能跑）。
 - 自動健檢：2026-10-04 10:00 一次性排程，檢查錯誤日誌、備份、功能運作與 App Check 統計。
 
@@ -61,6 +61,8 @@ npm run deploy:dev:hosting       # DEV 不需確認碼
   `cloud/packages/web/src/i18n/labels.ts` 的 `BOOKING_CONFIRMATION_NOTES`，店名與地址讀 `properties/{id}`
   的 `name`／`address`／`phone`（v3 匯入的資料改讀 `legacyV3Import`），讀不到時不列印、要求重試；
   館別資料在前端快取 10 分鐘並於開啟預約管理時預載，所以開證明不必等連線。
+  預約詳細對話框的按鈕列改為可換行：原本靠右對齊又不換行，第六顆按鈕會把最左邊的「辦理入住」
+  擠出對話框外（英文介面特別明顯）。
 - 館別資料可編輯（2026-11-10，DEV 與正式環境皆已部署）：館別管理 → 「編輯資料」可改名稱／地址／電話／備註，
   走新的 `propertyUpdate` callable（僅該館別的管理員、具操作識別碼與稽核紀錄）。P001 從 v3 匯入時
   `address` 是空字串、`phone` 是 null，所以預約證明印不出地址電話——**正式環境要先在這裡補填才印得出來**。

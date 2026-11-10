@@ -43,7 +43,7 @@ export { dropboxV3Backup } from './backup/dropbox-backup.js';
 export { pushReminders } from './notifications/push-reminders.js';
 export { pushTestSend, pushTokenRegister, pushTokenUnregister } from './notifications/push-tokens.js';
 export { holidayDelete, holidayManualUpsert, holidayResync } from './holidays/holiday-operations.js';
-export { propertyCreate, propertyList } from './properties/property-operations.js';
+export { propertyCreate, propertyList, propertyUpdate } from './properties/property-operations.js';
 export { paymentCreate } from './payments/create-payment.js';
 export { housekeepingUpdate } from './housekeeping/update-housekeeping.js';
 export { maintenanceScheduleCreate } from './maintenance/create-schedule.js';

@@ -1,6 +1,6 @@
 /* global self, caches, URL, fetch, clients */
 
-const CACHE_NAME = 'bini-pms-v4-migration-5';
+const CACHE_NAME = 'bini-pms-v4-migration-6';
 const APP_SHELL = [
   '/',
   '/manifest.webmanifest',
@@ -36,6 +36,20 @@ self.addEventListener('fetch', (event) => {
       caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
       return response;
     })));
+    return;
+  }
+  // A page load always revalidates the shell. Hosting used to serve index.html with max-age=3600, so a
+  // phone kept running the previous deployment for an hour; the shell is small and this is one request.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request.url, { cache: 'reload', credentials: 'same-origin' })
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put('/', copy));
+          return response;
+        })
+        .catch(() => caches.match('/').then((cached) => cached ?? caches.match(event.request))),
+    );
     return;
   }
   event.respondWith(

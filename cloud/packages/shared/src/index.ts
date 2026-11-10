@@ -14,6 +14,7 @@ export * from './contracts/room-management-operations.js';
 export * from './contracts/push-notifications.js';
 export * from './domain/room-overview.js';
 export * from './domain/booking-list.js';
+export * from './domain/booking-confirmation.js';
 export * from './domain/booking-room-options.js';
 export * from './domain/booking-soon.js';
 export * from './domain/stay-extension.js';

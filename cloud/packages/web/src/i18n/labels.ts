@@ -66,3 +66,13 @@ export function labelFor<T extends string>(labels: Record<T, LabelPair>, code: s
   const pair = (labels as Record<string, LabelPair | undefined>)[code];
   return pair ? text(pair[0], pair[1]) : code;
 }
+
+/**
+ * Terms printed at the foot of a reservation certificate the guest keeps. They are house rules,
+ * not system behaviour, so staff may reword them here without touching the document layout.
+ */
+export const BOOKING_CONFIRMATION_NOTES: readonly LabelPair[] = [
+  ['請於預約的入住時間後抵達，並出示本證明與身分證件辦理入住。', 'Please arrive at or after the check-in time shown above and present this certificate with photo ID.'],
+  ['本證明為預約紀錄，實際費用以辦理入住與退房時的結算為準。', 'This certificate records the reservation; the final amount is settled at check-in and check-out.'],
+  ['如需變更或取消預約，請事先與我們聯絡。', 'Please contact us in advance to change or cancel this reservation.'],
+];

@@ -1,11 +1,11 @@
-import { CLOUD_PAGE_IDS, propertyCreateInputSchema, propertyCreateResultSchema, propertyListInputSchema, sortPropertyDirectory, type PropertyCreateResult, type PropertyDirectoryItem } from '@bini/cloud-shared';
+import { CLOUD_PAGE_IDS, propertyCreateInputSchema, propertyCreateResultSchema, propertyListInputSchema, propertyUpdateInputSchema, propertyUpdateResultSchema, sortPropertyDirectory, type PropertyCreateResult, type PropertyDirectoryItem, type PropertyUpdateResult } from '@bini/cloud-shared';
 import { createHash } from 'node:crypto';
 import { getFirestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { requirePropertyAdmin } from '../admin/staff-admin.js';
 
 const options = { region: 'asia-east1', maxInstances: 10, timeoutSeconds: 60, memory: '512MiB' } as const;
-const fingerprint = (input: object) => createHash('sha256').update(JSON.stringify({ operationType: 'property.create', ...input })).digest('hex');
+const fingerprint = (input: object, operationType = 'property.create') => createHash('sha256').update(JSON.stringify({ operationType, ...input })).digest('hex');
 const record = (value: unknown): Record<string, unknown> | null => typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const stringOrNull = (value: unknown): string | null => typeof value === 'string' && value.trim() ? value : null;
 
@@ -34,6 +34,26 @@ export const propertyCreate = onCall(options, async (request): Promise<PropertyC
     transaction.update(userRef, { roles: { ...roles, [input.propertyId]: 'admin' }, allowedPages: { ...allowedPages, [input.propertyId]: [...CLOUD_PAGE_IDS] }, updatedAt: now });
     transaction.create(operationRef, { operationId: input.operationId, actorUid, operationType: 'property.create', requestFingerprint, result, createdAt: now });
     transaction.create(database.doc(`${root}/auditLogs/property-create-${input.operationId}`), { actorUid, action: 'property.create', targetId: input.propertyId, targetType: 'property', details: { name: input.name, address: input.address ?? null, phone: input.phone ?? null, note: input.note ?? null, creatorGrantedAdmin: true }, createdAt: now });
+    return result;
+  });
+});
+
+/**
+ * Lets an administrator correct the store details of a property they administer. The certificate a
+ * guest takes away prints the address and phone from here, and properties migrated from v3 arrived
+ * with them empty, so they have to be editable somewhere other than property creation.
+ */
+export const propertyUpdate = onCall(options, async (request): Promise<PropertyUpdateResult> => {
+  const parsed = propertyUpdateInputSchema.safeParse(request.data); if (!parsed.success) throw new HttpsError('invalid-argument', '館別資料格式不正確。'); const input = parsed.data;
+  const actorUid = await requirePropertyAdmin(request.auth, input.propertyId); const database = getFirestore(); const root = `properties/${input.propertyId}`; const operationRef = database.doc(`${root}/propertyOperations/${input.operationId}`); const propertyRef = database.doc(root); const requestFingerprint = fingerprint(input, 'property.update');
+  return database.runTransaction(async (transaction) => {
+    const prior = await transaction.get(operationRef); if (prior.exists) { const data = prior.data() ?? {}; if (data.actorUid !== actorUid || data.requestFingerprint !== requestFingerprint) throw new HttpsError('already-exists', '此操作識別碼已由不同請求使用。'); const result = propertyUpdateResultSchema.safeParse(data.result); if (!result.success || result.data.status !== 'updated') throw new HttpsError('data-loss', '已完成操作缺少有效結果。'); return { ...result.data, status: 'replayed' }; }
+    const snapshot = await transaction.get(propertyRef); if (!snapshot.exists) throw new HttpsError('not-found', '館別不存在。'); const before = snapshot.data() ?? {};
+    const now = new Date().toISOString(); const result: PropertyUpdateResult = { propertyId: input.propertyId, status: 'updated', updatedAt: now };
+    const after = { name: input.name, address: input.address, phone: input.phone, note: input.note };
+    transaction.update(propertyRef, { ...after, updatedAt: now, updatedByUid: actorUid });
+    transaction.create(operationRef, { operationId: input.operationId, actorUid, operationType: 'property.update', requestFingerprint, result, createdAt: now });
+    transaction.create(database.doc(`${root}/auditLogs/property-update-${input.operationId}`), { actorUid, action: 'property.update', targetId: input.propertyId, targetType: 'property', details: { before: { name: stringOrNull(before.name), address: stringOrNull(before.address), phone: stringOrNull(before.phone), note: stringOrNull(before.note) }, after }, createdAt: now });
     return result;
   });
 });

@@ -38,6 +38,8 @@ import { HolidayManagementPage } from './holidays/HolidayManagementPage.js';
 import type { HolidayGateway } from './holidays/holiday-gateway.js';
 import { PropertyManagementPage } from './properties/PropertyManagementPage.js';
 import type { PropertyGateway } from './properties/property-gateway.js';
+import type { PropertyProfileGateway } from './properties/property-profile.js';
+import { BookingConfirmationSheet } from './bookings/BookingConfirmationSheet.js';
 import { StayCheckoutPage } from './stays/StayCheckoutPage.js';
 import type { StayCheckoutGateway } from './stays/stay-checkout.js';
 import { PaymentsPage } from './payments/PaymentsPage.js';
@@ -476,7 +478,7 @@ const previewBookings: BookingListItem[] = [
   { bookingId: 'RSV-preview-205', roomId: '205', guestName: 'Michael', phone: null, checkInAt: '2026-09-14T13:00:00+08:00', checkOutAt: '2026-09-15T13:00:00+08:00', plan: '12hrs', amountNts: 800, discountNts: 0, rateType: '非假日', status: '已預約' },
 ];
 
-function BookingsView({ canCreate, canCancel, onOpenBookingCreate, onOpenCheckIn, onOpenDeposit, paymentListGateway, propertyId, gateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, roomGateway, holidayGateway, session }: {
+function BookingsView({ canCreate, canCancel, onOpenBookingCreate, onOpenCheckIn, onOpenDeposit, paymentListGateway, propertyId, gateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, propertyProfileGateway, roomGateway, holidayGateway, session }: {
   canCreate: boolean;
   canCancel: boolean;
   onOpenBookingCreate: () => void;
@@ -490,6 +492,8 @@ function BookingsView({ canCreate, canCancel, onOpenBookingCreate, onOpenCheckIn
   bookingCancelGateway: BookingCancelGateway | undefined;
   bookingUpdateGateway: BookingUpdateGateway | undefined;
   bookingUpdatePreviewGateway: BookingUpdatePreviewGateway | undefined;
+  /** Reads the store name and address the reservation certificate prints; undefined in preview mode. */
+  propertyProfileGateway: PropertyProfileGateway | undefined;
   roomGateway: BookingRoomGateway | undefined;
   holidayGateway?: HolidayCalendarGateway | undefined;
   session: StaffSession;
@@ -507,8 +511,12 @@ function BookingsView({ canCreate, canCancel, onOpenBookingCreate, onOpenCheckIn
   const [cancelledAt, setCancelledAt] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [editingBooking, setEditingBooking] = useState<BookingListItem | null>(null);
+  // The booking whose reservation certificate is open for printing.
+  const [certificateBooking, setCertificateBooking] = useState<BookingListItem | null>(null);
   const [deposits, setDeposits] = useState<Map<string, number>>(() => new Map());
   useEffect(() => paymentListGateway?.subscribe(propertyId, (payments) => setDeposits(bookingDepositTotals(payments)), () => setDeposits(new Map())), [paymentListGateway, propertyId]);
+  // Warm the store details here, so opening a reservation certificate at the counter waits for no round trip.
+  useEffect(() => { propertyProfileGateway?.load(propertyId).catch(() => undefined); }, [propertyProfileGateway, propertyId]);
   const depositLabel = (bookingId: string) => { const paid = deposits.get(bookingId) ?? 0; return paid > 0 ? text(`押金 NT$ ${paid.toLocaleString()}`, `Deposit NT$ ${paid.toLocaleString()}`) : text('未收押金', 'No deposit'); };
   const sortLabels: Record<BookingSortField, string> = {
     checkin: text('入住時間', 'Check-in'), checkout: text('退房時間', 'Check-out'), room: text('房號', 'Room'), guest: text('旅客', 'Guest'),
@@ -615,6 +623,7 @@ function BookingsView({ canCreate, canCancel, onOpenBookingCreate, onOpenCheckIn
           <div className="booking-detail-actions">
             {onOpenCheckIn && !cancelledAt ? <Button onClick={() => { const next = selectedBooking.bookingId; closeDetails(); onOpenCheckIn(next); }}>{text('辦理入住', 'Check in')}</Button> : null}
             {onOpenDeposit && !cancelledAt ? <Button onClick={() => { const next = selectedBooking.bookingId; closeDetails(); onOpenDeposit(next); }} variant="secondary">{text('收取押金', 'Collect deposit')}</Button> : null}
+            {!cancelledAt ? <Button onClick={() => { const next = selectedBooking; closeDetails(); setCertificateBooking(next); }} variant="secondary">{text('預約證明（PDF）', 'Certificate (PDF)')}</Button> : null}
             {canCancel && bookingUpdateGateway && !cancelledAt ? <Button onClick={() => { const next = selectedBooking; closeDetails(); setEditingBooking(next); }} variant="secondary">{text('修改預約', 'Edit booking')}</Button> : null}
             {canCancel && bookingCancelGateway && !cancelledAt && !confirmCancel ? <Button onClick={() => setConfirmCancel(true)} variant="danger">{text('取消預約', 'Cancel booking')}</Button> : null}
             {canCancel && bookingCancelGateway && !cancelledAt && confirmCancel ? <Button loading={cancelBusy} onClick={() => void cancelBooking()} variant="danger">{text('確認取消', 'Confirm cancellation')}</Button> : null}
@@ -622,6 +631,15 @@ function BookingsView({ canCreate, canCancel, onOpenBookingCreate, onOpenCheckIn
             <Button onClick={closeDetails} variant="outline">{text('關閉', 'Close')}</Button>
           </div>
         </ResponsiveDialog>
+      ) : null}
+      {certificateBooking ? (
+        <BookingConfirmationSheet
+          booking={certificateBooking}
+          depositPaidNts={deposits.get(certificateBooking.bookingId) ?? 0}
+          gateway={propertyProfileGateway}
+          onClose={() => setCertificateBooking(null)}
+          propertyId={propertyId}
+        />
       ) : null}
     </ShellSection>
   );
@@ -698,7 +716,7 @@ function HubPage({ isAdmin, allowedPages, onOpenInitialImport, onOpenPage }: {
   );
 }
 
-function ActiveView({ view, targetRoomId, targetBookingId, onOpenPayment, onOpenRoomPage, onTargetRoomHandled, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, bookingCreateGateway, bookingMultiCreateGateway, bookingPreviewGateway, bookingRoomGateway, roomOverviewGateway, roomTimelineGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, onOpenBookingCheckIn, onOpenBookingDeposit, costGateway, reportGateway, auditGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, holidayGateway, propertyGateway, pushGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
+function ActiveView({ view, targetRoomId, targetBookingId, onOpenPayment, onOpenRoomPage, onTargetRoomHandled, session, accountGateway, dataImportGateway, bookingListGateway, bookingCancelGateway, bookingUpdateGateway, bookingUpdatePreviewGateway, bookingCreateGateway, bookingMultiCreateGateway, bookingPreviewGateway, bookingRoomGateway, roomOverviewGateway, roomTimelineGateway, stayCheckInGateway, stayExtendGateway, stayCheckoutGateway, paymentCreateGateway, paymentListGateway, onOpenBookingCheckIn, onOpenBookingDeposit, costGateway, reportGateway, auditGateway, housekeepingGateway, maintenanceGateway, roomManagementGateway, activeStaysGateway, holidayCalendarGateway, holidayGateway, propertyGateway, propertyProfileGateway, pushGateway, onOpenBookingCreate, onOpenPage, onLogout }: {
   view: ViewId;
   targetRoomId: string | null;
   targetBookingId: string | null;
@@ -735,12 +753,13 @@ function ActiveView({ view, targetRoomId, targetBookingId, onOpenPayment, onOpen
   holidayCalendarGateway: HolidayCalendarGateway | undefined;
   holidayGateway: HolidayGateway | undefined;
   propertyGateway: PropertyGateway | undefined;
+  propertyProfileGateway: PropertyProfileGateway | undefined;
   pushGateway: PushGateway | undefined;
   onOpenBookingCreate: () => void;
   onOpenPage: (pageId: CloudPageId | UtilityViewId) => void;
   onLogout: () => void;
 }) {
-  if (view === 'bookings') return <BookingsView bookingCancelGateway={bookingCancelGateway} bookingUpdateGateway={bookingUpdateGateway} bookingUpdatePreviewGateway={bookingUpdatePreviewGateway} canCancel={session.allowedPages.includes('bookings')} canCreate={session.allowedPages.includes('bookings_new')} gateway={bookingListGateway} onOpenCheckIn={session.allowedPages.includes('checkin') ? onOpenBookingCheckIn : undefined} onOpenDeposit={session.allowedPages.includes('payments') && paymentCreateGateway?.manualCreate ? onOpenBookingDeposit : undefined} paymentListGateway={paymentListGateway} holidayGateway={holidayCalendarGateway} onOpenBookingCreate={onOpenBookingCreate} propertyId={session.propertyId} roomGateway={bookingRoomGateway} session={session} />;
+  if (view === 'bookings') return <BookingsView bookingCancelGateway={bookingCancelGateway} bookingUpdateGateway={bookingUpdateGateway} bookingUpdatePreviewGateway={bookingUpdatePreviewGateway} canCancel={session.allowedPages.includes('bookings')} canCreate={session.allowedPages.includes('bookings_new')} gateway={bookingListGateway} onOpenCheckIn={session.allowedPages.includes('checkin') ? onOpenBookingCheckIn : undefined} onOpenDeposit={session.allowedPages.includes('payments') && paymentCreateGateway?.manualCreate ? onOpenBookingDeposit : undefined} paymentListGateway={paymentListGateway} holidayGateway={holidayCalendarGateway} onOpenBookingCreate={onOpenBookingCreate} propertyId={session.propertyId} propertyProfileGateway={propertyProfileGateway} roomGateway={bookingRoomGateway} session={session} />;
   if (view === 'bookings_new') return <BookingCreatePage gateway={bookingCreateGateway} holidayGateway={holidayCalendarGateway} multiGateway={bookingMultiCreateGateway} onViewBookings={() => onOpenPage('bookings')} previewGateway={bookingPreviewGateway} roomGateway={bookingRoomGateway} session={session} />;
   if (view === 'checkin') return <StayCheckInPage bookingGateway={bookingListGateway} gateway={stayCheckInGateway} holidayGateway={holidayCalendarGateway} initialBookingId={targetBookingId} initialRoomId={targetRoomId} onInitialRoomHandled={onTargetRoomHandled} onBack={() => onOpenPage('rooms')} roomGateway={bookingRoomGateway} session={session} />;
   if (view === 'extend') return <StayExtendPage gateway={stayExtendGateway} holidayGateway={holidayCalendarGateway} initialRoomId={targetRoomId} onInitialRoomHandled={onTargetRoomHandled} onBack={() => onOpenPage('rooms')} session={session} staysGateway={activeStaysGateway} />;
@@ -810,6 +829,7 @@ export function App({
   holidayGateway,
   propertyGateway,
   propertyNameGateway,
+  propertyProfileGateway,
   pushGateway,
   onSwitchProperty,
   onLogout,
@@ -846,6 +866,7 @@ export function App({
   holidayGateway?: HolidayGateway;
   propertyGateway?: PropertyGateway;
   propertyNameGateway?: PropertyNameGateway;
+  propertyProfileGateway?: PropertyProfileGateway;
   pushGateway?: PushGateway;
   onSwitchProperty?: (propertyId: string) => void;
   onLogout?: () => void | Promise<void>;
@@ -950,6 +971,7 @@ export function App({
           holidayCalendarGateway={holidayCalendarGateway}
           holidayGateway={holidayGateway}
           propertyGateway={propertyGateway}
+          propertyProfileGateway={propertyProfileGateway}
           pushGateway={pushGateway}
           onOpenBookingCreate={() => setView('bookings_new')}
           onOpenPage={(pageId) => setView(pageId === 'users' ? 'accounts' : pageId)}

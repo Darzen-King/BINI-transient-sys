@@ -739,3 +739,77 @@ h1, h2, p { margin-top: 0; }
 .audit-detail-list dt { color: var(--muted); font-size: 12px; }
 .audit-detail-list dd { margin: 0; color: var(--ink); font-size: 13px; text-align: right; overflow-wrap: anywhere; }
 
+
+/* ── Reservation certificate: an A4 sheet the guest keeps, saved as PDF from the print dialog ── */
+.confirmation-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  padding: 14px 14px 40px;
+  overflow: auto;
+  background: var(--bds-color-neutral-200);
+  gap: 14px;
+}
+.confirmation-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  width: min(794px, 100%);
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  gap: 10px;
+}
+.confirmation-toolbar small { flex: 1 1 14rem; color: var(--muted); font-size: 12px; }
+.confirmation-status { display: grid; width: min(794px, 100%); justify-items: start; gap: 10px; }
+
+/* 794px is A4 width at 96dpi, so the preview matches the printed page. */
+.confirmation-sheet {
+  width: min(794px, 100%);
+  padding: 34px 38px;
+  background: white;
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.confirmation-sheet__head { display: flex; align-items: start; justify-content: space-between; padding-bottom: 14px; border-bottom: 2px solid var(--ink); gap: 16px; }
+.confirmation-sheet__head > div { display: grid; gap: 2px; }
+.confirmation-sheet__head span { font-size: 12.5px; }
+.confirmation-sheet__store { font-size: 19px; letter-spacing: -.01em; }
+.confirmation-sheet__logo { width: 92px; height: auto; }
+.confirmation-sheet__title { margin: 22px 0 16px; font-size: 22px; letter-spacing: .04em; text-align: center; }
+.confirmation-sheet__fields { display: grid; margin: 0; grid-template-columns: 1fr; gap: 0; }
+.confirmation-sheet__fields > div { display: flex; align-items: baseline; justify-content: space-between; padding: 8px 2px; border-bottom: 1px solid var(--bds-color-border-strong); gap: 16px; }
+.confirmation-sheet__fields dt { flex: 0 0 8.5rem; color: var(--muted); font-size: 13px; }
+.confirmation-sheet__fields dd { margin: 0; font-size: 14.5px; font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+.confirmation-sheet__notes { margin-top: 22px; }
+.confirmation-sheet__notes h2 { margin: 0 0 6px; font-size: 14px; }
+.confirmation-sheet__notes ul { margin: 0; padding-left: 1.2em; }
+.confirmation-sheet__notes li { font-size: 12.5px; }
+.confirmation-sheet__foot { display: flex; flex-wrap: wrap; justify-content: space-between; margin-top: 26px; padding-top: 10px; border-top: 1px solid var(--bds-color-border-strong); color: var(--muted); font-size: 11.5px; gap: 8px; }
+
+/* On a phone the preview keeps the same fields; the printed sheet stays A4 whatever the screen. */
+@media (max-width: 480px) {
+  .confirmation-sheet { padding: 20px 16px; }
+  .confirmation-sheet__fields dt { flex: 0 0 5.5rem; font-size: 12px; }
+  .confirmation-sheet__fields dd { font-size: 13.5px; }
+}
+@media (min-width: 768px) {
+  .confirmation-overlay { padding: 26px 26px 60px; }
+}
+
+/* Printing yields the PDF: only the sheet is on the page, and it fills the paper with no shadow. */
+@media print {
+  .app-shell { display: none !important; }
+  .confirmation-overlay { position: static; display: block; padding: 0; overflow: visible; background: white; }
+  .confirmation-toolbar, .confirmation-status { display: none !important; }
+  .confirmation-sheet { width: auto; padding: 0; box-shadow: none; }
+  .confirmation-sheet__notes, .confirmation-sheet__foot { break-inside: avoid; }
+}
+@page { size: A4; margin: 14mm; }

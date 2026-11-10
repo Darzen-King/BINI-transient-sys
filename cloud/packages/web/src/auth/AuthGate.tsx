@@ -40,6 +40,7 @@ import { createActiveStaysGateway } from '../stays/active-stays.js';
 import { createHolidayCalendarGateway } from '../stays/holiday-calendar.js';
 import { createHolidayGateway } from '../holidays/holiday-gateway.js';
 import { createPropertyGateway } from '../properties/property-gateway.js';
+import { createPropertyProfileGateway } from '../properties/property-profile.js';
 import { createStayCheckoutGateway } from '../stays/stay-checkout.js';
 import { createPaymentCreateGateway } from '../payments/payment-create.js';
 import { createPaymentListGateway } from '../payments/payment-list.js';
@@ -153,6 +154,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
   const roomManagementGateway = useMemo(() => createRoomManagementGateway(client.db, client.functions), [client.db, client.functions]);
   const roomTimelineGateway = useMemo(() => createRoomTimelineGateway(client.db), [client.db]);
   const propertyNameGateway = useMemo(() => createPropertyNameGateway(client.db), [client.db]);
+  const propertyProfileGateway = useMemo(() => createPropertyProfileGateway(client.db), [client.db]);
 
   const evaluateUser = useCallback(async (user: User) => {
     setCurrentUser(user);
@@ -378,6 +380,7 @@ export function AuthGate({ client }: { client: FirebaseClient }) {
       session={session}
       onSwitchProperty={switchProperty}
       propertyNameGateway={propertyNameGateway}
+      propertyProfileGateway={propertyProfileGateway}
       pushGateway={pushGateway}
       accountGateway={createAccountAdminGateway(client.functions)}
       dataImportGateway={createDataImportGateway(client.functions)}

@@ -27,6 +27,7 @@ import {
 import type { AccountAdminGateway } from '../accounts/account-admin.js';
 import type { AuditGateway } from '../audit/audit-gateway.js';
 import type { PropertyNameGateway } from '../auth/property-session.js';
+import type { PropertyProfileGateway } from '../properties/property-profile.js';
 import type { StaffSession } from '../auth/session.js';
 import type { BookingCancelGateway } from '../bookings/booking-cancel.js';
 import type { BookingCreateGateway } from '../bookings/booking-create.js';
@@ -180,6 +181,7 @@ export const previewGateways = {
   holidayGateway: { subscribe: (_p, onValue) => emit(onValue, () => buildHolidayList(data.holidays)), upsertManual: previewOnly, delete: previewOnly, resync: previewOnly } satisfies HolidayGateway,
   propertyGateway: { list: async () => [
     { propertyId: P, name: 'BINI Blooms 總館', address: '台北市中山區示範路 1 號', phone: '02-1234-5678', note: null, active: true, currency: 'TWD', timezone: 'Asia/Taipei', role: 'admin', allowedPages: [...CLOUD_PAGE_IDS] },
-  ], create: previewOnly } satisfies PropertyGateway,
+  ], create: previewOnly, update: previewOnly } satisfies PropertyGateway,
   propertyNameGateway: { load: async (ids) => Object.fromEntries(ids.map((id) => [id, id === P ? 'BINI Blooms 總館' : 'BINI Blooms 北館'])) } satisfies PropertyNameGateway,
+  propertyProfileGateway: { load: async () => ({ name: 'BINI Blooms 總館', address: '台北市中山區示範路 1 號', phone: '02-1234-5678' }) } satisfies PropertyProfileGateway,
 };

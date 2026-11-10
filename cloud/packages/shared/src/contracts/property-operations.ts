@@ -13,6 +13,19 @@ export const propertyCreateInputSchema = z.object({
 }).strict();
 export type PropertyCreateInput = z.infer<typeof propertyCreateInputSchema>;
 
+export const propertyUpdateInputSchema = z.object({
+  propertyId,
+  operationId: z.string().uuid(),
+  name: z.string().trim().min(1).max(200),
+  address: z.string().trim().max(1_000).nullable(),
+  phone: z.string().trim().max(100).nullable(),
+  note: z.string().trim().max(5_000).nullable(),
+}).strict();
+export type PropertyUpdateInput = z.infer<typeof propertyUpdateInputSchema>;
+
+export const propertyUpdateResultSchema = z.object({ propertyId, status: z.enum(['updated', 'replayed']), updatedAt: z.string().datetime() }).strict();
+export type PropertyUpdateResult = z.infer<typeof propertyUpdateResultSchema>;
+
 export const propertyListInputSchema = z.object({ sourcePropertyId: propertyId }).strict();
 export type PropertyListInput = z.infer<typeof propertyListInputSchema>;
 

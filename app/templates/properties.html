@@ -23,9 +23,62 @@
         </div>
       </div>
       <div class="fw-semibold mb-1">{{ prop.name }}</div>
-      {% if prop.address %}<div class="text-muted" style="font-size:.82rem">📍 {{ prop.address }}</div>{% endif %}
-      {% if prop.phone   %}<div class="text-muted" style="font-size:.82rem">📞 {{ prop.phone }}</div>{% endif %}
+      {% if prop.address %}
+      <div class="text-muted" style="font-size:.82rem">📍 {{ prop.address }}</div>
+      {% else %}
+      <div class="text-danger" style="font-size:.78rem">📍 {{ trans.get("property.address_missing","尚未填寫地址（預約證明不會顯示）") }}</div>
+      {% endif %}
+      {% if prop.phone %}
+      <div class="text-muted" style="font-size:.82rem">📞 {{ prop.phone }}</div>
+      {% else %}
+      <div class="text-danger" style="font-size:.78rem">📞 {{ trans.get("property.phone_missing","尚未填寫電話（預約證明不會顯示）") }}</div>
+      {% endif %}
       {% if prop.note    %}<div class="text-muted mt-1" style="font-size:.78rem">{{ prop.note }}</div>{% endif %}
+      <div class="mt-2">
+        <button class="btn btn-outline-secondary btn-sm" style="font-size:.76rem"
+                data-bs-toggle="modal" data-bs-target="#editPropModal{{ prop.id }}">
+          {{ trans.get("property.edit","編輯資料") }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="editPropModal{{ prop.id }}" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content rounded-3">
+        <div class="modal-header" style="background:#fdf4f9">
+          <h5 class="modal-title fw-bold" style="color:#db2877">{{ trans.get("property.edit","編輯資料") }} · {{ prop.id }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <form method="post" action="/properties/{{ prop.id }}/edit">
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("property.name","Name") }} <span class="text-danger">*</span></label>
+              <input type="text" name="name" class="form-control form-control-sm" required value="{{ prop.name }}">
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("property.address","Address") }}</label>
+              <input type="text" name="address" class="form-control form-control-sm" value="{{ prop.address or "" }}">
+              <div class="form-text" style="font-size:.74rem">{{ trans.get("property.printed_on_certificate","會印在預約證明上") }}</div>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("booking.phone","Phone") }}</label>
+              <input type="text" name="phone" class="form-control form-control-sm" value="{{ prop.phone or "" }}">
+              <div class="form-text" style="font-size:.74rem">{{ trans.get("property.printed_on_certificate","會印在預約證明上") }}</div>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold" style="font-size:.84rem">{{ trans.get("room.note","Note") }}</label>
+              <textarea name="note" class="form-control form-control-sm" rows="2">{{ prop.note or "" }}</textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ trans.get("action.cancel","Cancel") }}</button>
+          <button type="submit" class="btn btn-bb btn-sm">{{ trans.get("action.save","Save") }}</button>
+        </div>
+        </form>
+      </div>
     </div>
   </div>
   {% endfor %}

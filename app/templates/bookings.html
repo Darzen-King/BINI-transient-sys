@@ -98,6 +98,9 @@
                 {{ trans.get("action.checkin","入住") }}
               </a>
               <div class="d-flex gap-1 flex-wrap">
+              <a href="/bookings/{{ b.id }}/certificate" target="_blank" rel="noopener"
+                 class="btn btn-outline-secondary btn-sm" style="font-size:.72rem"
+                 title="{{ trans.get("booking.certificate","預約證明") }}">🧾</a>
               <a href="/bookings/{{ b.id }}/edit" class="btn btn-outline-primary btn-sm" style="font-size:.72rem">✏️</a>
               <form method="post" action="/bookings/{{ b.id }}/cancel"
                     onsubmit="return confirm('確認取消？')">

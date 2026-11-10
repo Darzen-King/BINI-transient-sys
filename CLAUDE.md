@@ -1,6 +1,6 @@
 # BINI Blooms PMS — 目前狀態（權威來源）
 
-> 最後更新：2026-11-10（預約證明 PDF、館別資料可編輯、部署快取修正）。**任何程式或設定改動，都要在同一次提交裡更新本檔的狀態與日期。**
+> 最後更新：2026-11-10（預約證明 PDF、館別資料可編輯、部署快取修正、單機版 v3.9.23）。**任何程式或設定改動，都要在同一次提交裡更新本檔的狀態與日期。**
 > 這份檔案是判斷「系統現在是什麼狀態」的唯一依據；其他文件（`task_plan.md`、`progress.md`、
 > `CLAUDE_CODE_交接.md`、`docs/cloud/*`）保留歷史脈絡，狀態以本檔為準。
 
@@ -50,7 +50,7 @@ npm run deploy:dev:hosting       # DEV 不需確認碼
 ## 驗證基準（2026-11-10）
 
 - 雲端：73 個測試檔、394 項測試通過；typecheck、lint、build 通過。
-- 單機：8 項回歸測試通過（`cost_profit_smoke_test.py`、`phase4_smoke_test.py` 需先灌測試資料才能跑）。
+- 單機：9 項回歸測試通過（`cost_profit_smoke_test.py`、`phase4_smoke_test.py` 需先灌測試資料才能跑）。
 - 自動健檢：2026-10-04 10:00 一次性排程，檢查錯誤日誌、備份、功能運作與 App Check 統計。
 
 ## 進行中／待決定
@@ -68,6 +68,10 @@ npm run deploy:dev:hosting       # DEV 不需確認碼
   所以每次部署後手機最久一小時還在跑舊版。`firebase.json` 改為 `**` → `no-cache`、`/assets/**` →
   `immutable`，`sw.js` 也改成每次導覽都以 `cache: 'reload'` 重新驗證 shell（快取名升到 `-6`）。
   **舊版用戶端要等舊的一小時快取過期或強制重新整理一次，之後才會自動更新。**
+- 單機版 v3.9.23（2026-11-10，已推上 GitHub `main`，由 App 內「檢查更新」套用）：把同一套預約證明搬到單機版，
+  斷網時也開得出來。預約管理每列的 🧾 開 `/bookings/{id}/certificate`（`app/services/booking_confirmation.py`
+  ＋ `app/templates/booking_certificate.html`），館別管理加上「編輯資料」（`POST /properties/{id}/edit`）。
+  單機版的館別地址電話同樣是空的，**要先補填才印得出來**；與雲端是各自獨立的資料。
 
 - App Check 是否改為強制（等健檢報告的已驗證比例）。
 - 報表「區間營收」（權責）與記帳 App「實際收款」（現金）的差異，現在可由報表的「未收款」區塊直接看出；

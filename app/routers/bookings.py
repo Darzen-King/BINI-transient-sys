@@ -378,6 +378,53 @@ async def booking_add_deposit(
     return RedirectResponse(f"/bookings/{booking_id}/edit?msg=deposit_added", status_code=303)
 
 
+@router.get("/bookings/{booking_id}/certificate", response_class=HTMLResponse)
+async def booking_certificate(
+    request:    Request,
+    booking_id: str,
+    db: Session = Depends(get_db),
+):
+    """The reservation certificate a guest takes away, printed from the browser as a PDF."""
+    from app.services.auth import get_current_user, require_role
+    from app.services.booking_confirmation import (
+        DEFAULT_NOTES_EN, DEFAULT_NOTES_ZH, build_confirmation, certificate_property,
+    )
+    from app.services.payments import booking_deposit_totals
+
+    user = get_current_user(request, db)
+    if not require_role(user, "admin", "manager", "front_desk"):
+        return RedirectResponse("/login?err=auth.forbidden", status_code=303)
+
+    lang  = get_lang(request)
+    trans = get_translations(lang)
+    bk    = bsvc.get_booking(db, booking_id)
+    if not bk:
+        return RedirectResponse("/bookings?err=error.not_found", status_code=303)
+
+    prop    = certificate_property(db, bk)
+    deposit = booking_deposit_totals(db, [bk.id]).get(bk.id, 0.0)
+    notes   = DEFAULT_NOTES_ZH if lang == "zh" else DEFAULT_NOTES_EN
+    try:
+        doc = build_confirmation(bk, prop, deposit_paid=deposit, notes=notes)
+    except ValueError as failure:
+        # A guest document is never printed with a guessed store name or a cancelled booking.
+        return templates.TemplateResponse("booking_certificate.html", {
+            "request": request, "doc": None, "reason": str(failure),
+            "booking": bk, "title": trans.get("booking.certificate", "預約證明"),
+            "trans": trans, "lang": lang,
+        }, status_code=409)
+
+    return templates.TemplateResponse("booking_certificate.html", {
+        "request": request,
+        "doc":     doc,
+        "reason":  "",
+        "booking": bk,
+        "title":   trans.get("booking.certificate", "預約證明"),
+        "trans":   trans,
+        "lang":    lang,
+    })
+
+
 @router.get("/bookings/{booking_id}/edit", response_class=HTMLResponse)
 async def booking_edit_page(
     request:    Request,

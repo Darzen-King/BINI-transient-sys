@@ -431,3 +431,40 @@ async def create_property(
     from app.services.backup import auto_backup as _ab_pc
     _ab_pc(db, trigger="property")
     return RedirectResponse("/properties?msg=created", status_code=303)
+
+
+@router.post("/properties/{prop_id}/edit")
+async def edit_property(
+    request: Request,
+    prop_id: str,
+    name:    str = Form(...),
+    address: str = Form(""),
+    phone:   str = Form(""),
+    note:    str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """
+    Corrects a property's store details. The reservation certificate prints the address and
+    phone, and properties could previously only be created, so there was nowhere to fix them.
+    """
+    user = _user(request, db)
+    if not auth_svc.require_role(user, "admin"): return _forbidden(request, db)
+    from app.models import Property
+    prop = db.query(Property).filter(Property.id == prop_id).first()
+    if prop is None:
+        return RedirectResponse("/properties?err=error.not_found", status_code=303)
+    before = {"name": prop.name, "address": prop.address, "phone": prop.phone, "note": prop.note}
+    prop.name    = name.strip()
+    prop.address = address.strip() or None
+    prop.phone   = phone.strip() or None
+    prop.note    = note.strip() or None
+    db.commit()
+    audit_svc.log_action(db, "property_update", target_id=prop_id,
+                          target_type="property", original_value=before,
+                          new_value={"name": prop.name, "address": prop.address,
+                                     "phone": prop.phone, "note": prop.note},
+                          description=f"Updated property: {prop_id} {prop.name}",
+                          user_id=user.username if user else "admin")
+    from app.services.backup import auto_backup as _ab_pe
+    _ab_pe(db, trigger="property")
+    return RedirectResponse("/properties?msg=updated", status_code=303)
